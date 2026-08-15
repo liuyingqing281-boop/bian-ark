@@ -4,54 +4,18 @@ import sharp from "sharp";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { createApiClient, createCookieJar, createReporter, resolveBaseUrl, resolveDbPath } from "./smoke/support.mjs";
 
-const BASE = "http://localhost:3002";
-const cookieJar = new Map();
-let failures = 0;
+const client = createApiClient({ baseUrl: resolveBaseUrl(), cookieJar: createCookieJar(), suite: "p2" });
+const reporter = createReporter({ suite: "p2" });
+const check = reporter.check;
+const api = (pathname, options) => client.request(pathname, options);
 const generatedFiles = [];
-
-function cookieHeader() {
-  return [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
-}
-function check(name, actual, expected = true) {
-  const pass = actual === expected;
-  if (!pass) failures++;
-  console.log(`${pass ? "PASS" : "FAIL"} ${name}: ${actual} (expect ${expected})`);
-}
-async function api(pathName, { method = "GET", body, form, auth = true } = {}) {
-  const headers = {};
-  if (auth && cookieJar.size) headers.Cookie = cookieHeader();
-  let payload;
-  if (body !== undefined) {
-    headers["Content-Type"] = "application/json";
-    payload = JSON.stringify(body);
-  } else if (form !== undefined) {
-    payload = form;
-  }
-  const res = await fetch(BASE + pathName, { method, headers, body: payload, redirect: "manual" });
-  const setCookie = res.headers.get("set-cookie");
-  if (setCookie) {
-    for (const part of setCookie.split(/,(?=[^;,=]+=[^;,]+)/)) {
-      const [pair] = part.split(";");
-      const idx = pair.indexOf("=");
-      if (idx > 0) {
-        const name = pair.slice(0, idx).trim();
-        const value = pair.slice(idx + 1).trim();
-        if (value === "") cookieJar.delete(name);
-        else cookieJar.set(name, value);
-      }
-    }
-  }
-  const text = await res.text();
-  let json = null;
-  try { json = JSON.parse(text); } catch {}
-  return { status: res.status, json, text };
-}
 
 // login
 const rc = await api("/api/auth/request-code", { method: "POST", body: { channel: "email", target: "test@example.com" }, auth: false });
 await api("/api/auth/verify", { method: "POST", body: { channel: "email", target: "test@example.com", code: rc.json.devCode }, auth: false });
-check("login ok", cookieJar.has("bian_session"));
+check("login ok", client.cookieJar.has("bian_session"));
 
 // memorial + markdown biography
 const cm = await api("/api/memorials", { method: "POST", body: { name: "测试逝者P2", type: "person", biography: "## 生平\n**慈爱**的母亲，[纪念文](https://example.com)\n\n平凡一生。" } });
@@ -77,7 +41,7 @@ check("4th generate quota 429", quotaHit.status, 429);
 check("quota error code", quotaHit.json?.error, "quota_exceeded");
 
 // candidate image actually served
-const candResp = await fetch(BASE + lastGen.json.candidates[0]);
+const candResp = await fetch(`${resolveBaseUrl()}${lastGen.json.candidates[0]}`);
 check("candidate image served", candResp.status, 200);
 
 // claim candidate
@@ -101,7 +65,7 @@ check("page has uploaded item", page.text.includes("红酒一瓶"), true);
 check("page has offer panel", page.text.includes("官方祭品"), true);
 
 // tribute with custom item (form post)
-const tr = await fetch(BASE + "/api/tribute", {
+const tr = await fetch(`${resolveBaseUrl()}/api/tribute`, {
   method: "POST",
   body: new URLSearchParams({ memorial_id: mid, lang: "zh", item_id: customItemId, message: "ai 花给你" }),
   redirect: "manual",
@@ -131,7 +95,7 @@ const gardenPage2 = await api("/zh/garden", { auth: false });
 check("garden empty after remove", gardenPage2.text.includes("测试逝者P2"), false);
 
 // cleanup
-const db = new Database("E:/彼岸/data/bian.db");
+const db = new Database(resolveDbPath());
 const testUsers = db.prepare("SELECT id FROM users WHERE email LIKE 'test%@example.com'").all().map((r) => r.id);
 for (const uid of testUsers) {
   const mids = db.prepare("SELECT id FROM memorials WHERE user_id = ?").all(uid).map((r) => r.id);
@@ -153,10 +117,10 @@ db.prepare("DELETE FROM group_members WHERE group_id NOT IN (SELECT id FROM grou
 db.close();
 for (const url of generatedFiles) {
   if (typeof url === "string" && url.startsWith("/uploads/")) {
-    const filePath = path.join("E:/彼岸/data", url);
+    const filePath = path.join(process.cwd(), "data", url);
     try { fs.unlinkSync(filePath); } catch {}
   }
 }
 console.log("cleanup done");
-console.log(failures === 0 ? "ALL PASS" : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+console.log(reporter.failures === 0 ? "ALL PASS" : `${reporter.failures} FAILURES`);
+process.exit(reporter.failures === 0 ? 0 : 1);

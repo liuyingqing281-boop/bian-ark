@@ -3,36 +3,10 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3");
 const path = require("path");
-
-const BASE = process.env.BASE_URL || "http://localhost:3000";
-let passed = 0;
-let failed = 0;
-function check(name, cond, extra = "") {
-  if (cond) { passed++; console.log(`  PASS ${name}`); }
-  else { failed++; console.log(`  FAIL ${name} ${extra}`); }
-}
-
-const jar = new Map();
-function storeCookies(res) {
-  const set = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
-  for (const c of set) {
-    const pair = c.split(";")[0];
-    const i = pair.indexOf("=");
-    jar.set(pair.slice(0, i).trim(), pair.slice(i + 1).trim());
-  }
-}
-async function api(pathname, { method = "GET", json, form } = {}) {
-  const headers = { cookie: [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ") };
-  let body;
-  if (json) { headers["content-type"] = "application/json"; body = JSON.stringify(json); }
-  if (form) body = form;
-  const res = await fetch(BASE + pathname, { method, headers, body });
-  storeCookies(res);
-  const text = await res.text();
-  let parsed = {};
-  try { parsed = JSON.parse(text); } catch { /* html or empty */ }
-  return { status: res.status, body: parsed, raw: text };
-}
+const { createApiClient, createCookieJar, createReporter, resolveBaseUrl, resolveDbPath, waitFor } = await import("./smoke/support.mjs");
+const client = createApiClient({ baseUrl: resolveBaseUrl(), cookieJar: createCookieJar(), suite: "p4" });
+const reporter = createReporter({ suite: "p4" });
+const api = (pathname, options = {}) => client.request(pathname, options);
 
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
@@ -51,16 +25,16 @@ function dhForm({ consent, script, useBio, withPhoto = true, withAudio = false, 
 
 const stamp = Date.now();
 const email = `p4-${stamp}@test.local`;
-const db = new Database(path.join(process.cwd(), "data", "bian.db"));
+const db = new Database(resolveDbPath());
 let memorialId = null;
 let taskId = null;
 
 try {
   // 1. login (dev code echo)
   const rc = await api("/api/auth/request-code", { method: "POST", json: { channel: "email", target: email } });
-  check("request-code returns devCode", rc.status === 200 && !!rc.body.devCode, JSON.stringify(rc.body));
+  reporter.assert(rc.status === 200 && !!rc.body.devCode, "request-code returns devCode", rc.body);
   const vr = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: rc.body.devCode } });
-  check("verify sets session", vr.status === 200 && jar.has("bian_session"));
+  reporter.assert(vr.status === 200 && client.cookieJar.has("bian_session"), "verify sets session");
 
   // 2. create memorial
   const cm = await api("/api/memorials", {
@@ -68,74 +42,72 @@ try {
     json: { name: `P4测试-${stamp}`, biography: "他一生善良正直，深受家人爱戴。" },
   });
   memorialId = cm.body.id;
-  check("memorial created", cm.status === 200 && !!memorialId, JSON.stringify(cm.body));
+  reporter.assert(cm.status === 200 && !!memorialId, "memorial created", cm.body);
 
   // 3. free user blocked
   let res = await api("/api/digitalhumans", { method: "POST", form: dhForm({ consent: true, script: "大家好", memorialId }) });
-  check("free user rejected premium_only", res.status === 403 && res.body.error === "premium_only", `${res.status} ${JSON.stringify(res.body)}`);
+  reporter.assert(res.status === 403 && res.body.error === "premium_only", "free user rejected premium_only", { status: res.status, body: res.body });
 
   // 4. upgrade to premium directly in db
   db.prepare("UPDATE users SET membership_tier = 'premium' WHERE email = ?").run(email);
 
   // 5. consent required
   res = await api("/api/digitalhumans", { method: "POST", form: dhForm({ consent: false, script: "大家好", memorialId }) });
-  check("consent required", res.status === 400 && res.body.error === "consent_required", `${res.status}`);
+  reporter.assert(res.status === 400 && res.body.error === "consent_required", "consent required", { status: res.status });
 
   // 6. script required
   res = await api("/api/digitalhumans", { method: "POST", form: dhForm({ consent: true, script: "", memorialId }) });
-  check("script required", res.status === 400 && res.body.error === "script_required", `${res.status}`);
+  reporter.assert(res.status === 400 && res.body.error === "script_required", "script required", { status: res.status });
 
   // 7. create task (photo + audio + custom script)
   res = await api("/api/digitalhumans", { method: "POST", form: dhForm({ consent: true, script: "孩子们，我很想你们。", withAudio: true, memorialId }) });
   taskId = res.body.id;
-  check("task created", res.status === 200 && res.body.ok === true && !!taskId, JSON.stringify(res.body));
+  reporter.assert(res.status === 200 && res.body.ok === true && !!taskId, "task created", res.body);
 
   // 8. poll until reviewing (mock pipeline ~4s)
   let task = null;
-  const deadline = Date.now() + 40000;
-  while (Date.now() < deadline) {
+  task = await waitFor(async () => {
     const g = await api(`/api/digitalhumans?memorial_id=${memorialId}`);
-    task = (g.body.tasks || []).find((t) => t.id === taskId);
-    if (task && (task.status === "reviewing" || task.status === "failed")) break;
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-  check("mock pipeline reaches reviewing", task && task.status === "reviewing", task ? task.status + " " + task.error : "no task");
-  check("result asset generated", !!task?.result_video_url, task?.result_video_url || "");
+    const candidate = (g.body.tasks || []).find((t) => t.id === taskId);
+    return candidate && (candidate.status === "reviewing" || candidate.status === "failed") ? candidate : null;
+  }, { timeoutMs: 40_000, intervalMs: 1_500, label: `digital-human:${taskId}` });
+  reporter.assert(task && task.status === "reviewing", "mock pipeline reaches reviewing", task || "no task");
+  reporter.assert(!!task?.result_video_url, "result asset generated", task?.result_video_url || "");
 
   // 9. second task blocked (one per memorial)
   res = await api("/api/digitalhumans", { method: "POST", form: dhForm({ consent: true, script: "again", memorialId }) });
-  check("quota_used on second task", res.status === 409 && res.body.error === "quota_used", `${res.status}`);
+  reporter.assert(res.status === 409 && res.body.error === "quota_used", "quota_used on second task", { status: res.status });
 
   // 10. webhook requires secret
   res = await api("/api/digitalhumans/callback", { method: "POST", json: { provider_job_id: "x", status: "succeeded" } });
-  check("callback rejected without secret", res.status === 401, `${res.status}`);
+  reporter.assert(res.status === 401, "callback rejected without secret", { status: res.status });
 
   // 11. admin review queue contains task, approve it
   const adminGet = await api("/api/admin");
   const inQueue = (adminGet.body.digitalHumans || []).find((d) => d.id === taskId);
-  check("task in admin review queue", !!inQueue && inQueue.status === "reviewing", JSON.stringify(inQueue || null));
+  reporter.assert(!!inQueue && inQueue.status === "reviewing", "task in admin review queue", inQueue || null);
   res = await api("/api/admin", { method: "POST", json: { action: "review_digital_human", id: taskId, decision: "approve" } });
-  check("admin approve ok", res.status === 200 && res.body.success === true);
+  reporter.assert(res.status === 200 && res.body.success === true, "admin approve ok");
 
   // 12. status done + asset served
   const g2 = await api(`/api/digitalhumans?memorial_id=${memorialId}`);
   const done = (g2.body.tasks || []).find((t) => t.id === taskId);
-  check("task done after approve", done?.status === "done", done?.status);
+  reporter.assert(done?.status === "done", "task done after approve", done?.status);
   // 13. admin API rejects anonymous
-  const anon = await fetch(BASE + "/api/admin");
-  check("admin API rejects anonymous", anon.status === 403, String(anon.status));
+  const anon = await fetch(`${resolveBaseUrl()}/api/admin`);
+  reporter.assert(anon.status === 403, "admin API rejects anonymous", { status: anon.status });
 
   // 14. stripe checkout fails closed without keys
   res = await api("/api/stripe", { method: "POST", json: { kind: "dh_redo", memorial_id: memorialId } });
-  check("checkout payment_not_configured", res.status === 503 && res.body.error === "payment_not_configured", res.status + " " + JSON.stringify(res.body));
+  reporter.assert(res.status === 503 && res.body.error === "payment_not_configured", "checkout payment_not_configured", { status: res.status, body: res.body });
 
   // 15. events tracked in admin stats
   const adminGet2 = await api("/api/admin");
   const statTypes = (adminGet2.body.stats || []).map((s) => s.type);
-  check("events tracked (login, dh_create, dh_job)", ["login", "dh_create", "dh_job"].every((x) => statTypes.includes(x)), statTypes.join(","));
+  reporter.assert(["login", "dh_create", "dh_job"].every((x) => statTypes.includes(x)), "events tracked (login, dh_create, dh_job)", statTypes);
 
-  const asset = await fetch(BASE + done.result_video_url);
-  check("result asset served over /uploads", asset.status === 200, `${asset.status}`);
+  const asset = await fetch(`${resolveBaseUrl()}${done.result_video_url}`);
+  reporter.assert(asset.status === 200, "result asset served over /uploads", { status: asset.status });
 } finally {
   // cleanup
   if (taskId) {
@@ -164,5 +136,5 @@ try {
   db.close();
 }
 
-console.log(`\nP4 smoke: ${passed} passed, ${failed} failed`);
-process.exit(failed ? 1 : 0);
+console.log(`\nP4 smoke: ${reporter.passes} passed, ${reporter.failures} failed`);
+process.exit(reporter.failures ? 1 : 0);
