@@ -3,8 +3,9 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3");
 const path = require("path");
-const { createApiClient, createCookieJar, createReporter, resolveBaseUrl, resolveDbPath, waitFor } = await import("./smoke/support.mjs");
-const client = createApiClient({ baseUrl: resolveBaseUrl(), cookieJar: createCookieJar(), suite: "p4" });
+const { createApiClient, createCookieJar, createReporter, createRunContext, resolveBaseUrl, resolveDbPath, waitFor } = await import("./smoke/support.mjs");
+const context = createRunContext("p4");
+const client = createApiClient({ baseUrl: resolveBaseUrl(), cookieJar: createCookieJar(), suite: `p4-${context.runId}` });
 const reporter = createReporter({ suite: "p4" });
 const api = (pathname, options = {}) => client.request(pathname, options);
 
@@ -24,7 +25,8 @@ function dhForm({ consent, script, useBio, withPhoto = true, withAudio = false, 
 }
 
 const stamp = Date.now();
-const email = `p4-${stamp}@test.local`;
+const email = context.testEmail("owner");
+const memorialName = `P4测试-${context.runId}`;
 const db = new Database(resolveDbPath());
 let memorialId = null;
 let taskId = null;
@@ -39,7 +41,7 @@ try {
   // 2. create memorial
   const cm = await api("/api/memorials", {
     method: "POST",
-    json: { name: `P4测试-${stamp}`, biography: "他一生善良正直，深受家人爱戴。" },
+    json: { name: memorialName, biography: `他一生善良正直，深受家人爱戴。运行标识：${context.runId}` },
   });
   memorialId = cm.body.id;
   reporter.assert(cm.status === 200 && !!memorialId, "memorial created", cm.body);
