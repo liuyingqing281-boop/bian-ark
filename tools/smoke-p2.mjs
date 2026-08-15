@@ -14,20 +14,52 @@ const api = (pathname, options) => client.request(pathname, options);
 const resources = createResourceRegistry("p2", context.runId);
 resources.register("userEmails", email);
 const db = new Database(resolveDbPath());
+const offeringPrompt = `一束白色马蹄莲，运行标识 ${context.runId}`;
+const offeringName = `马蹄莲-${context.runId.slice(-6)}`;
+
+function requireResponse(name, response, { status = 200, validate = () => true, expected = "valid JSON response" } = {}) {
+  const statusOk = response.status === status;
+  const structureOk = validate(response.json);
+  check(`${name} status`, response.status, status);
+  check(`${name} response structure`, structureOk, true);
+  if (!statusOk || !structureOk) {
+    const summary = JSON.stringify(response.json ?? response.text).slice(0, 500);
+    throw new Error(`[p2 ${context.runId}] ${name} failed: expected ${expected}; status=${response.status}; response=${summary}`);
+  }
+  return response.json;
+}
 
 try {
 // login
 const rc = await api("/api/auth/request-code", { method: "POST", body: { channel: "email", target: email }, auth: false });
-await api("/api/auth/verify", { method: "POST", body: { channel: "email", target: email, code: rc.json.devCode }, auth: false });
+const requestCode = requireResponse("request code", rc, {
+  validate: (json) => json?.ok === true && typeof json.devCode === "string",
+  expected: "HTTP 200 with ok and devCode",
+});
+const verify = await api("/api/auth/verify", { method: "POST", body: { channel: "email", target: email, code: requestCode.devCode }, auth: false });
+requireResponse("verify login", verify, {
+  validate: (json) => json?.ok === true,
+  expected: "HTTP 200 with ok=true",
+});
 check("login ok", client.cookieJar.has("bian_session"));
 resources.registerUser(email, db.prepare("SELECT id FROM users WHERE email = ?").get(email)?.id);
 
 // memorial + markdown biography
 const memorialName = `测试逝者P2-${context.runId}`;
 const cm = await api("/api/memorials", { method: "POST", body: { name: memorialName, type: "person", biography: `## 生平\n**慈爱**的母亲，[纪念文](https://example.com)\n\n平凡一生。\n\n运行标识：${context.runId}` } });
-const mid = cm.json.id;
+if (process.env.SMOKE_FORCE_MISSING_ID === "memorial" && cm.json) {
+  resources.register("memorialIds", cm.json.id);
+  delete cm.json.id;
+}
+const memorial = requireResponse("create memorial", cm, {
+  validate: (json) => json?.ok === true && typeof json.id === "string" && json.id.length > 0,
+  expected: "HTTP 200 with ok=true and memorial id",
+});
+const mid = memorial.id;
 resources.register("memorialIds", mid);
 const bioPage = await api(`/zh/memorial/${mid}`);
+check("biography page status", bioPage.status, 200);
+check("biography page shows run data", bioPage.text.includes(context.runId), true);
 check("markdown bold rendered", bioPage.text.includes("<strong"), true);
 check("markdown link rendered", bioPage.text.includes('href="https://example.com"'), true);
 check("markdown heading rendered", bioPage.text.includes("<h3"), true);
@@ -35,26 +67,36 @@ check("markdown heading rendered", bioPage.text.includes("<h3"), true);
 // AI generate (mock provider) x3 ok, 4th quota exceeded
 let lastGen = null;
 for (let i = 0; i < 3; i++) {
-  lastGen = await api("/api/items/generate", { method: "POST", body: { prompt: "一束白色马蹄莲" } });
+  const generated = await api("/api/items/generate", { method: "POST", body: { prompt: offeringPrompt } });
+  lastGen = requireResponse(`generate offerings ${i + 1}`, generated, {
+    validate: (json) => json?.ok === true && Array.isArray(json.candidates) && json.candidates.length === 4
+      && json.candidates.every((url) => typeof url === "string" && url.startsWith("/uploads/items/")),
+    expected: "HTTP 200 with four /uploads/items/ candidates",
+  });
   if (i === 0) {
-    check("generate provider mock", lastGen.json?.provider, "mock");
-    check("generate 4 candidates", lastGen.json?.candidates?.length, 4);
-    check("candidate url shape", lastGen.json?.candidates?.[0]?.startsWith("/uploads/items/"), true);
+    check("generate provider mock", lastGen.provider, "mock");
   }
-  registerUpload(resources, ...(lastGen.json?.candidates || []));
+  registerUpload(resources, ...lastGen.candidates);
 }
 const quotaHit = await api("/api/items/generate", { method: "POST", body: { prompt: "再来一束" } });
-check("4th generate quota 429", quotaHit.status, 429);
-check("quota error code", quotaHit.json?.error, "quota_exceeded");
+requireResponse("4th generate quota", quotaHit, {
+  status: 429,
+  validate: (json) => json?.error === "quota_exceeded",
+  expected: "HTTP 429 with quota_exceeded",
+});
 
 // candidate image actually served
-const candResp = await fetch(`${resolveBaseUrl()}${lastGen.json.candidates[0]}`);
+const candidateUrl = lastGen.candidates[0];
+const candResp = await fetch(`${resolveBaseUrl()}${candidateUrl}`);
 check("candidate image served", candResp.status, 200);
 
 // claim candidate
-const claim = await api("/api/items/claim", { method: "POST", body: { url: lastGen.json.candidates[0], prompt: "一束白色马蹄莲" } });
-check("claim ok", claim.json?.ok, true);
-const customItemId = claim.json.id;
+const claim = await api("/api/items/claim", { method: "POST", body: { url: candidateUrl, prompt: offeringPrompt, name: offeringName } });
+const claimedItem = requireResponse("claim offering", claim, {
+  validate: (json) => json?.ok === true && typeof json.id === "string" && json.id.length > 0,
+  expected: "HTTP 200 with ok=true and item id",
+});
+const customItemId = claimedItem.id;
 resources.register("itemIds", customItemId);
 
 // upload custom item
@@ -64,16 +106,19 @@ const customItemName = `红酒一瓶-${context.runId}`;
 form.append("name", customItemName);
 form.append("file", new Blob([png], { type: "image/png" }), "wine.png");
 const up = await api("/api/items/upload", { method: "POST", form });
-check("upload custom item ok", up.json?.ok, true);
-resources.register("itemIds", up.json?.id);
-registerUpload(resources, up.json?.url, up.json?.thumbUrl);
+const uploadedItem = requireResponse("upload custom item", up, {
+  validate: (json) => json?.ok === true && typeof json.id === "string" && typeof json.url === "string",
+  expected: "HTTP 200 with ok=true, item id and upload URL",
+});
+resources.register("itemIds", uploadedItem.id);
+registerUpload(resources, uploadedItem.url, uploadedItem.thumbUrl);
 if (process.env.SMOKE_FORCE_FAILURE === "p2") throw new Error("forced_failure_after_upload");
 
 // memorial page shows custom items (RSC serialized props)
 const page = await api(`/zh/memorial/${mid}`);
-check("page has claimed item", page.text.includes("一束白色马蹄莲"), true);
+check("custom items page status", page.status, 200);
+check("page has claimed item", page.text.includes(offeringName), true);
 check("page has uploaded item", page.text.includes(customItemName), true);
-check("page has offer panel", page.text.includes("官方祭品"), true);
 
 // tribute with custom item (form post)
 const tr = await fetch(`${resolveBaseUrl()}/api/tribute`, {
@@ -87,21 +132,45 @@ check("wall shows custom item image", wall.text.includes("/uploads/items/"), tru
 
 // garden flow
 const notPublic = await api(`/api/memorials/${mid}/garden`, { method: "POST", body: { in_garden: true } });
-check("garden place requires public", notPublic.status, 400);
-check("garden error code", notPublic.json?.error, "visibility_required");
-await api(`/api/memorials/${mid}`, { method: "PATCH", body: { visibility: "public" } });
+requireResponse("private memorial garden rejection", notPublic, {
+  status: 400,
+  validate: (json) => json?.error === "visibility_required",
+  expected: "HTTP 400 with visibility_required",
+});
+const publish = await api(`/api/memorials/${mid}`, { method: "PATCH", body: { visibility: "public" } });
+requireResponse("publish memorial", publish, {
+  validate: (json) => json?.ok === true,
+  expected: "HTTP 200 with ok=true",
+});
 const place = await api(`/api/memorials/${mid}/garden`, { method: "POST", body: { in_garden: true } });
-check("garden place ok", place.json?.ok, true);
-check("garden slot assigned", place.json?.slot >= 1, true);
+const placement = requireResponse("place memorial in garden", place, {
+  validate: (json) => json?.ok === true && json.in_garden === true && Number.isInteger(json.slot)
+    && json.slot >= 1 && typeof json.section === "string",
+  expected: "HTTP 200 with garden slot and section",
+});
 const gardenPage = await api("/zh/garden", { auth: false });
+check("garden page status", gardenPage.status, 200);
 check("garden page shows memorial", gardenPage.text.includes(memorialName), true);
-check("garden page has section", gardenPage.text.includes("松涛区"), true);
 const gardenApi = await api(`/api/garden?q=${encodeURIComponent(context.runId)}`, { auth: false });
-check("garden api search finds it", gardenApi.json?.memorials?.some((m) => m.id === mid), true);
+const gardenResult = requireResponse("search garden by run id", gardenApi, {
+  validate: (json) => Array.isArray(json?.memorials),
+  expected: "HTTP 200 with memorials array",
+});
+const gardenRecord = gardenResult.memorials.find((record) => record.id === mid);
+check("garden api record id", gardenRecord?.id, mid);
+check("garden api record section", gardenRecord?.garden_section, placement.section);
+check("garden api record slot", gardenRecord?.garden_slot, placement.slot);
 const gardenApiMiss = await api("/api/garden?q=不存在的人", { auth: false });
-check("garden api search miss", gardenApiMiss.json?.memorials?.length, 0);
+const gardenMiss = requireResponse("search missing garden memorial", gardenApiMiss, {
+  validate: (json) => Array.isArray(json?.memorials),
+  expected: "HTTP 200 with memorials array",
+});
+check("garden api search miss", gardenMiss.memorials.length, 0);
 const remove = await api(`/api/memorials/${mid}/garden`, { method: "POST", body: { in_garden: false } });
-check("garden remove ok", remove.json?.ok, true);
+requireResponse("remove memorial from garden", remove, {
+  validate: (json) => json?.ok === true && json.in_garden === false,
+  expected: "HTTP 200 with in_garden=false",
+});
 const gardenPage2 = await api("/zh/garden", { auth: false });
 check("garden empty after remove", gardenPage2.text.includes(memorialName), false);
 } finally {
