@@ -57,11 +57,12 @@ function getSetCookieHeaders(headers) {
   return header ? [header] : [];
 }
 
-export function createApiClient({ baseUrl = resolveBaseUrl(), cookieJar = createCookieJar(), suite = "smoke", timeoutMs = 15_000 } = {}) {
+export function createApiClient({ baseUrl = resolveBaseUrl(), cookieJar = createCookieJar(), suite = "smoke", identity = null, timeoutMs = 15_000 } = {}) {
   const root = baseUrl.replace(/\/$/, "");
   return {
     cookieJar,
     async request(pathname, { method = "GET", body, json, form, auth = true, redirect = "manual", timeout = timeoutMs } = {}) {
+      if (identity) console.log(`[${suite}] identity=${identity} ${method} ${pathname}`);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
       const headers = {};
