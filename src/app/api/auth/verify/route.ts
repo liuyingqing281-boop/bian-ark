@@ -1,0 +1,56 @@
+import { NextRequest, NextResponse } from "next/server";
+import { v4 as uuid } from "uuid";
+import { getDb } from "../../../../lib/db";
+import { createSession } from "../../../../lib/auth";
+import { trackEvent } from "../../../../lib/events";
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const channel = body?.channel === "sms" ? "sms" : body?.channel === "email" ? "email" : null;
+  const target = String(body?.target || "").trim();
+  const code = String(body?.code || "").trim();
+  const name = String(body?.name || "").trim().slice(0, 32);
+  if (!channel || !target || !/^\d{6}$/.test(code)) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT rowid, code, expires_at, attempts FROM login_codes
+       WHERE channel = ? AND target = ? AND used = 0 ORDER BY created_at DESC LIMIT 1`
+    )
+    .get(channel, target) as
+    | { rowid: number; code: string; expires_at: string; attempts: number }
+    | undefined;
+  if (!row) return NextResponse.json({ error: "code_not_found" }, { status: 400 });
+  if (new Date(row.expires_at.replace(" ", "T") + "Z").getTime() < Date.now()) {
+    return NextResponse.json({ error: "code_expired" }, { status: 400 });
+  }
+  if (row.attempts >= 5) {
+    return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
+  }
+  if (row.code !== code) {
+    db.prepare("UPDATE login_codes SET attempts = attempts + 1 WHERE rowid = ?").run(row.rowid);
+    return NextResponse.json({ error: "code_wrong" }, { status: 400 });
+  }
+  db.prepare("UPDATE login_codes SET used = 1 WHERE rowid = ?").run(row.rowid);
+
+  const column = channel === "email" ? "email" : "phone";
+  let user = db.prepare(`SELECT id FROM users WHERE ${column} = ?`).get(target) as
+    | { id: string }
+    | undefined;
+  if (!user) {
+    const id = uuid();
+    db.prepare("INSERT INTO users (id, email, phone, name) VALUES (?, ?, ?, ?)").run(
+      id,
+      channel === "email" ? target : null,
+      channel === "sms" ? target : null,
+      name || (channel === "email" ? target.split("@")[0] : `用户${target.slice(-4)}`)
+    );
+    user = { id };
+  }
+  await createSession(user.id);
+  trackEvent("login", { channel }, user.id);
+  return NextResponse.json({ ok: true });
+}

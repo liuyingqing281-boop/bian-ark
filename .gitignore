@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+dist/
+.workflow/
+data/
+
+.env
+.env.*
+!.env.example
+
+*.log
+*.tsbuildinfo
+
+coverage/
+.DS_Store
+Thumbs.db

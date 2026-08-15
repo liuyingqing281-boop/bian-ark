@@ -1,0 +1,35 @@
+{
+  "name": "bian",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "node tools/patch-devtools-zh.cjs"
+  },
+  "dependencies": {
+    "@stripe/stripe-js": "^9.12.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/three": "^0.185.4",
+    "better-sqlite3": "^13.0.2",
+    "next": "^16.3.0",
+    "nodemailer": "^9.0.4",
+    "postcss": "^8.5.25",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "sharp": "^0.35.3",
+    "stripe": "^22.4.0",
+    "tailwindcss": "^4.3.3",
+    "three": "^0.185.1",
+    "typescript": "^7.0.2",
+    "uuid": "^14.0.1",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/nodemailer": "^8.0.1"
+  }
+}
