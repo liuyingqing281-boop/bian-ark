@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const id = uuid();
   db.prepare(
     `INSERT INTO items (id, name, category, icon, image_url, style, owner_user_id, source, prompt, review_status)
-     VALUES (?, ?, 'custom', '', ?, 'realistic', ?, 'ai', ?, 'approved')`
+     VALUES (?, ?, 'custom', '', ?, 'realistic', ?, 'ai', ?, 'pending')`
   ).run(id, name, url, user.id, prompt);
   return NextResponse.json({ ok: true, id });
 }

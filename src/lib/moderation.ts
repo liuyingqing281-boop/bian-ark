@@ -6,6 +6,7 @@ import { createHmac, createHash, randomUUID } from "crypto";
 
 export interface ModerationResult {
   pass: boolean;
+  status: "approved" | "pending" | "rejected";
   reason?: string;
 }
 
@@ -58,20 +59,22 @@ async function aliyunGreenText(text: string): Promise<ModerationResult> {
   if (!resp.ok) {
     console.error("[moderation] aliyun green error", resp.status, data);
     // fail-open to manual review rather than silently dropping content
-    return { pass: true, reason: "moderation_unavailable" };
+    return { pass: true, status: "pending", reason: "moderation_unavailable" };
   }
   const labels: string = data?.Data?.Result?.[0]?.Label || data?.Data?.Labels || "";
   const risky = labels && !/^(nonLabel|normal)$/i.test(labels);
-  return risky ? { pass: false, reason: labels } : { pass: true };
+  return risky
+    ? { pass: false, status: "rejected", reason: labels }
+    : { pass: true, status: "approved" };
 }
 
 export async function moderateText(text: string): Promise<ModerationResult> {
-  if (!text || !text.trim()) return { pass: true };
-  if (!moderationEnabled()) return { pass: true };
+  if (!text || !text.trim()) return { pass: true, status: "approved" };
+  if (!moderationEnabled()) return { pass: true, status: "pending", reason: "moderation_not_configured" };
   try {
     return await aliyunGreenText(text.slice(0, 900));
   } catch (err) {
     console.error("[moderation] failed", err);
-    return { pass: true, reason: "moderation_error" };
+    return { pass: true, status: "pending", reason: "moderation_error" };
   }
 }

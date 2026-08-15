@@ -12,6 +12,9 @@ export interface MediaItem {
   url: string;
   thumb_url: string;
   caption: string;
+  sort_order: number;
+  is_cover: number;
+  review_status: string;
 }
 
 export default function MediaManager({
@@ -50,6 +53,17 @@ export default function MediaManager({
       body: JSON.stringify({ id }),
     });
     router.refresh();
+  }
+
+  async function update(id: string, changes: Record<string, unknown>) {
+    setBusy(true);
+    const response = await fetch(`/api/media/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    });
+    setBusy(false);
+    if (response.ok) router.refresh();
   }
 
   return (
@@ -92,13 +106,20 @@ export default function MediaManager({
               {item.kind === "video" ? (
                 <video src={item.url} controls className="w-full aspect-square object-cover rounded-lg bg-stone-800" />
               ) : (
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  <Image                     src={item.thumb_url || item.url}
+                <a href={item.url} target="_blank" rel="noreferrer" className="block relative aspect-square">
+                  <Image src={item.thumb_url || item.url}
                     alt={item.caption}
                     className="w-full aspect-square object-cover rounded-lg bg-stone-800"
                    fill />
                 </a>
               )}
+              <div className="mt-1 flex items-center gap-1 text-[11px] text-stone-500">
+                {item.is_cover === 1 && <span className="text-amber-500">封面</span>}
+                {item.review_status !== "approved" && <span>待审核</span>}
+                <button type="button" disabled={busy} onClick={() => update(item.id, { sort_order: Math.max(0, item.sort_order - 1) })} title="前移" className="ml-auto px-1 hover:text-stone-200">←</button>
+                <button type="button" disabled={busy} onClick={() => update(item.id, { sort_order: item.sort_order + 1 })} title="后移" className="px-1 hover:text-stone-200">→</button>
+                <button type="button" disabled={busy} onClick={() => update(item.id, { is_cover: true })} title="设为封面" className="px-1 hover:text-amber-400">★</button>
+              </div>
               {item.caption && <p className="mt-1 text-xs text-stone-500 truncate">{item.caption}</p>}
               <button
                 type="button"

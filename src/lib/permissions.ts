@@ -35,3 +35,14 @@ export function canTributeMemorial(memorial: MemorialAccessRow, userId: string |
 export function ownsMemorial(memorial: MemorialAccessRow, userId: string | null): boolean {
   return !!userId && memorial.user_id === userId;
 }
+
+export function groupRole(groupId: string, userId: string): "owner" | "member" | null {
+  const row = getDb().prepare("SELECT role FROM group_members WHERE group_id = ? AND user_id = ?").get(groupId, userId) as
+    | { role: "owner" | "member" }
+    | undefined;
+  return row?.role || null;
+}
+
+export function ownsGroup(groupId: string, userId: string): boolean {
+  return groupRole(groupId, userId) === "owner";
+}

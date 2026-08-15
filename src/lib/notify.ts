@@ -39,8 +39,8 @@ export async function sendLoginCode(
       console.error("[notify] sms send failed", err);
     }
   }
-  console.log(`[notify] ${channel} login code for ${target}: ${code}`);
   if (process.env.NODE_ENV !== "production") {
+    console.log(`[notify] ${channel} login code for ${target}: ${code}`);
     return { delivered: false, devCode: code };
   }
   return { delivered: false };

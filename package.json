@@ -9,9 +9,19 @@
     "smoke:p1": "node tools/smoke-p1.mjs",
     "smoke:p2": "node tools/smoke-p2.mjs",
     "smoke:p4": "node tools/smoke-p4.mjs",
+    "smoke:auth": "node tools/smoke-auth.mjs",
     "smoke": "node tools/smoke/run-all.mjs --serial",
     "smoke:parallel": "node tools/smoke/run-all.mjs --parallel",
     "smoke:repeat": "node tools/smoke/repeat.mjs --count 3",
+    "db:migrate": "node tools/db-migrate.mjs up",
+    "db:status": "node tools/db-migrate.mjs status",
+    "db:verify": "node tools/db-migrate.mjs verify",
+    "db:backup": "node tools/db-migrate.mjs backup",
+    "backup": "node tools/backup.mjs",
+    "storage:migrate": "node tools/migrate-uploads.mjs --dry-run",
+    "dh:worker": "node tools/dh-worker.mjs",
+    "release:smoke": "node tools/release-smoke.mjs",
+    "test:e2e": "playwright test",
     "postinstall": "node tools/patch-devtools-zh.cjs"
   },
   "dependencies": {
@@ -20,13 +30,13 @@
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/three": "^0.185.4",
-    "better-sqlite3": "^13.0.2",
+    "better-sqlite3": "13.0.2",
     "next": "^16.3.0",
     "nodemailer": "^9.0.4",
     "postcss": "^8.5.25",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "sharp": "^0.35.3",
+    "sharp": "0.35.3",
     "stripe": "^22.4.0",
     "tailwindcss": "^4.3.3",
     "three": "^0.185.1",
@@ -35,6 +45,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/nodemailer": "^8.0.1"
   }

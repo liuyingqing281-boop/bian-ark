@@ -68,7 +68,7 @@ check("markdown heading rendered", bioPage.text.includes("<h3"), true);
 // AI generate (mock provider) x3 ok, 4th quota exceeded
 let lastGen = null;
 for (let i = 0; i < 3; i++) {
-  const generated = await api("/api/items/generate", { method: "POST", body: { prompt: offeringPrompt } });
+  const generated = await api("/api/items/generate", { method: "POST", headers: { "Idempotency-Key": `${context.runId}-generate-${i}` }, body: { prompt: offeringPrompt } });
   lastGen = requireResponse(`generate offerings ${i + 1}`, generated, {
     validate: (json) => json?.ok === true && Array.isArray(json.candidates) && json.candidates.length === 4
       && json.candidates.every((url) => typeof url === "string" && url.startsWith("/uploads/items/")),
@@ -79,7 +79,7 @@ for (let i = 0; i < 3; i++) {
   }
   registerUpload(resources, ...lastGen.candidates);
 }
-const quotaHit = await api("/api/items/generate", { method: "POST", body: { prompt: "再来一束" } });
+const quotaHit = await api("/api/items/generate", { method: "POST", headers: { "Idempotency-Key": `${context.runId}-generate-quota` }, body: { prompt: "再来一束" } });
 requireResponse("4th generate quota", quotaHit, {
   status: 429,
   validate: (json) => json?.error === "quota_exceeded",

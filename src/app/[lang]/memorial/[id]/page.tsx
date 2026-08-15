@@ -30,9 +30,9 @@ function getMemorial(id: string): Memorial | null {
   const db = getDb();
   return (db.prepare("SELECT * FROM memorials WHERE id = ? AND is_published = 1").get(id) as Memorial) || null;
 }
-function getTributes(memorialId: string, limit = 50): Tribute[] {
+function getTributes(memorialId: string, owner: boolean, limit = 50): Tribute[] {
   const db = getDb();
-  return db.prepare("SELECT * FROM tributes WHERE memorial_id = ? ORDER BY created_at DESC LIMIT ?").all(memorialId, limit) as Tribute[];
+  return db.prepare(`SELECT * FROM tributes WHERE memorial_id = ? ${owner ? "" : "AND review_status = 'approved'"} ORDER BY created_at DESC LIMIT ?`).all(memorialId, limit) as Tribute[];
 }
 function getItem(itemId: string): Item | null {
   const db = getDb();
@@ -48,10 +48,12 @@ function getMyItems(userId: string): Item[] {
   const db = getDb();
   return db.prepare("SELECT * FROM items WHERE owner_user_id = ? ORDER BY rowid DESC").all(userId) as Item[];
 }
-function getMedia(memorialId: string): MediaItem[] {
+function getMedia(memorialId: string, owner: boolean): MediaItem[] {
   const db = getDb();
   return db
-    .prepare("SELECT id, kind, url, thumb_url, caption FROM media WHERE memorial_id = ? ORDER BY sort_order ASC, created_at ASC")
+    .prepare(`SELECT id, kind, url, thumb_url, caption, sort_order, is_cover, review_status
+              FROM media WHERE memorial_id = ? ${owner ? "" : "AND review_status = 'approved'"}
+              ORDER BY is_cover DESC, sort_order ASC, created_at ASC`)
     .all(memorialId) as MediaItem[];
 }
 function getLifeEvents(memorialId: string): LifeEvent[] {
@@ -105,8 +107,8 @@ export default async function MemorialPage({
   }
 
   const isOwner = ownsMemorial(memorial, user?.id ?? null);
-  const tributes = getTributes(id);
-  const media = getMedia(id);
+  const tributes = getTributes(id, isOwner);
+  const media = getMedia(id, isOwner);
   const officialItems = getOfficialItems();
   const myItems = user ? getMyItems(user.id) : [];
     const lifeEvents = getLifeEvents(id);

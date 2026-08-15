@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/auth";
 import { getStripe, stripeConfigured } from "../../../lib/stripe";
+import { v4 as uuid } from "uuid";
 
 const KINDS = new Set(["premium_monthly", "premium_yearly", "dh_redo"]);
 
@@ -56,5 +57,8 @@ export async function POST(req: NextRequest) {
     success_url: `${origin}/zh/me?paid=1`,
     cancel_url: `${origin}/zh/membership?canceled=1`,
   });
+  db.prepare(`INSERT INTO orders (id, user_id, kind, provider_session_id, status, amount_cents, currency)
+              VALUES (?, ?, ?, ?, 'pending', ?, 'cny')`)
+    .run(uuid(), user.id, kind, session.id, kind === "dh_redo" ? Number(process.env.DH_REDO_PRICE_CENTS || 2999) : 0);
   return NextResponse.json({ ok: true, url: session.url });
 }

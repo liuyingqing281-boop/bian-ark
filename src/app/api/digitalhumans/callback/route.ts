@@ -26,6 +26,12 @@ export async function POST(req: NextRequest) {
         )
         .run(String(body?.error || "provider_failed"), jobId).changes;
 
-  if (!changes) return NextResponse.json({ error: "job_not_found" }, { status: 404 });
+  if (!changes) {
+    const existing = db.prepare("SELECT status FROM digital_humans WHERE provider_job_id = ?").get(jobId) as { status: string } | undefined;
+    if (existing) return NextResponse.json({ ok: true, duplicate: true, status: existing.status });
+    return NextResponse.json({ error: "job_not_found" }, { status: 404 });
+  }
+  db.prepare("UPDATE digital_humans SET callback_payload = ? WHERE provider_job_id = ?")
+    .run(JSON.stringify(body).slice(0, 100000), jobId);
   return NextResponse.json({ ok: true });
 }

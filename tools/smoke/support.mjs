@@ -61,11 +61,11 @@ export function createApiClient({ baseUrl = resolveBaseUrl(), cookieJar = create
   const root = baseUrl.replace(/\/$/, "");
   return {
     cookieJar,
-    async request(pathname, { method = "GET", body, json, form, auth = true, redirect = "manual", timeout = timeoutMs } = {}) {
+    async request(pathname, { method = "GET", body, json, form, headers: requestHeaders = {}, auth = true, redirect = "manual", timeout = timeoutMs } = {}) {
       if (identity) console.log(`[${suite}] identity=${identity} ${method} ${pathname}`);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
-      const headers = {};
+      const headers = Object.fromEntries(Object.entries(requestHeaders).map(([key, value]) => [key.toLowerCase(), String(value)]));
       let payload = body;
       if (json !== undefined) {
         headers["content-type"] = "application/json";

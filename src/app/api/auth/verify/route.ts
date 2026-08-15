@@ -17,24 +17,32 @@ export async function POST(req: NextRequest) {
   const db = getDb();
   const row = db
     .prepare(
-      `SELECT rowid, code, expires_at, attempts FROM login_codes
+      `SELECT rowid, code, expires_at, attempts, locked_until FROM login_codes
        WHERE channel = ? AND target = ? AND used = 0 ORDER BY created_at DESC LIMIT 1`
     )
     .get(channel, target) as
-    | { rowid: number; code: string; expires_at: string; attempts: number }
+    | { rowid: number; code: string; expires_at: string; attempts: number; locked_until: string }
     | undefined;
-  if (!row) return NextResponse.json({ error: "code_not_found" }, { status: 400 });
+  if (!row) return NextResponse.json({ error: "invalid_code" }, { status: 400 });
+  if (row.locked_until && new Date(row.locked_until.replace(" ", "T") + "Z").getTime() > Date.now()) {
+    return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
+  }
   if (new Date(row.expires_at.replace(" ", "T") + "Z").getTime() < Date.now()) {
-    return NextResponse.json({ error: "code_expired" }, { status: 400 });
+    return NextResponse.json({ error: "invalid_code" }, { status: 400 });
   }
   if (row.attempts >= 5) {
     return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
   }
   if (row.code !== code) {
-    db.prepare("UPDATE login_codes SET attempts = attempts + 1 WHERE rowid = ?").run(row.rowid);
-    return NextResponse.json({ error: "code_wrong" }, { status: 400 });
+    db.prepare(
+      `UPDATE login_codes
+       SET attempts = attempts + 1,
+           locked_until = CASE WHEN attempts + 1 >= 5 THEN datetime('now', '+15 minutes') ELSE locked_until END
+       WHERE rowid = ?`
+    ).run(row.rowid);
+    return NextResponse.json({ error: "invalid_code" }, { status: 400 });
   }
-  db.prepare("UPDATE login_codes SET used = 1 WHERE rowid = ?").run(row.rowid);
+  db.prepare("UPDATE login_codes SET used = 1 WHERE channel = ? AND target = ?").run(channel, target);
 
   const column = channel === "email" ? "email" : "phone";
   let user = db.prepare(`SELECT id FROM users WHERE ${column} = ?`).get(target) as

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 
 // Keep these in sync with src/app/[lang]/dictionaries.ts.
 // Proxy runs in isolation and should not import app modules.
@@ -13,6 +14,19 @@ function detectLocale(request: NextRequest): string {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (pathname.startsWith("/api/")) {
+    const method = request.method.toUpperCase();
+    const origin = request.headers.get("origin");
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && origin && origin !== request.nextUrl.origin) {
+      return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
+    }
+    const requestHeaders = new Headers(request.headers);
+    const requestId = requestHeaders.get("x-request-id") || randomUUID();
+    requestHeaders.set("x-request-id", requestId);
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("x-request-id", requestId);
+    return response;
+  }
   const matched = locales.find(
     (locale) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`)
   );
@@ -31,5 +45,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|uploads|_next/static|_next/image|_next/dev|favicon.ico).*)"],
+  matcher: ["/((?!uploads|_next/static|_next/image|_next/dev|favicon.ico).*)"],
 };

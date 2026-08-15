@@ -28,5 +28,6 @@ export async function POST(req: NextRequest) {
     String(body?.biography || "").slice(0, 10000),
     user.id
   );
+  db.prepare("INSERT INTO memorial_audit_logs (memorial_id, actor_user_id, action) VALUES (?, ?, 'create')").run(id, user.id);
   return NextResponse.json({ ok: true, id });
 }

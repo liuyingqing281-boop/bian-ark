@@ -39,10 +39,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}?blocked=1`, req.url));
   }
   const is_burning = formData.get("is_burning") === "1" ? 1 : 0;
+  const item = db.prepare("SELECT owner_user_id, review_status FROM items WHERE id = ?").get(item_id || "flower_white") as
+    | { owner_user_id: string; review_status: string }
+    | undefined;
+  if (!item || (item.review_status !== "approved" && item.owner_user_id !== user?.id)) {
+    return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}?item_unavailable=1`, req.url));
+  }
 
   db.prepare(
-    "INSERT INTO tributes (id, memorial_id, item_id, message, sender_name, is_burning) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(uuid(), memorial_id, item_id || "flower_white", message, sender_name, is_burning);
+    "INSERT INTO tributes (id, memorial_id, item_id, message, sender_name, is_burning, user_id, review_status, review_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(uuid(), memorial_id, item_id || "flower_white", message, sender_name, is_burning, user?.id || "", senderCheck.status, senderCheck.reason || "");
 
   return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}`, req.url));
 }

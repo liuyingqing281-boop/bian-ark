@@ -20,7 +20,11 @@ export async function GET() {
   const stats = db
     .prepare("SELECT type, COUNT(*) AS c FROM events WHERE created_at > datetime('now', '-30 days') GROUP BY type ORDER BY c DESC")
     .all();
-  return NextResponse.json({ memorials, items, digitalHumans, stats });
+  const pendingMedia = db.prepare("SELECT * FROM media WHERE review_status = 'pending' ORDER BY created_at LIMIT 100").all();
+  const pendingItems = db.prepare("SELECT * FROM items WHERE review_status = 'pending' ORDER BY rowid LIMIT 100").all();
+  const pendingTributes = db.prepare("SELECT * FROM tributes WHERE review_status = 'pending' ORDER BY created_at LIMIT 100").all();
+  const appeals = db.prepare("SELECT * FROM moderation_appeals WHERE status = 'pending' ORDER BY created_at LIMIT 100").all();
+  return NextResponse.json({ memorials, items, digitalHumans, pendingMedia, pendingItems, pendingTributes, appeals, stats });
 }
 
 export async function POST(req: NextRequest) {
@@ -69,11 +73,33 @@ export async function POST(req: NextRequest) {
 
   if (action === "review_digital_human") {
     const approve = payload.decision === "approve";
-    db.prepare("UPDATE digital_humans SET status = ?, error = ?, updated_at = datetime('now') WHERE id = ?").run(
+    db.prepare("UPDATE digital_humans SET status = ?, error = ?, review_reason = ?, reviewed_by = ?, reviewed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(
       approve ? "done" : "failed",
       approve ? "" : "rejected_by_review",
+      String(payload.reason || ""),
+      admin.id,
       payload.id
     );
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "review_content") {
+    const tables: Record<string, { table: string; status: string }> = {
+      media: { table: "media", status: "review_status" },
+      item: { table: "items", status: "review_status" },
+      tribute: { table: "tributes", status: "review_status" },
+      digital_human: { table: "digital_humans", status: "status" },
+    };
+    const target = tables[String(payload.resource_type || "")];
+    const decision = payload.decision === "approve" ? "approved" : "rejected";
+    if (!target || !payload.id || !String(payload.reason || "").trim()) {
+      return NextResponse.json({ error: "invalid_review" }, { status: 400 });
+    }
+    const status = target.table === "digital_humans" ? (decision === "approved" ? "done" : "failed") : decision;
+    const result = db.prepare(
+      `UPDATE ${target.table} SET ${target.status} = ?, review_reason = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?`
+    ).run(status, String(payload.reason).slice(0, 500), admin.id, String(payload.id));
+    if (!result.changes) return NextResponse.json({ error: "not_found" }, { status: 404 });
     return NextResponse.json({ success: true });
   }
 

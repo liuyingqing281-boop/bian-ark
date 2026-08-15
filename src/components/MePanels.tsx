@@ -269,6 +269,24 @@ export function GroupsPanel({
     router.refresh();
   }
 
+  async function groupAction(group: GroupInfo, action: "rotate" | "leave" | "delete") {
+    if (action === "delete" && !window.confirm(`确认解散群组“${group.name}”？`)) return;
+    if (action === "leave" && !window.confirm(`确认退出群组“${group.name}”？`)) return;
+    setBusy(true);
+    const endpoint = action === "rotate"
+      ? `/api/groups/${group.id}/rotate-invite`
+      : action === "leave"
+        ? `/api/groups/${group.id}/leave`
+        : `/api/groups/${group.id}`;
+    const response = await fetch(endpoint, { method: action === "delete" ? "DELETE" : "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (action === "rotate" && data.invite_code) {
+      await navigator.clipboard?.writeText(`${origin}/${lang}/join/${data.invite_code}`);
+    }
+    setBusy(false);
+    if (response.ok) router.refresh();
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2 flex-wrap">
@@ -312,9 +330,15 @@ export function GroupsPanel({
                 </span>
               </div>
               {group.role === "owner" && (
-                <p className="mt-1 text-xs text-stone-600 break-all">
-                  {labels.inviteLink}: {origin}/{lang}/join/{group.invite_code}
-                </p>
+                <div className="mt-2 flex items-center gap-2 flex-wrap text-xs">
+                  <span className="text-stone-600 break-all">{labels.inviteLink}: {origin}/{lang}/join/{group.invite_code}</span>
+                  <button type="button" disabled={busy} onClick={() => navigator.clipboard?.writeText(`${origin}/${lang}/join/${group.invite_code}`)} className="text-amber-500 hover:text-amber-400">复制</button>
+                  <button type="button" disabled={busy} onClick={() => groupAction(group, "rotate")} className="text-stone-400 hover:text-stone-200">轮换</button>
+                  <button type="button" disabled={busy} onClick={() => groupAction(group, "delete")} className="text-red-500 hover:text-red-400">解散</button>
+                </div>
+              )}
+              {group.role !== "owner" && (
+                <button type="button" disabled={busy} onClick={() => groupAction(group, "leave")} className="mt-2 text-xs text-red-500 hover:text-red-400">退出群组</button>
               )}
             </li>
           ))}

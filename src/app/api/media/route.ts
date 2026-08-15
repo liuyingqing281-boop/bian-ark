@@ -54,10 +54,11 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const id = uuid();
+      const review = caption ? await moderateText(caption) : { pass: true, status: "approved" as const };
       db.prepare(
-        `INSERT INTO media (id, memorial_id, user_id, kind, url, thumb_url, caption, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(id, memorialId, user.id, upload.kind, upload.url, upload.thumbUrl, caption, nextOrder++);
+        `INSERT INTO media (id, memorial_id, user_id, kind, url, thumb_url, caption, sort_order, review_status, review_reason, object_key, mime, size_bytes, sha256)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(id, memorialId, user.id, upload.kind, upload.url, upload.thumbUrl, caption, nextOrder++, review.status, review.reason || "", upload.objectKey, upload.mime, upload.sizeBytes, upload.sha256);
       used[upload.kind] += 1;
       saved.push({ id, url: upload.url, thumbUrl: upload.thumbUrl, kind: upload.kind });
     } catch (err) {

@@ -1,0 +1,3 @@
+-- Migration 006 exposed a parser limitation for column names containing digits.
+-- This idempotent repair keeps already-upgraded databases and fresh databases aligned.
+-- @add-column media sha256 TEXT DEFAULT ''

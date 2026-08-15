@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
     const id = uuid();
     db.prepare(
       `INSERT INTO items (id, name, category, icon, image_url, style, owner_user_id, source, prompt, review_status)
-       VALUES (?, ?, 'custom', '', ?, 'realistic', ?, 'upload', '', 'approved')`
-    ).run(id, name, upload.url, user.id);
+       VALUES (?, ?, 'custom', '', ?, 'realistic', ?, 'upload', '', ?)`
+    ).run(id, name, upload.url, user.id, moderation.status);
     return NextResponse.json({ ok: true, id, url: upload.url, thumbUrl: upload.thumbUrl });
   } catch (err) {
     return NextResponse.json(

@@ -58,6 +58,7 @@ export async function createSession(userId: string): Promise<void> {
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });
@@ -74,4 +75,12 @@ export async function destroySession(): Promise<void> {
 
 export function generateLoginCode(): string {
   return randomInt(0, 1000000).toString().padStart(6, "0");
+}
+
+export function revokeUserSessions(userId: string): number {
+  return getDb().prepare("DELETE FROM sessions WHERE user_id = ?").run(userId).changes;
+}
+
+export function cleanupExpiredSessions(): number {
+  return getDb().prepare("DELETE FROM sessions WHERE expires_at <= datetime('now')").run().changes;
 }

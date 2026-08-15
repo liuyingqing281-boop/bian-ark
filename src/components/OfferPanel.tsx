@@ -115,9 +115,10 @@ export default function OfferPanel({
     setGenerating(true);
     setError("");
     setCandidates([]);
+    const idempotencyKey = `web-${Date.now()}-${crypto.randomUUID()}`;
     const res = await fetch("/api/items/generate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
       body: JSON.stringify({ prompt: prompt.trim() }),
     });
     const data = await res.json().catch(() => ({}));

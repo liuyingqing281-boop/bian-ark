@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import sharp from "sharp";
 
 const IMAGE_MIME: Record<string, string> = {
@@ -30,6 +30,46 @@ export interface SavedUpload {
   url: string;
   thumbUrl: string;
   kind: UploadKind;
+  objectKey: string;
+  mime: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+export interface StorageAdapter {
+  put(objectKey: string, data: Buffer, mime: string): Promise<string>;
+  delete(objectKey: string): Promise<void>;
+  health(): Promise<boolean>;
+}
+
+class LocalStorageAdapter implements StorageAdapter {
+  async put(objectKey: string, data: Buffer): Promise<string> {
+    const filePath = path.join(process.cwd(), "data", "uploads", objectKey);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, data);
+    return `/uploads/${objectKey.replace(/\\/g, "/")}`;
+  }
+  async delete(objectKey: string): Promise<void> {
+    const root = path.resolve(process.cwd(), "data", "uploads");
+    const filePath = path.resolve(root, objectKey);
+    if (!filePath.startsWith(root + path.sep)) throw new Error("invalid_object_key");
+    try { fs.unlinkSync(filePath); } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
+  }
+  async health(): Promise<boolean> {
+    const root = path.join(process.cwd(), "data", "uploads");
+    fs.mkdirSync(root, { recursive: true });
+    fs.accessSync(root, fs.constants.R_OK | fs.constants.W_OK);
+    return true;
+  }
+}
+
+const localStorage = new LocalStorageAdapter();
+export function getStorageAdapter(): StorageAdapter {
+  const provider = process.env.STORAGE_PROVIDER || "local";
+  if (provider === "local") return localStorage;
+  throw new Error(`storage_provider_not_configured:${provider}`);
 }
 
 export function isImageMime(mime: string): boolean {
@@ -46,27 +86,33 @@ export async function saveUpload(file: File, subdir: string, allowAudio = false)
 
   const ext = isImage ? IMAGE_MIME[file.type] : isVideo ? VIDEO_MIME[file.type] : AUDIO_MIME[file.type];
   const buffer = Buffer.from(await file.arrayBuffer());
-  const dir = path.join(process.cwd(), "data", "uploads", subdir);
-  fs.mkdirSync(dir, { recursive: true });
-
   const name = randomUUID() + ext;
-  fs.writeFileSync(path.join(dir, name), buffer);
-  const url = `/uploads/${subdir}/${name}`;
+  const objectKey = `${subdir}/${name}`;
+  const adapter = getStorageAdapter();
+  const url = await adapter.put(objectKey, buffer, file.type);
 
   let thumbUrl = url;
   if (isImage && file.type !== "image/gif") {
     try {
       const thumbName = randomUUID() + ".webp";
-      await sharp(buffer)
+      const thumbBuffer = await sharp(buffer)
         .resize(480, 480, { fit: "inside", withoutEnlargement: true })
         .webp({ quality: 78 })
-        .toFile(path.join(dir, thumbName));
-      thumbUrl = `/uploads/${subdir}/${thumbName}`;
+        .toBuffer();
+      thumbUrl = await adapter.put(`${subdir}/${thumbName}`, thumbBuffer, "image/webp");
     } catch (err) {
       console.error("[upload] thumbnail generation failed", err);
     }
   }
-  return { url, thumbUrl, kind: isImage ? "image" : isVideo ? "video" : "audio" };
+  return {
+    url,
+    thumbUrl,
+    kind: isImage ? "image" : isVideo ? "video" : "audio",
+    objectKey,
+    mime: file.type,
+    sizeBytes: buffer.length,
+    sha256: createHash("sha256").update(buffer).digest("hex"),
+  };
 }
 
 export function deleteUpload(url: string): void {

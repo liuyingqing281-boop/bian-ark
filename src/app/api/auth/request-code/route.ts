@@ -5,6 +5,11 @@ import { sendLoginCode } from "../../../../lib/notify";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^1\d{10}$/;
+const IP_DAILY_LIMIT = 100;
+
+function requestIp(req: NextRequest): string {
+  return (req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "unknown").trim().slice(0, 64);
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -19,6 +24,13 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getDb();
+  const ip = requestIp(req);
+  const ipRequests = db.prepare(
+    "SELECT COUNT(*) AS count FROM login_codes WHERE request_ip = ? AND created_at >= datetime('now', '-1 day')"
+  ).get(ip) as { count: number };
+  if (ipRequests.count >= IP_DAILY_LIMIT) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
   const recent = db
     .prepare("SELECT created_at FROM login_codes WHERE channel = ? AND target = ? ORDER BY created_at DESC LIMIT 1")
     .get(channel, target) as { created_at: string } | undefined;
@@ -32,9 +44,13 @@ export async function POST(req: NextRequest) {
   const code = generateLoginCode();
   db.prepare("UPDATE login_codes SET used = 1 WHERE channel = ? AND target = ?").run(channel, target);
   db.prepare(
-    "INSERT INTO login_codes (channel, target, code, expires_at) VALUES (?, ?, ?, datetime('now', '+10 minutes'))"
-  ).run(channel, target, code);
+    "INSERT INTO login_codes (channel, target, code, expires_at, request_ip) VALUES (?, ?, ?, datetime('now', '+10 minutes'), ?)"
+  ).run(channel, target, code, ip);
 
   const result = await sendLoginCode(channel, target, code);
-  return NextResponse.json({ ok: true, delivered: result.delivered, devCode: result.devCode });
+  return NextResponse.json({
+    ok: true,
+    delivered: result.delivered,
+    ...(process.env.NODE_ENV !== "production" && result.devCode ? { devCode: result.devCode } : {}),
+  });
 }
