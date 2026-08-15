@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO items (id, name, category, icon, image_url, style, owner_user_id, source, prompt, review_status)
        VALUES (?, ?, 'custom', '', ?, 'realistic', ?, 'upload', '', 'approved')`
     ).run(id, name, upload.url, user.id);
-    return NextResponse.json({ ok: true, id, url: upload.url });
+    return NextResponse.json({ ok: true, id, url: upload.url, thumbUrl: upload.thumbUrl });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "upload_failed" },

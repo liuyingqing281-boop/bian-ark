@@ -2,7 +2,7 @@
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3");
-const path = require("path");
+const { cleanupResources, createResourceRegistry, registerUpload } = await import("./smoke/cleanup.mjs");
 const { createApiClient, createCookieJar, createReporter, createRunContext, resolveBaseUrl, resolveDbPath, waitFor } = await import("./smoke/support.mjs");
 const context = createRunContext("p4");
 const client = createApiClient({ baseUrl: resolveBaseUrl(), cookieJar: createCookieJar(), suite: `p4-${context.runId}` });
@@ -28,6 +28,8 @@ const stamp = Date.now();
 const email = context.testEmail("owner");
 const memorialName = `P4测试-${context.runId}`;
 const db = new Database(resolveDbPath());
+const resources = createResourceRegistry("p4", context.runId);
+resources.register("userEmails", email);
 let memorialId = null;
 let taskId = null;
 
@@ -37,6 +39,7 @@ try {
   reporter.assert(rc.status === 200 && !!rc.body.devCode, "request-code returns devCode", rc.body);
   const vr = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: rc.body.devCode } });
   reporter.assert(vr.status === 200 && client.cookieJar.has("bian_session"), "verify sets session");
+  resources.registerUser(email, db.prepare("SELECT id FROM users WHERE email = ?").get(email)?.id);
 
   // 2. create memorial
   const cm = await api("/api/memorials", {
@@ -44,6 +47,7 @@ try {
     json: { name: memorialName, biography: `他一生善良正直，深受家人爱戴。运行标识：${context.runId}` },
   });
   memorialId = cm.body.id;
+  resources.register("memorialIds", memorialId);
   reporter.assert(cm.status === 200 && !!memorialId, "memorial created", cm.body);
 
   // 3. free user blocked
@@ -64,7 +68,10 @@ try {
   // 7. create task (photo + audio + custom script)
   res = await api("/api/digitalhumans", { method: "POST", form: dhForm({ consent: true, script: "孩子们，我很想你们。", withAudio: true, memorialId }) });
   taskId = res.body.id;
+  resources.register("taskIds", taskId);
+  registerUpload(resources, ...(res.body.uploadUrls || []));
   reporter.assert(res.status === 200 && res.body.ok === true && !!taskId, "task created", res.body);
+  if (process.env.SMOKE_FORCE_FAILURE === "p4") throw new Error("forced_failure_after_task");
 
   // 8. poll until reviewing (mock pipeline ~4s)
   let task = null;
@@ -111,30 +118,7 @@ try {
   const asset = await fetch(`${resolveBaseUrl()}${done.result_video_url}`);
   reporter.assert(asset.status === 200, "result asset served over /uploads", { status: asset.status });
 } finally {
-  // cleanup
-  if (taskId) {
-    const row = db.prepare("SELECT photo_url, audio_url, video_url, result_video_url FROM digital_humans WHERE id = ?").get(taskId);
-    db.prepare("DELETE FROM digital_humans WHERE id = ?").run(taskId);
-    if (row) {
-      const fs = require("fs");
-      for (const url of [row.photo_url, row.audio_url, row.video_url, row.result_video_url]) {
-        if (url && url.startsWith("/uploads/")) {
-          try { fs.unlinkSync(path.join(process.cwd(), "data", url)); } catch { /* gone */ }
-        }
-      }
-    }
-  }
-  if (memorialId) {
-    db.prepare("DELETE FROM tributes WHERE memorial_id = ?").run(memorialId);
-    db.prepare("DELETE FROM media WHERE memorial_id = ?").run(memorialId);
-    db.prepare("DELETE FROM memorials WHERE id = ?").run(memorialId);
-  }
-  const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-  if (user) {
-    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(user.id);
-    db.prepare("DELETE FROM users WHERE id = ?").run(user.id);
-  }
-  db.prepare("DELETE FROM login_codes WHERE target = ?").run(email);
+  cleanupResources(db, resources);
   db.close();
 }
 

@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     ).run(id, memorialId, user.id, photoUp.url, audioUrl, videoUrl, script, activeProvider());
     startDigitalHumanJob(id);
     trackEvent("dh_create", { provider: activeProvider() }, user.id);
-    return NextResponse.json({ ok: true, id });
+    return NextResponse.json({ ok: true, id, uploadUrls: saved });
   } catch (err) {
     for (const url of saved) deleteUpload(url);
     const message = err instanceof Error ? err.message : "upload_failed";

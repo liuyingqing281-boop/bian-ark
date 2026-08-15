@@ -2,8 +2,7 @@
 // usage: node tools/smoke-p2.mjs  (expects dev server on :3002)
 import sharp from "sharp";
 import Database from "better-sqlite3";
-import fs from "fs";
-import path from "path";
+import { cleanupResources, createResourceRegistry, registerUpload } from "./smoke/cleanup.mjs";
 import { createApiClient, createCookieJar, createReporter, createRunContext, resolveBaseUrl, resolveDbPath } from "./smoke/support.mjs";
 
 const context = createRunContext("p2");
@@ -12,17 +11,22 @@ const client = createApiClient({ baseUrl: resolveBaseUrl(), cookieJar: createCoo
 const reporter = createReporter({ suite: "p2" });
 const check = reporter.check;
 const api = (pathname, options) => client.request(pathname, options);
-const generatedFiles = [];
+const resources = createResourceRegistry("p2", context.runId);
+resources.register("userEmails", email);
+const db = new Database(resolveDbPath());
 
+try {
 // login
 const rc = await api("/api/auth/request-code", { method: "POST", body: { channel: "email", target: email }, auth: false });
 await api("/api/auth/verify", { method: "POST", body: { channel: "email", target: email, code: rc.json.devCode }, auth: false });
 check("login ok", client.cookieJar.has("bian_session"));
+resources.registerUser(email, db.prepare("SELECT id FROM users WHERE email = ?").get(email)?.id);
 
 // memorial + markdown biography
 const memorialName = `测试逝者P2-${context.runId}`;
 const cm = await api("/api/memorials", { method: "POST", body: { name: memorialName, type: "person", biography: `## 生平\n**慈爱**的母亲，[纪念文](https://example.com)\n\n平凡一生。\n\n运行标识：${context.runId}` } });
 const mid = cm.json.id;
+resources.register("memorialIds", mid);
 const bioPage = await api(`/zh/memorial/${mid}`);
 check("markdown bold rendered", bioPage.text.includes("<strong"), true);
 check("markdown link rendered", bioPage.text.includes('href="https://example.com"'), true);
@@ -37,7 +41,7 @@ for (let i = 0; i < 3; i++) {
     check("generate 4 candidates", lastGen.json?.candidates?.length, 4);
     check("candidate url shape", lastGen.json?.candidates?.[0]?.startsWith("/uploads/items/"), true);
   }
-  generatedFiles.push(...(lastGen.json?.candidates || []));
+  registerUpload(resources, ...(lastGen.json?.candidates || []));
 }
 const quotaHit = await api("/api/items/generate", { method: "POST", body: { prompt: "再来一束" } });
 check("4th generate quota 429", quotaHit.status, 429);
@@ -51,7 +55,7 @@ check("candidate image served", candResp.status, 200);
 const claim = await api("/api/items/claim", { method: "POST", body: { url: lastGen.json.candidates[0], prompt: "一束白色马蹄莲" } });
 check("claim ok", claim.json?.ok, true);
 const customItemId = claim.json.id;
-const customItemIds = [customItemId].filter(Boolean);
+resources.register("itemIds", customItemId);
 
 // upload custom item
 const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: { r: 120, g: 60, b: 60 } } }).png().toBuffer();
@@ -61,8 +65,9 @@ form.append("name", customItemName);
 form.append("file", new Blob([png], { type: "image/png" }), "wine.png");
 const up = await api("/api/items/upload", { method: "POST", form });
 check("upload custom item ok", up.json?.ok, true);
-if (up.json?.id) customItemIds.push(up.json.id);
-generatedFiles.push(up.json?.url);
+resources.register("itemIds", up.json?.id);
+registerUpload(resources, up.json?.url, up.json?.thumbUrl);
+if (process.env.SMOKE_FORCE_FAILURE === "p2") throw new Error("forced_failure_after_upload");
 
 // memorial page shows custom items (RSC serialized props)
 const page = await api(`/zh/memorial/${mid}`);
@@ -99,27 +104,9 @@ const remove = await api(`/api/memorials/${mid}/garden`, { method: "POST", body:
 check("garden remove ok", remove.json?.ok, true);
 const gardenPage2 = await api("/zh/garden", { auth: false });
 check("garden empty after remove", gardenPage2.text.includes(memorialName), false);
-
-// cleanup
-const db = new Database(resolveDbPath());
-const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-if (user) {
-  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(user.id);
-  db.prepare("DELETE FROM ai_quotas WHERE user_id = ?").run(user.id);
-  db.prepare("DELETE FROM users WHERE id = ?").run(user.id);
+} finally {
+  cleanupResources(db, resources);
+  db.close();
 }
-db.prepare("DELETE FROM tributes WHERE memorial_id = ?").run(mid);
-db.prepare("DELETE FROM memorial_groups WHERE memorial_id = ?").run(mid);
-db.prepare("DELETE FROM memorials WHERE id = ?").run(mid);
-for (const itemId of customItemIds) db.prepare("DELETE FROM items WHERE id = ?").run(itemId);
-db.prepare("DELETE FROM login_codes WHERE target = ?").run(email);
-db.close();
-for (const url of generatedFiles) {
-  if (typeof url === "string" && url.startsWith("/uploads/")) {
-    const filePath = path.join(process.cwd(), "data", url);
-    try { fs.unlinkSync(filePath); } catch {}
-  }
-}
-console.log("cleanup done");
 console.log(reporter.failures === 0 ? "ALL PASS" : `${reporter.failures} FAILURES`);
 process.exit(reporter.failures === 0 ? 0 : 1);
