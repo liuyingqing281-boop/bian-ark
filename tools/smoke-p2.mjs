@@ -3,9 +3,10 @@
 import sharp from "sharp";
 import Database from "better-sqlite3";
 import { cleanupResources, createResourceRegistry, registerUpload } from "./smoke/cleanup.mjs";
-import { createApiClient, createCookieJar, createReporter, createRunContext, resolveBaseUrl, resolveDbPath } from "./smoke/support.mjs";
+import { createApiClient, createCookieJar, createReporter, createRunContext, prepareSmokeSuite, resolveBaseUrl, resolveDbPath } from "./smoke/support.mjs";
 
 const context = createRunContext("p2");
+await prepareSmokeSuite(context);
 const email = context.testEmail("owner");
 const client = createApiClient({ baseUrl: resolveBaseUrl(), cookieJar: createCookieJar(), suite: `p2-${context.runId}` });
 const reporter = createReporter({ suite: "p2" });

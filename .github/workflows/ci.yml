@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_URL: http://localhost:3002
+      SMOKE_DB_PATH: ${{ github.workspace }}/data/bian.db
+      SMOKE_LOG_DIR: ${{ github.workspace }}/artifacts/smoke
+      IMAGEGEN_PROVIDER: mock
+      DIGITALHUMAN_PROVIDER: mock
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Start test server
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          setsid npm run dev > artifacts/app.log 2>&1 &
+          echo $! > artifacts/app.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error "$BASE_URL/zh/login" > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat artifacts/app.log
+          exit 1
+
+      - name: Run smoke tests
+        run: npm run smoke
+
+      - name: Verify smoke isolation
+        run: npm run smoke:parallel
+
+      - name: Stop test server
+        if: always()
+        shell: bash
+        run: |
+          if [ -f artifacts/app.pid ]; then
+            kill -- -"$(cat artifacts/app.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logs
+          path: artifacts/
+          if-no-files-found: warn

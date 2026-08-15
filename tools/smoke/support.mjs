@@ -154,6 +154,28 @@ export function resolveBaseUrl() {
   return process.env.BASE_URL || DEFAULT_BASE_URL;
 }
 
+export async function prepareSmokeSuite(context, { timeoutMs = 10_000 } = {}) {
+  const baseUrl = resolveBaseUrl();
+  const dbPath = resolveDbPath();
+  console.log(`[${context.suite} ${context.runId}] start baseUrl=${baseUrl} dbPath=${dbPath}`);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/zh/login`, {
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  } catch (error) {
+    const reason = error?.name === "AbortError" ? `timeout after ${timeoutMs}ms` : (error?.message || String(error));
+    throw new Error(`[${context.suite} ${context.runId}] service preflight failed: BASE_URL=${baseUrl}; reason=${reason}; start with: npm run dev`);
+  } finally {
+    clearTimeout(timer);
+  }
+  return { baseUrl, dbPath };
+}
+
 function safeSummary(value) {
   if (value === undefined) return "undefined";
   try { return JSON.stringify(value).slice(0, 500); } catch { return String(value); }
