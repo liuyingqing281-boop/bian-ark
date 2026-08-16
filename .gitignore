@@ -17,3 +17,6 @@ playwright-report/
 test-results/
 .DS_Store
 Thumbs.db
+
+# local agent session artifacts
+.zcode/
