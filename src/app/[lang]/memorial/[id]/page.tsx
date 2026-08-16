@@ -116,20 +116,35 @@ export default async function MemorialPage({
   const publicDhTasks = isOwner ? [] : dhTasks;
 
   return (
-    <div className="ui-page max-w-4xl py-12 sm:py-16">
+    <div className="ui-page max-w-4xl pb-16 pt-8 sm:pb-24 sm:pt-12">
       <MemorialHero memorial={memorial} isOwner={isOwner} lang={lang} labels={dict.memorial} />
-      {memorial.biography && (
-        <div className="ui-panel mb-10 p-6">
-          <h2 className="text-sm tracking-widest text-amber-500 mb-3">{dict.memorial.biography}</h2>
-          <div
-            className="text-stone-400 text-sm leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: renderLimitedMarkdown(memorial.biography) }}
-          />
-        </div>
+      <section id="biography" className="ui-panel mb-10 p-6 sm:p-8">
+        <h2 className="ui-section-title mb-4">{dict.memorial.biography}</h2>
+        {memorial.biography ? (
+          <div className="prose prose-invert max-w-prose text-sm leading-7 text-stone-400" dangerouslySetInnerHTML={{ __html: renderLimitedMarkdown(memorial.biography) }} />
+        ) : (
+          <p className="text-sm italic text-stone-600">{dict.memorial.biographyEmpty}</p>
+        )}
+      </section>
+
+      {(isOwner || publicDhTasks.length > 0) && (
+        <section id="digital-human" className="ui-panel mb-10 p-6 sm:p-8">
+          <h2 className="ui-section-title mb-2">{dict.digitalHuman.title}</h2>
+          {isOwner && user ? (
+            <>
+              <p className="mb-4 text-xs text-stone-500">{dict.digitalHuman.intro}</p>
+              <DigitalHumanPanel memorialId={memorial.id} initialTasks={dhTasks} isPremium={user.membership_tier === "premium"} isMock={activeProvider() === "mock"} upgradeHref={`/${lang}/membership`} labels={dict.digitalHuman} />
+            </>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {publicDhTasks.map((task) => <div key={task.id} className="relative overflow-hidden rounded-lg bg-stone-800"><div className="relative aspect-square">{/\.(mp4|webm)(\?|$)/i.test(task.result_video_url) ? <video src={task.result_video_url} controls className="h-full w-full object-cover" /> : <Image src={task.result_video_url} alt={dict.digitalHuman.title} fill className="object-cover" />}</div><span className="absolute right-2 top-2 rounded border border-amber-900/50 bg-stone-950/85 px-2 py-0.5 text-xs text-amber-500">{dict.digitalHuman.aiBadge}</span></div>)}
+            </div>
+          )}
+        </section>
       )}
 
       {(lifeEvents.length > 0 || isOwner) && (
-        <div className="ui-panel mb-10 p-6">
+        <section id="timeline" className="ui-panel mb-10 p-6 sm:p-8">
           <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.memorial.timelineTitle}</h2>
           {lifeEvents.length > 0 && (
             <div className="relative pl-6 border-l border-stone-700 space-y-5 mb-5">
@@ -144,11 +159,11 @@ export default async function MemorialPage({
             </div>
           )}
           {isOwner && <TimelineManager memorialId={memorial.id} events={lifeEvents} labels={dict.memorial} />}
-        </div>
+        </section>
       )}
 
       {(media.length > 0 || isOwner) && (
-        <div className="ui-panel mb-10 p-6">
+        <section id="media" className="ui-panel mb-10 p-6 sm:p-8">
           <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.memorial.gallery}</h2>
           {isOwner ? (
             <MediaManager memorialId={memorial.id} media={media} labels={dict.memorial} />
@@ -170,46 +185,11 @@ export default async function MemorialPage({
               )}
             </div>
           )}
-        </div>
+        </section>
       )}
 
-      {isOwner && user ? (
-        <div className="ui-panel mb-10 p-6">
-          <h2 className="text-sm tracking-widest text-amber-500 mb-1">{dict.digitalHuman.title}</h2>
-          <p className="text-xs text-stone-500 mb-4">{dict.digitalHuman.intro}</p>
-          <DigitalHumanPanel
-            memorialId={memorial.id}
-            initialTasks={dhTasks}
-            isPremium={user.membership_tier === "premium"}
-            isMock={activeProvider() === "mock"}
-            upgradeHref={`/${lang}/membership`}
-            labels={dict.digitalHuman}
-          />
-        </div>
-      ) : publicDhTasks.length > 0 ? (
-        <div className="ui-panel mb-10 p-6">
-          <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.digitalHuman.title}</h2>
-          <div className="space-y-4">
-            {publicDhTasks.map((task) => (
-              <div key={task.id} className="relative max-w-sm mx-auto">
-                <div className="w-full aspect-square relative rounded-lg bg-stone-800 overflow-hidden">
-                {/\.(mp4|webm)(\?|$)/i.test(task.result_video_url) ? (
-                  <video src={task.result_video_url} controls className="w-full rounded-lg bg-stone-800 aspect-square object-cover" />
-                ) : (
-                  <Image src={task.result_video_url} alt={dict.digitalHuman.title} fill className="object-cover rounded-lg" />
-                )}
-                </div>
-                <span className="absolute top-2 right-2 text-xs bg-stone-950/85 text-amber-500 px-2 py-0.5 rounded border border-amber-900/50">
-                  {dict.digitalHuman.aiBadge}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      <div className="ui-panel mb-10 p-6">
-        <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.memorial.offeringTitle}</h2>
+      <section id="offerings" className="ui-panel mb-10 p-6 sm:p-8">
+        <h2 className="ui-section-title mb-4">{dict.memorial.offeringTitle}</h2>
         <OfferPanel
           lang={lang}
           memorialId={memorial.id}
@@ -218,9 +198,9 @@ export default async function MemorialPage({
           loggedIn={!!user}
           labels={dict.memorial}
         />
-      </div>
-      <div className="ui-panel p-6">
-        <h2 className="text-sm tracking-widest text-amber-500 mb-6">
+      </section>
+      <section id="tributes" className="ui-panel p-6 sm:p-8">
+        <h2 className="ui-section-title mb-6">
           {dict.memorial.wallTitle.replace("{count}", String(tributes.length))}
         </h2>
         {tributes.length === 0 ? (
@@ -256,7 +236,7 @@ export default async function MemorialPage({
             })}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

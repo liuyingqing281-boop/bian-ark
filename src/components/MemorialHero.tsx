@@ -71,7 +71,7 @@ export default function MemorialHero({
   return (
     <>
       {/* Hero background — cover image or scene-visible gradient */}
-      <div className="relative mb-8 h-48 overflow-hidden rounded-xl bg-stone-800 md:h-auto md:aspect-[16/7]">
+      <div className="relative mb-8 h-52 overflow-hidden rounded-xl bg-stone-800 sm:h-64 md:h-72">
         {hasCover ? (
           <Image src={memorial.cover_url} alt="" fill className="object-cover" />
         ) : (
@@ -79,7 +79,7 @@ export default function MemorialHero({
             <span className="text-6xl opacity-20">🕊️</span>
           </div>
         )}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-stone-950/90 to-transparent h-32" />
+        <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/20 to-stone-950/10" />
 
         {/* Cover upload (owner only) */}
         {isOwner && (
@@ -97,8 +97,8 @@ export default function MemorialHero({
       </div>
 
       {/* Avatar + name */}
-      <div className="relative -mt-20 mb-8 text-center">
-        <div className="inline-flex w-24 h-24 rounded-full bg-stone-800 border-4 border-stone-950 items-center justify-center text-4xl mb-4 overflow-hidden relative group">
+      <div className="relative -mt-20 mb-10 px-4 text-center sm:-mt-24">
+        <div className="relative mb-4 inline-flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-stone-950 bg-stone-800 text-4xl sm:h-28 sm:w-28">
           {avatarIsImage ? (
             <Image src={memorial.avatar_url} alt={memorial.name} fill className="object-cover" />
           ) : (
@@ -109,8 +109,8 @@ export default function MemorialHero({
 
           {/* Avatar upload overlay (owner only) */}
           {isOwner && (
-            <label className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition cursor-pointer group">
-              <span className="opacity-0 group-hover:opacity-100 text-xs text-amber-200 transition">
+            <label className="group absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 transition hover:bg-black/50 focus-within:bg-black/50">
+              <span className="opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 text-xs text-amber-200">
                 {avatarUploading ? labels.uploading : labels.uploadAvatar}
               </span>
               <input

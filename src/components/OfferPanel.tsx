@@ -15,7 +15,7 @@ export interface PanelItem {
 type Labels = Record<string, string>;
 
 const inputCls =
-  "bg-stone-800 border border-stone-700 rounded-lg px-4 py-2 text-sm text-stone-300 placeholder-stone-600 focus:outline-none focus:border-amber-700";
+  "ui-control min-w-0 px-4 py-2 text-sm placeholder-stone-600";
 
 function ItemCard({
   item,
@@ -29,7 +29,7 @@ function ItemCard({
   const hue = item.id ? item.id.charCodeAt(0) * 37 + item.id.length * 13 : 0;
   return (
     <label
-      className={`flex flex-col items-center gap-1 p-3 rounded-lg border cursor-pointer transition ${
+      className={`flex min-h-24 min-w-0 cursor-pointer flex-col items-center gap-1 rounded-lg border p-2 transition ${
         selected ? "border-amber-600 bg-amber-950/30 shadow-lg shadow-amber-900/20" : "border-stone-800 hover:border-amber-700/50"
       }`}
     >
@@ -80,6 +80,7 @@ export default function OfferPanel({
   const [candidates, setCandidates] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
 
   const shownItems = tab === "official" ? officialItems : myItems;
 
@@ -89,8 +90,18 @@ export default function OfferPanel({
     const fd = new FormData(form);
     fd.set("item_id", selected);
     setBusy(true);
-    await fetch("/api/tribute", { method: "POST", body: fd });
-    window.location.href = `/${lang}/memorial/${memorialId}`;
+    setError("");
+    setSuccess(false);
+    const res = await fetch("/api/tribute", { method: "POST", body: fd });
+    setBusy(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || labels.failed);
+      return;
+    }
+    form.reset();
+    setSuccess(true);
+    router.refresh();
   }
 
   async function uploadItem(e: React.FormEvent<HTMLFormElement>) {
@@ -147,7 +158,7 @@ export default function OfferPanel({
   return (
     <div className="space-y-4">
       {loggedIn && (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2" role="tablist">
           <button
             type="button"
             onClick={() => setTab("official")}
@@ -173,7 +184,7 @@ export default function OfferPanel({
         <input type="hidden" name="memorial_id" value={memorialId} />
         <input type="hidden" name="lang" value={lang} />
         {shownItems.length > 0 ? (
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-7">
             {shownItems.map((item) => (
               <ItemCard key={item.id} item={item} selected={selected === item.id} onSelect={() => setSelected(item.id)} />
             ))}
@@ -181,13 +192,13 @@ export default function OfferPanel({
         ) : (
           tab === "mine" && <p className="text-xs text-stone-600">{labels.noCustomItems}</p>
         )}
-        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_auto]">
           <input name="sender_name" placeholder={labels.namePlaceholder} className={`${inputCls} flex-1`} />
           <input name="message" placeholder={labels.messagePlaceholder} className={`${inputCls} flex-1`} />
           <button
             type="submit"
             disabled={busy || !selected}
-            className="px-6 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 text-amber-100 rounded-lg transition text-sm whitespace-nowrap"
+            className="ui-button ui-button-primary px-6 py-2 whitespace-nowrap"
           >
             {labels.offerButton}
           </button>
@@ -196,6 +207,10 @@ export default function OfferPanel({
           <input type="checkbox" name="is_burning" value="1" className="accent-amber-600" />
           {labels.burnLabel}
         </label>
+        <div aria-live="polite">
+          {success && <p className="ui-status-success">{labels.offerSuccess}</p>}
+          {error && <p className="ui-status-error">{error}</p>}
+        </div>
       </form>
 
       {tab === "mine" && loggedIn && (
@@ -256,7 +271,7 @@ export default function OfferPanel({
               </div>
             )}
           </div>
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="ui-status-error">{error}</p>}
         </div>
       )}
 
