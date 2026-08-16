@@ -52,9 +52,9 @@ export default async function GardenPage({
   const newCount = memorials.filter((m) => m.is_new === 1).length;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className="ui-page py-10 sm:py-14">
       <div className="text-center mb-8">
-        <h1 className="text-3xl md:text-4xl tracking-widest text-amber-300 mb-2">{dict.garden.title}</h1>
+        <h1 className="mb-2 text-3xl font-semibold leading-tight text-amber-300 md:text-4xl">{dict.garden.title}</h1>
         <p className="text-stone-500 text-sm">{dict.garden.subtitle}</p>
       </div>
 
@@ -64,9 +64,9 @@ export default async function GardenPage({
             name="q"
             defaultValue={keyword}
             placeholder={dict.garden.searchPlaceholder}
-            className="bg-stone-800 border border-stone-700 rounded-lg px-4 py-2 text-sm text-stone-300 placeholder-stone-600 focus:outline-none focus:border-amber-700"
+            className="ui-control min-w-0 px-4 py-2 text-sm placeholder-stone-600"
           />
-          <button type="submit" className="px-4 py-2 bg-amber-800 hover:bg-amber-700 text-amber-100 rounded-lg transition text-sm">
+          <button type="submit" className="ui-button ui-button-primary px-4 py-2">
             {dict.garden.search}
           </button>
         </form>

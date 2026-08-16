@@ -36,7 +36,7 @@ import LangSwitcher from "./LangSwitcher";
   const meHref = user ? `${base}/me` : `${base}/login`;
 
   const linkCls = (active: boolean, accent = false) =>
-    `px-1 py-1 rounded transition ${
+    `px-2 py-1.5 rounded-md transition ${
       accent
         ? active
           ? "text-amber-300"
@@ -47,11 +47,11 @@ import LangSwitcher from "./LangSwitcher";
     }`;
 
   return (
-    <nav className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between" aria-label="Main navigation">
-      <a href={base} className="text-xl tracking-widest text-amber-400 hover:text-amber-300 transition">
+    <nav className="ui-page flex min-h-16 flex-col items-start justify-center gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0" aria-label="Main navigation">
+      <a href={base} className="shrink-0 text-lg font-semibold tracking-[0.08em] text-amber-300 hover:text-amber-200 transition">
         {t.brand}
       </a>
-      <div className="flex items-center gap-1.5 text-sm text-stone-400">
+      <div className="flex w-full min-w-0 max-w-full items-center gap-1 overflow-x-auto text-sm text-stone-400 sm:w-auto">
         <a href={base} data-active={isActive(base)} className={linkCls(isActive(base))}>
           {t.garden}
         </a>

@@ -40,7 +40,7 @@ export default async function RootLayout({
 
   return (
     <html lang={lang === "zh" ? "zh-CN" : "en"} dir="ltr">
-      <body className="bg-stone-950 text-stone-200 min-h-screen font-serif">
+      <body className="bg-page text-copy min-h-screen font-serif">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-amber-700 focus:text-amber-100 focus:rounded-lg focus:text-sm"
@@ -48,7 +48,7 @@ export default async function RootLayout({
           {lang === "zh" ? "跳转到主要内容" : "Skip to main content"}
         </a>
         <ThemeBackground labels={dict.themes} />
-        <header className="border-b border-stone-800 bg-stone-900/60 backdrop-blur sticky top-0 z-50">
+        <header className="sticky top-0 z-50 border-b border-stone-800/80 bg-stone-950/75 backdrop-blur-xl">
           <NavBar lang={lang} user={!!user} t={dict.nav} />
         </header>
         <main id="main-content" className="min-h-[calc(100vh-4rem)]">{children}</main>

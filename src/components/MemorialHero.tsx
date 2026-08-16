@@ -71,7 +71,7 @@ export default function MemorialHero({
   return (
     <>
       {/* Hero background — cover image or scene-visible gradient */}
-      <div className="relative h-48 md:h-64 rounded-2xl overflow-hidden mb-8 bg-stone-800">
+      <div className="relative mb-8 h-48 overflow-hidden rounded-xl bg-stone-800 md:h-auto md:aspect-[16/7]">
         {hasCover ? (
           <Image src={memorial.cover_url} alt="" fill className="object-cover" />
         ) : (
@@ -124,12 +124,12 @@ export default function MemorialHero({
           )}
         </div>
 
-        <h1 className="text-3xl tracking-widest text-amber-300 mb-1">{memorial.name}</h1>
+        <h1 className="break-words text-3xl font-semibold leading-tight text-amber-300 mb-1">{memorial.name}</h1>
         <p className="text-stone-500 text-sm">
           {memorial.birth_date || "?"} ~ {memorial.death_date || "?"}
         </p>
         {memorial.epitaph && (
-          <p className="mt-4 text-stone-400 italic max-w-md mx-auto leading-relaxed">
+          <p className="mx-auto mt-4 max-w-prose text-stone-400 italic leading-relaxed">
             {labels.epitaphFormat.replace("{text}", memorial.epitaph)}
           </p>
         )}

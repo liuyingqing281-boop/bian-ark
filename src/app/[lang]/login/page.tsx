@@ -15,11 +15,11 @@ export default async function LoginPage({
   const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "";
 
   return (
-    <div className="max-w-md mx-auto px-4 py-16">
+    <div className="ui-page max-w-md py-16 sm:py-20">
       <div className="text-center mb-10">
         <p className="text-4xl mb-4">🕯️</p>
-        <h1 className="text-2xl tracking-widest text-amber-300 mb-2">{dict.auth.title}</h1>
-        <p className="text-stone-500 text-sm">{dict.auth.subtitle}</p>
+        <h1 className="mb-2 text-2xl font-semibold leading-tight text-amber-300">{dict.auth.title}</h1>
+        <p className="text-sm leading-6 text-stone-500">{dict.auth.subtitle}</p>
       </div>
       <LoginForm lang={lang} next={safeNext} labels={dict.auth} />
     </div>

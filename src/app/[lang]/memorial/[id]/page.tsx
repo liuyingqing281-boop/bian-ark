@@ -116,10 +116,10 @@ export default async function MemorialPage({
   const publicDhTasks = isOwner ? [] : dhTasks;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
+    <div className="ui-page max-w-4xl py-12 sm:py-16">
       <MemorialHero memorial={memorial} isOwner={isOwner} lang={lang} labels={dict.memorial} />
       {memorial.biography && (
-        <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6 mb-10">
+        <div className="ui-panel mb-10 p-6">
           <h2 className="text-sm tracking-widest text-amber-500 mb-3">{dict.memorial.biography}</h2>
           <div
             className="text-stone-400 text-sm leading-relaxed"
@@ -129,7 +129,7 @@ export default async function MemorialPage({
       )}
 
       {(lifeEvents.length > 0 || isOwner) && (
-        <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6 mb-10">
+        <div className="ui-panel mb-10 p-6">
           <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.memorial.timelineTitle}</h2>
           {lifeEvents.length > 0 && (
             <div className="relative pl-6 border-l border-stone-700 space-y-5 mb-5">
@@ -148,7 +148,7 @@ export default async function MemorialPage({
       )}
 
       {(media.length > 0 || isOwner) && (
-        <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6 mb-10">
+        <div className="ui-panel mb-10 p-6">
           <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.memorial.gallery}</h2>
           {isOwner ? (
             <MediaManager memorialId={memorial.id} media={media} labels={dict.memorial} />
@@ -174,7 +174,7 @@ export default async function MemorialPage({
       )}
 
       {isOwner && user ? (
-        <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6 mb-10">
+        <div className="ui-panel mb-10 p-6">
           <h2 className="text-sm tracking-widest text-amber-500 mb-1">{dict.digitalHuman.title}</h2>
           <p className="text-xs text-stone-500 mb-4">{dict.digitalHuman.intro}</p>
           <DigitalHumanPanel
@@ -187,7 +187,7 @@ export default async function MemorialPage({
           />
         </div>
       ) : publicDhTasks.length > 0 ? (
-        <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6 mb-10">
+        <div className="ui-panel mb-10 p-6">
           <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.digitalHuman.title}</h2>
           <div className="space-y-4">
             {publicDhTasks.map((task) => (
@@ -208,7 +208,7 @@ export default async function MemorialPage({
         </div>
       ) : null}
 
-      <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6 mb-10">
+      <div className="ui-panel mb-10 p-6">
         <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.memorial.offeringTitle}</h2>
         <OfferPanel
           lang={lang}
@@ -219,7 +219,7 @@ export default async function MemorialPage({
           labels={dict.memorial}
         />
       </div>
-      <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6">
+      <div className="ui-panel p-6">
         <h2 className="text-sm tracking-widest text-amber-500 mb-6">
           {dict.memorial.wallTitle.replace("{count}", String(tributes.length))}
         </h2>

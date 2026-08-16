@@ -57,12 +57,12 @@ export default function LoginForm({ lang, next, labels }: LoginFormProps) {
   }
 
   return (
-    <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6 space-y-4 backdrop-blur-sm">
-      <div className="flex gap-2">
+    <div className="ui-panel space-y-4 p-5 sm:p-6">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
           onClick={() => setChannel("email")}
-          className={`flex-1 px-4 py-2 rounded-lg text-sm transition ${
+          className={`ui-button flex-1 px-4 py-2 text-sm transition ${
             channel === "email" ? "bg-amber-700 text-amber-100" : "bg-stone-800 text-stone-400 hover:text-stone-200"
           }`}
         >
@@ -71,7 +71,7 @@ export default function LoginForm({ lang, next, labels }: LoginFormProps) {
         <button
           type="button"
           onClick={() => setChannel("sms")}
-          className={`flex-1 px-4 py-2 rounded-lg text-sm transition ${
+          className={`ui-button flex-1 px-4 py-2 text-sm transition ${
             channel === "sms" ? "bg-amber-700 text-amber-100" : "bg-stone-800 text-stone-400 hover:text-stone-200"
           }`}
         >
@@ -79,19 +79,19 @@ export default function LoginForm({ lang, next, labels }: LoginFormProps) {
         </button>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
           value={target}
           onChange={(e) => setTarget(e.target.value)}
           placeholder={channel === "email" ? labels.emailPlaceholder : labels.phonePlaceholder}
-          className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-4 py-2 text-sm text-stone-300 placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-amber-700/50 focus:border-amber-600 transition-all duration-200"
-        
-          onKeyDown={e => e.key === "Enter" && target && requestCode()} />
+          className="ui-control min-w-0 flex-1 px-4 py-2 text-sm placeholder-stone-600"
+          onKeyDown={e => e.key === "Enter" && target && requestCode()}
+        />
         <button
           type="button"
           onClick={requestCode}
           disabled={busy || !target}
-          className="px-4 py-2 bg-stone-700 hover:bg-stone-600 disabled:opacity-40 text-stone-200 rounded-lg transition text-sm whitespace-nowrap"
+          className="ui-button w-full whitespace-nowrap bg-stone-700 px-4 py-2 text-stone-200 hover:bg-stone-600 sm:w-auto"
         >
           {labels.sendCode}
         </button>
@@ -112,23 +112,23 @@ export default function LoginForm({ lang, next, labels }: LoginFormProps) {
         placeholder={labels.codePlaceholder}
         maxLength={6}
           onKeyDown={(e) => e.key === "Enter" && code.length === 6 && verify()}
-        className="w-full bg-stone-800 border border-stone-700 rounded-lg px-4 py-2 text-sm text-stone-300 placeholder-stone-600 focus:outline-none focus:border-amber-700 tracking-widest"
+        className="ui-control w-full px-4 py-2 text-sm placeholder-stone-600"
       />
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder={labels.namePlaceholder}
         maxLength={32}
-        className="w-full bg-stone-800 border border-stone-700 rounded-lg px-4 py-2 text-sm text-stone-300 placeholder-stone-600 focus:outline-none focus:border-amber-700"
+        className="ui-control w-full px-4 py-2 text-sm placeholder-stone-600"
       />
 
-      {error && <p key={shakeKey} className="text-xs text-red-400 animate-shake">{error}</p>}
+      {error && <p key={shakeKey} className="ui-status-error animate-shake">{error}</p>}
 
       <button
         type="button"
         onClick={verify}
         disabled={busy || code.length !== 6 || !target}
-        className="w-full px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 text-amber-100 rounded-lg transition text-sm"
+        className="ui-button ui-button-primary w-full px-4 py-2"
       >
         {labels.verify}
       </button>

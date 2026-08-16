@@ -118,7 +118,7 @@ function Stars({ seed = 7, count = 70 }: { seed?: number; count?: number }) {
             width: s.size > 2.6 ? 3 : s.size > 1.6 ? 2 : 1,
             height: s.size > 2.6 ? 3 : s.size > 1.6 ? 2 : 1,
             opacity: s.opacity,
-            animation: `star-twinkle ${2.5 + s.extra! * 4}s ease-in-out ${s.delay}s infinite`,
+            animation: `star-twinkle calc(var(--motion-scene) * ${2.1 + s.extra! * 3.3}) ease-in-out ${s.delay}s infinite`,
           }}
         />
       ))}
@@ -150,7 +150,7 @@ function Sun({ className, size = 110, glow = "rgba(251, 191, 36, 0.45)" }: { cla
         height: size,
         background: "radial-gradient(circle at 42% 40%, #fffbeb 0%, #fde047 55%, #f59e0b 100%)",
         boxShadow: `0 0 90px 40px ${glow}`,
-        animation: "glow-pulse 7s ease-in-out infinite",
+        animation: "glow-pulse calc(var(--motion-scene) * 5.8) ease-in-out infinite",
       }}
     />
   );
@@ -171,7 +171,7 @@ function Clouds({ tint = "rgba(255,255,255,0.5)", seed = 3, count = 4 }: { tint?
             height: 40 + c.extra! * 36,
             background: tint,
             opacity: 0.5 + c.opacity * 0.3,
-            animation: `cloud-drift ${70 + c.extra! * 80}s linear ${c.delay}s infinite`,
+            animation: `cloud-drift calc(var(--motion-scene) * ${58 + c.extra! * 66}) linear ${c.delay}s infinite`,
           }}
         />
       ))}
@@ -207,7 +207,7 @@ function Falling({
             background: color,
             borderRadius: radius,
             opacity: 0.4 + p.opacity * 0.5,
-            animation: `particle-fall ${p.duration}s linear ${p.delay}s infinite`,
+            animation: `particle-fall calc(var(--motion-scene) * ${p.duration / 12}) linear ${p.delay}s infinite`,
           }}
         />
       ))}
@@ -369,7 +369,7 @@ const SCENES: Record<SceneId, { sky: string; veil: string; render: () => React.R
             width: 130,
             height: 130,
             background: "radial-gradient(circle, rgba(251,191,36,0.5) 0%, rgba(180,83,9,0.25) 55%, transparent 75%)",
-            animation: "candle-flicker 3.2s ease-in-out infinite",
+            animation: "candle-flicker calc(var(--motion-scene) * 2.7) ease-in-out infinite",
           }}
         />
         <div
@@ -380,7 +380,7 @@ const SCENES: Record<SceneId, { sky: string; veil: string; render: () => React.R
             margin: "46px 0 0 60px",
             background: "radial-gradient(ellipse at 50% 30%, #fef3c7 0%, #f59e0b 70%, #b45309 100%)",
             boxShadow: "0 0 26px 10px rgba(251, 191, 36, 0.5)",
-            animation: "candle-flicker 2.4s ease-in-out infinite",
+            animation: "candle-flicker calc(var(--motion-scene) * 2) ease-in-out infinite",
           }}
         />
         {/* 光尘 */}
@@ -393,7 +393,7 @@ const SCENES: Record<SceneId, { sky: string; veil: string; render: () => React.R
               top: `${20 + p.top * 0.6}%`,
               width: 2,
               height: 2,
-              animation: `dust-float ${6 + p.extra! * 7}s ease-in-out ${p.delay}s infinite`,
+              animation: `dust-float calc(var(--motion-scene) * ${5 + p.extra! * 5.8}) ease-in-out ${p.delay}s infinite`,
             }}
           />
         ))}

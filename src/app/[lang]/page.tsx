@@ -56,7 +56,7 @@ export default async function HomePage({
   const memorials = getMemorials(currentFilter, user?.id ?? null);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-12">
+    <div className="ui-page py-12 sm:py-16">
       <div className="text-center mb-16">
         {/* 装饰分隔 */}
         <div className="flex items-center justify-center gap-3 mb-6 opacity-60">
@@ -64,8 +64,8 @@ export default async function HomePage({
           <span className="text-2xl">🕯️</span>
           <span className="h-px w-16 bg-gradient-to-l from-transparent to-amber-800/60" />
         </div>
-        <h1 className="text-4xl md:text-5xl tracking-widest text-amber-300 mb-4 drop-shadow-[0_0_20px_rgba(217,119,6,0.15)]">{dict.home.title}</h1>
-        <p className="text-stone-500 text-sm tracking-[0.15em] max-w-xl mx-auto leading-relaxed">{dict.home.subtitle}</p>
+        <h1 className="mx-auto mb-4 max-w-3xl text-4xl font-semibold leading-tight text-amber-300 md:text-5xl">{dict.home.title}</h1>
+        <p className="mx-auto max-w-xl text-sm leading-7 text-stone-500">{dict.home.subtitle}</p>
       </div>
 
       <div className="flex justify-center gap-2 mb-12 flex-wrap">
@@ -101,7 +101,7 @@ export default async function HomePage({
             <Link
               key={m.id}
               href={`/${lang}/memorial/${m.id}`}
-              className="group block bg-stone-900 border border-stone-800 rounded-xl p-6 hover:border-amber-700/50 hover:bg-stone-800/80 transition-all duration-300"
+              className="ui-panel group block p-6 transition-all duration-300 hover:border-amber-700/50 hover:bg-stone-800/80"
             >
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 rounded-full bg-stone-800 flex items-center justify-center text-2xl overflow-hidden group-hover:ring-2 relative ring-amber-600/50 transition">
