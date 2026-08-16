@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-08-16T05:27:44.243Z",
+  "assets": [
+    {
+      "id": "candle",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "flower_lily",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "flower_rose",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "flower_white",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "fruit",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "incense",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "joss_paper",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "letter",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "premium_custom_statue",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "premium_gold_ingot",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "premium_music",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "premium_sky_lantern",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "premium_virtual_home",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "teddy",
+      "file": null,
+      "missing": true
+    },
+    {
+      "id": "wine",
+      "file": null,
+      "missing": true
+    }
+  ]
+}

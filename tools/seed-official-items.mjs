@@ -24,7 +24,7 @@ if (!API_KEY) {
   process.exit(1);
 }
 const MODEL = process.env.DASHSCOPE_MODEL || "wan2.6-t2i";
-const STYLE = "，单个主体，写实摄影风格，静物特写，柔光，深色背景，居中构图，祭奠氛围，庄重";
+const STYLE = "，单个主体，写实产品摄影风格，正面略俯视 15 度，左上方柔和主光，右下方轻微接触阴影，居中构图，主体占画布 72%，纯白无缝背景，无文字，无水印，无边框，庄重克制";
 
 const ITEMS = [
   ["flower_white", "一束白色菊花"],
@@ -113,7 +113,10 @@ for (const [id, prompt] of ITEMS) {
     if (!resp.ok) throw new Error("download_" + resp.status);
     const buffer = Buffer.from(await resp.arrayBuffer());
     const name = `${id}.webp`;
-    await sharp(buffer).resize(512, 512, { fit: "cover" }).webp({ quality: 85 }).toFile(path.join(outDir, name));
+    await sharp(buffer)
+      .resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .webp({ quality: 84, alphaQuality: 90 })
+      .toFile(path.join(outDir, name));
     update.run(`/uploads/items/official/${name}`, id);
     done++;
     console.log(`OK   ${id}`);

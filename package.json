@@ -19,6 +19,7 @@
     "db:backup": "node tools/db-migrate.mjs backup",
     "backup": "node tools/backup.mjs",
     "storage:migrate": "node tools/migrate-uploads.mjs --dry-run",
+    "assets:manifest": "node tools/item-assets-manifest.mjs",
     "dh:worker": "node tools/dh-worker.mjs",
     "release:smoke": "node tools/release-smoke.mjs",
     "test:e2e": "playwright test",

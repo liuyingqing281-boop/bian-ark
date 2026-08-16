@@ -30,6 +30,8 @@ export default function Flame({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const dpr = Math.min(window.devicePixelRatio, 2);
     const w = width * dpr;
     const h = height * dpr;
@@ -42,7 +44,7 @@ export default function Flame({
     let lastTime = 0;
 
     function emit() {
-      const count = 1 + Math.floor(Math.random() * 2);
+      const count = reducedMotion ? 0 : 1;
       for (let i = 0; i < count; i++) {
         const life = 30 + Math.random() * 40;
         particles.push({
@@ -58,6 +60,7 @@ export default function Flame({
           light: 50 + Math.random() * 30,
         });
       }
+      if (particles.length > 18) particles.splice(0, particles.length - 18);
     }
 
     function animate(time: number) {
@@ -105,10 +108,19 @@ export default function Flame({
       ctx!.fillStyle = gradient;
       ctx!.fillRect(0, height - 12, width, 12);
 
+      if (reducedMotion) return;
       raf = requestAnimationFrame(animate);
     }
 
-    raf = requestAnimationFrame(animate);
+    if (reducedMotion) {
+      const gradient = ctx.createRadialGradient(width / 2, height - 2, 0, width / 2, height - 2, width * 0.5);
+      gradient.addColorStop(0, "rgba(245, 158, 11, 0.3)");
+      gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+    } else {
+      raf = requestAnimationFrame(animate);
+    }
 
     return () => {
       cancelAnimationFrame(raf);

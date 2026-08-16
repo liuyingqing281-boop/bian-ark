@@ -13,6 +13,7 @@ import type { DhTask } from "../../../../components/DigitalHumanPanel";
 import { activeProvider } from "../../../../lib/digitalhuman";
 import TimelineManager from "../../../../components/TimelineManager";
 import type { LifeEvent } from "../../../../components/TimelineManager";
+import ItemAsset from "../../../../components/ItemAsset";
 
 interface Memorial {
   id: string; name: string; type: string; avatar_url: string; cover_url: string;
@@ -213,7 +214,7 @@ export default async function MemorialPage({
                 <div key={t.id} className={`flex items-start gap-3 p-3 rounded-lg ${t.is_burning ? "bg-amber-950/20 border border-amber-900/30" : "bg-stone-800/40"}`}>
                   {item?.image_url ? (
                     <div className="relative mt-0.5">
-                      <Image src={item.image_url} alt={itemLabel(item)} width={32} height={32} className="rounded object-cover" />
+                      <ItemAsset src={item.image_url} alt={itemLabel(item)} fallback={item.icon} size={32} />
                       {t.is_burning === 1 && <div className="absolute -top-4 -left-2 pointer-events-none"><Flame width={28} height={40} /></div>}
                     </div>
                   ) : (

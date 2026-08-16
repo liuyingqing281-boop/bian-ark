@@ -1,5 +1,6 @@
 ﻿"use client";
 import Image from "next/image";
+import ItemAsset from "./ItemAsset";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -29,15 +30,13 @@ function ItemCard({
   const hue = item.id ? item.id.charCodeAt(0) * 37 + item.id.length * 13 : 0;
   return (
     <label
-      className={`flex min-h-24 min-w-0 cursor-pointer flex-col items-center gap-1 rounded-lg border p-2 transition ${
+      className={`flex h-28 min-w-0 cursor-pointer flex-col items-center gap-1 rounded-lg border p-2 transition ${
         selected ? "border-amber-600 bg-amber-950/30 shadow-lg shadow-amber-900/20" : "border-stone-800 hover:border-amber-700/50"
       }`}
     >
       <input type="radio" name="item_id" value={item.id} checked={selected} onChange={onSelect} className="sr-only" />
       {item.image_url ? (
-        <div className="w-12 h-12 rounded-md overflow-hidden shadow-md">
-          <Image src={item.image_url} alt={item.label} width={48} height={48} className="object-cover w-full h-full" />
-        </div>
+        <ItemAsset src={item.image_url} alt={item.label} fallback={item.icon} />
       ) : (
         <div
           className="w-12 h-12 rounded-md flex items-center justify-center text-2xl shadow-md"
@@ -46,7 +45,7 @@ function ItemCard({
             boxShadow: `inset 0 1px 0 hsla(${hue}, 40%, 60%, 0.3), 0 2px 4px rgba(0,0,0,0.4)`,
           }}
         >
-          <span style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))" }}>{item.icon}</span>
+          <span aria-hidden style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))" }}>{item.icon || "🕯️"}</span>
         </div>
       )}
       <span className="text-xs text-stone-500 text-center leading-tight">{item.label}</span>
