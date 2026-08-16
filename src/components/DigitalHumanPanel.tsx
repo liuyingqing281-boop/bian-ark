@@ -61,6 +61,7 @@ export default function DigitalHumanPanel({
   const [tasks, setTasks] = useState<DhTask[]>(initialTasks);
   const [consent, setConsent] = useState(false);
   const [mode, setMode] = useState<"custom" | "bio">("custom");
+  const [ratio, setRatio] = useState<"9:16" | "16:9">("9:16");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -92,6 +93,7 @@ export default function DigitalHumanPanel({
     const fd = new FormData(form);
     fd.set("consent", consent ? "1" : "0");
     fd.set("use_biography", mode === "bio" ? "1" : "0");
+    fd.set("ratio", ratio);
     setBusy(true);
     setError("");
     const res = await fetch("/api/digitalhumans", { method: "POST", body: fd });
@@ -141,6 +143,9 @@ export default function DigitalHumanPanel({
                   <span className="text-xs text-stone-600">{task.created_at}</span>
                   {task.status === "reviewing" && (
                     <span className="text-xs text-stone-500">{labels.reviewNote}</span>
+                  )}
+                  {!isMock && (task.status === "pending" || task.status === "processing") && (
+                    <span className="text-xs text-stone-500">{labels.waitNote}</span>
                   )}
                 </div>
                 {task.script && <p className="text-xs text-stone-500 line-clamp-2">{task.script}</p>}
@@ -249,6 +254,32 @@ export default function DigitalHumanPanel({
                 className="w-full bg-stone-800 border border-stone-700 rounded-lg px-3 py-2 text-xs text-stone-300 placeholder-stone-600 focus:outline-none focus:border-amber-700"
               />
             )}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs text-stone-300">{labels.ratioLabel}</p>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-xs text-stone-300 cursor-pointer">
+                <input
+                  type="radio"
+                  name="ratio_mode"
+                  checked={ratio === "9:16"}
+                  onChange={() => setRatio("9:16")}
+                  className="accent-amber-600"
+                />
+                {labels.ratioPortrait}
+              </label>
+              <label className="flex items-center gap-2 text-xs text-stone-300 cursor-pointer">
+                <input
+                  type="radio"
+                  name="ratio_mode"
+                  checked={ratio === "16:9"}
+                  onChange={() => setRatio("16:9")}
+                  className="accent-amber-600"
+                />
+                {labels.ratioLandscape}
+              </label>
+            </div>
           </div>
 
           <div className="p-3 bg-stone-800/40 border border-stone-700/60 rounded-lg space-y-2">

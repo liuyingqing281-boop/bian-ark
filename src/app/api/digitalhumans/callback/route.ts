@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "../../../../lib/db";
+import { refundRedoCredit } from "../../../../lib/digitalhuman";
 
 // Vendor webhook: flips a submitted job to reviewing (success) or failed.
 // Guarded by a shared secret; configure DH_CALLBACK_SECRET in production.
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
     const existing = db.prepare("SELECT status FROM digital_humans WHERE provider_job_id = ?").get(jobId) as { status: string } | undefined;
     if (existing) return NextResponse.json({ ok: true, duplicate: true, status: existing.status });
     return NextResponse.json({ error: "job_not_found" }, { status: 404 });
+  }
+  if (!succeeded) {
+    // 失败必须退还已消费的重做额度（PRD F3.6）
+    const task = db.prepare("SELECT id FROM digital_humans WHERE provider_job_id = ?").get(jobId) as
+      | { id: string }
+      | undefined;
+    if (task) refundRedoCredit(task.id);
   }
   db.prepare("UPDATE digital_humans SET callback_payload = ? WHERE provider_job_id = ?")
     .run(JSON.stringify(body).slice(0, 100000), jobId);

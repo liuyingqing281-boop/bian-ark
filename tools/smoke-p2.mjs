@@ -66,39 +66,46 @@ check("markdown link rendered", bioPage.text.includes('href="https://example.com
 check("markdown heading rendered", bioPage.text.includes("<h3"), true);
 
 // AI generate (mock provider) x3 ok, 4th quota exceeded
-let lastGen = null;
-for (let i = 0; i < 3; i++) {
-  const generated = await api("/api/items/generate", { method: "POST", headers: { "Idempotency-Key": `${context.runId}-generate-${i}` }, body: { prompt: offeringPrompt } });
-  lastGen = requireResponse(`generate offerings ${i + 1}`, generated, {
-    validate: (json) => json?.ok === true && Array.isArray(json.candidates) && json.candidates.length === 4
-      && json.candidates.every((url) => typeof url === "string" && url.startsWith("/uploads/items/")),
-    expected: "HTTP 200 with four /uploads/items/ candidates",
-  });
-  if (i === 0) {
-    check("generate provider mock", lastGen.provider, "mock");
+// 真实 provider（ark/dashscope）会烧钱：跳过生成/配额/认领断言，仅 mock 时执行
+const health = await fetch(`${resolveBaseUrl()}/api/health`).then((r) => r.json()).catch(() => ({}));
+const imageProvider = health?.checks?.imagegen?.detail || "mock";
+let candidateUrl = null;
+if (imageProvider === "mock") {
+  let lastGen = null;
+  for (let i = 0; i < 3; i++) {
+    const generated = await api("/api/items/generate", { method: "POST", headers: { "Idempotency-Key": `${context.runId}-generate-${i}` }, body: { prompt: offeringPrompt } });
+    lastGen = requireResponse(`generate offerings ${i + 1}`, generated, {
+      validate: (json) => json?.ok === true && Array.isArray(json.candidates) && json.candidates.length === 4
+        && json.candidates.every((url) => typeof url === "string" && url.startsWith("/uploads/items/")),
+      expected: "HTTP 200 with four /uploads/items/ candidates",
+    });
+    if (i === 0) {
+      check("generate provider mock", lastGen.provider, "mock");
+    }
+    registerUpload(resources, ...lastGen.candidates);
   }
-  registerUpload(resources, ...lastGen.candidates);
+  const quotaHit = await api("/api/items/generate", { method: "POST", headers: { "Idempotency-Key": `${context.runId}-generate-quota` }, body: { prompt: "再来一束" } });
+  requireResponse("4th generate quota", quotaHit, {
+    status: 429,
+    validate: (json) => json?.error === "quota_exceeded",
+    expected: "HTTP 429 with quota_exceeded",
+  });
+
+  // candidate image actually served
+  candidateUrl = lastGen.candidates[0];
+  const candResp = await fetch(`${resolveBaseUrl()}${candidateUrl}`);
+  check("candidate image served", candResp.status, 200);
+
+  // claim candidate
+  const claim = await api("/api/items/claim", { method: "POST", body: { url: candidateUrl, prompt: offeringPrompt, name: offeringName } });
+  const claimedItem = requireResponse("claim offering", claim, {
+    validate: (json) => json?.ok === true && typeof json.id === "string" && json.id.length > 0,
+    expected: "HTTP 200 with ok=true and item id",
+  });
+  resources.register("itemIds", claimedItem.id);
+} else {
+  console.log(`[p2 ${context.runId}] SKIP generation/quota/claim checks: imagegen provider = ${imageProvider} (real provider, avoids spend)`);
 }
-const quotaHit = await api("/api/items/generate", { method: "POST", headers: { "Idempotency-Key": `${context.runId}-generate-quota` }, body: { prompt: "再来一束" } });
-requireResponse("4th generate quota", quotaHit, {
-  status: 429,
-  validate: (json) => json?.error === "quota_exceeded",
-  expected: "HTTP 429 with quota_exceeded",
-});
-
-// candidate image actually served
-const candidateUrl = lastGen.candidates[0];
-const candResp = await fetch(`${resolveBaseUrl()}${candidateUrl}`);
-check("candidate image served", candResp.status, 200);
-
-// claim candidate
-const claim = await api("/api/items/claim", { method: "POST", body: { url: candidateUrl, prompt: offeringPrompt, name: offeringName } });
-const claimedItem = requireResponse("claim offering", claim, {
-  validate: (json) => json?.ok === true && typeof json.id === "string" && json.id.length > 0,
-  expected: "HTTP 200 with ok=true and item id",
-});
-const customItemId = claimedItem.id;
-resources.register("itemIds", customItemId);
 
 // upload custom item
 const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: { r: 120, g: 60, b: 60 } } }).png().toBuffer();
@@ -118,13 +125,13 @@ if (process.env.SMOKE_FORCE_FAILURE === "p2") throw new Error("forced_failure_af
 // memorial page shows custom items (RSC serialized props)
 const page = await api(`/zh/memorial/${mid}`);
 check("custom items page status", page.status, 200);
-check("page has claimed item", page.text.includes(offeringName), true);
+if (candidateUrl) check("page has claimed item", page.text.includes(offeringName), true);
 check("page has uploaded item", page.text.includes(customItemName), true);
 
 // tribute with custom item (form post)
 const tr = await fetch(`${resolveBaseUrl()}/api/tribute`, {
   method: "POST",
-  body: new URLSearchParams({ memorial_id: mid, lang: "zh", item_id: customItemId, message: "ai 花给你" }),
+  body: new URLSearchParams({ memorial_id: mid, lang: "zh", item_id: uploadedItem.id, message: "ai 花给你" }),
   redirect: "manual",
 });
 check("tribute with custom item redirects", tr.status >= 300 && tr.status < 400, true);

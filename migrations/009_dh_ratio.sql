@@ -1,0 +1,1 @@
+-- @add-column digital_humans ratio TEXT DEFAULT ''

@@ -8,6 +8,7 @@ import { trackEvent } from "../../../lib/events";
 import { moderateText } from "../../../lib/moderation";
 
 const SCRIPT_MAX = 500;
+const RATIOS = new Set(["9:16", "16:9"]);
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
@@ -95,10 +96,12 @@ export async function POST(req: NextRequest) {
     }
 
     const id = uuid();
+    const ratioRaw = String(formData.get("ratio") || "");
+    const ratio = RATIOS.has(ratioRaw) ? ratioRaw : process.env.DH_VIDEO_RATIO || "9:16";
     db.prepare(
-      `INSERT INTO digital_humans (id, memorial_id, user_id, status, photo_url, audio_url, video_url, script, provider, consent_accepted)
-       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, 1)`
-    ).run(id, memorialId, user.id, photoUp.url, audioUrl, videoUrl, script, activeProvider());
+      `INSERT INTO digital_humans (id, memorial_id, user_id, status, photo_url, audio_url, video_url, script, provider, consent_accepted, ratio)
+       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, 1, ?)`
+    ).run(id, memorialId, user.id, photoUp.url, audioUrl, videoUrl, script, activeProvider(), ratio);
     startDigitalHumanJob(id);
     trackEvent("dh_create", { provider: activeProvider() }, user.id);
     return NextResponse.json({ ok: true, id, uploadUrls: saved });

@@ -309,8 +309,18 @@ CREATE TABLE media (
 验证：npm run build 通过；新增 tools/smoke-v2.mjs 14/14；smoke-p1 27/27、smoke-p2 26/26、smoke-p4 18/18 回归无损；3D 场景截图 docs/shots/garden-3d.png 验收通过。
 
 ### 剩余外部依赖（非代码工作）
-1. DASHSCOPE_API_KEY → 跑 seed-official-items.mjs 写实化官方祭品，IMAGEGEN_PROVIDER 自动切真生成。
+1. ~~DASHSCOPE_API_KEY → 跑 seed-official-items.mjs 写实化官方祭品，IMAGEGEN_PROVIDER 自动切真生成。~~ → 已由火山方舟 Seedream 替代（见 §12）。
 2. 微信开放平台「网站应用」资质 → 微信扫码上线。
-3. 数字人供应商 POC 三选一 → 接真数字人；随后启动深度合成算法备案。
+3. 数字人供应商 POC 三选一 → ~~接真数字人~~；已选火山方舟 Seedance（见 §12），待控制台开通视频模型 + 启动深度合成算法备案。
 4. 阿里云内容安全 → 替换人工审核兜底（F1.6）。
 5. V2 剩余：微信/支付宝支付迁移（需商户号）。
+
+## 12. 第四轮：火山方舟 Ark 接入（2026-08-16）
+
+| 项 | 状态 |
+| --- | --- |
+| 生图 provider（ark） | 已完成：`src/lib/ark.ts` 共享客户端 + imagegen.ts ark 分支（Seedream `doubao-seedream-4-5-251128`，2048x2048 起步转 webp 1024 落盘）；实测生成成功 |
+| 数字人 provider（ark） | 已完成：Seedance 异步任务（创建→后台 10s 轮询→下载 mp4 转存本地→reviewing）；素材 base64 data URI 提交（照片 sharp 压 1280px；音频 data URI 被拒时自动降级无参考音频）；`watermark: true`（F3.5）；画幅用户可选（9:16/16:9，migration 009 加 ratio 列）；时长按文稿 5/10s（DH_VIDEO_DURATION 可覆盖） |
+| 失败退费（F3.6） | 已修复既有缺口：`refundRedoCredit` 统一 mock 失败 / ark 失败 / callback 失败 / dh-worker 超时四条路径 |
+| smoke provider 感知 | 已完成：/api/health 暴露 activeProvider；smoke-p2/p4 检测非 mock 时跳过烧钱断言（p4 伪造 reviewing 任务保住审核链路覆盖） |
+| 阻塞项 | **视频模型未在方舟控制台开通**（`doubao-seedance-2-5-260628` 返回 ModelNotOpen，含 1.x/2.x 全系探测均未开通）；开通或换 ARK_VIDEO_MODEL 即生效，代码无需改动 |

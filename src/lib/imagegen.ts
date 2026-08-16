@@ -2,6 +2,7 @@ import path from "path";
 import fs from "fs";
 import { randomUUID, createHash } from "crypto";
 import sharp from "sharp";
+import { arkImageModel, arkPost } from "./ark";
 
 const UPLOAD_SUBDIR = "items";
 const STYLE_SUFFIX = "，写实摄影风格，柔光，深色背景，居中构图，祭品静物";
@@ -41,11 +42,13 @@ async function generateMock(prompt: string, count: number): Promise<string[]> {
   return urls;
 }
 
-async function downloadTo(url: string, name: string): Promise<string> {
+async function downloadTo(url: string, name: string, maxSide = 0): Promise<string> {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`download_failed_${resp.status}`);
   const buffer = Buffer.from(await resp.arrayBuffer());
-  await sharp(buffer).webp({ quality: 85 }).toFile(path.join(uploadDir(), name));
+  let pipeline = sharp(buffer);
+  if (maxSide > 0) pipeline = pipeline.resize(maxSide, maxSide, { fit: "inside", withoutEnlargement: true });
+  await pipeline.webp({ quality: 85 }).toFile(path.join(uploadDir(), name));
   return `/uploads/${UPLOAD_SUBDIR}/${name}`;
 }
 
@@ -134,13 +137,34 @@ async function generateDashscope(prompt: string, count: number): Promise<string[
   throw new Error("dashscope_timeout");
 }
 
+async function generateArk(prompt: string, count: number): Promise<string[]> {
+  const model = arkImageModel();
+  const urls: string[] = [];
+  for (let index = 0; index < count; index++) {
+    // seedream 4.5 要求 ≥3686400 像素，2048x2048 为安全下限
+    const body = (await arkPost("/images/generations", {
+      model,
+      prompt: prompt + STYLE_SUFFIX,
+      size: "2048x2048",
+      response_format: "url",
+      watermark: false,
+    })) as { data?: Array<{ url?: string }> };
+    const url = body?.data?.[0]?.url;
+    if (!url) throw new Error("ark_empty_result");
+    urls.push(await downloadTo(url, randomUUID() + ".webp", 1024));
+  }
+  return urls;
+}
+
 export function activeProvider(): string {
   if (process.env.IMAGEGEN_PROVIDER) return process.env.IMAGEGEN_PROVIDER;
+  if (process.env.ARK_API_KEY) return "ark";
   return process.env.DASHSCOPE_API_KEY ? "dashscope" : "mock";
 }
 
 export async function generateOfferingImages(prompt: string, count = 4): Promise<string[]> {
   const provider = activeProvider();
+  if (provider === "ark") return generateArk(prompt, count);
   if (provider === "dashscope") return generateDashscope(prompt, count);
   return generateMock(prompt, count);
 }
