@@ -11,6 +11,7 @@ import MemorialHero from "../../../../components/MemorialHero";
 import Flame from "../../../../components/Flame";
 import type { DhTask } from "../../../../components/DigitalHumanPanel";
 import { activeProvider } from "../../../../lib/digitalhuman";
+import { trackEvent } from "../../../../lib/events";
 import TimelineManager from "../../../../components/TimelineManager";
 import type { LifeEvent } from "../../../../components/TimelineManager";
 import ItemAsset from "../../../../components/ItemAsset";
@@ -108,6 +109,10 @@ export default async function MemorialPage({
   }
 
   const isOwner = ownsMemorial(memorial, user?.id ?? null);
+  if (isOwner && user) {
+    // 30 日回访率数据源：仅记录馆主本人的到访
+    trackEvent("memorial_owner_visit", { memorial_id: id }, user.id);
+  }
   const tributes = getTributes(id, isOwner);
   const media = getMedia(id, isOwner);
   const officialItems = getOfficialItems();

@@ -3,6 +3,7 @@ import { getDb } from "../../../../lib/db";
 import { getSessionUser } from "../../../../lib/auth";
 import { deleteUpload } from "../../../../lib/upload";
 import { moderateText } from "../../../../lib/moderation";
+import { trackEvent } from "../../../../lib/events";
 
 const EDITABLE_FIELDS = [
   "name",
@@ -94,6 +95,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "invalid_group" }, { status: 400 });
     }
     throw error;
+  }
+  // 馆主把纪念馆授权给群组 = 漏斗第二环「发起邀请/共享」
+  if (Array.isArray(body.group_ids)) {
+    trackEvent("memorial_shared", { memorial_id: id, groups: (auditDetail.group_ids as string[]).length }, user.id);
   }
   return NextResponse.json({ ok: true });
 }

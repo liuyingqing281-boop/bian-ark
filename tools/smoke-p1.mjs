@@ -116,6 +116,16 @@ const tributeForm = new URLSearchParams({ memorial_id: mid, lang: "zh", message:
 const tr = await anonymousApi("/api/tribute", { method: "POST", body: tributeForm, redirect: "manual" });
 check("anon tribute redirects", tr.status >= 300 && tr.status < 400, true);
 
+// PRD 3.0 §6 漏斗埋点：本次运行应已产生全部六类事件
+const evCount = (type, key, val) =>
+  db.prepare(`SELECT COUNT(*) AS c FROM events WHERE type = ? AND created_at > datetime('now', '-10 minutes') AND json_extract(meta, '$.${key}') = ?`).get(type, val).c;
+check("event memorial_created", evCount("memorial_created", "memorial_id", mid) >= 1, true);
+check("event group_created", evCount("group_created", "group_id", gid) >= 1, true);
+check("event group_joined", evCount("group_joined", "group_id", gid) >= 1, true);
+check("event memorial_shared", evCount("memorial_shared", "memorial_id", mid) >= 1, true);
+check("event tribute_completed", evCount("tribute_completed", "memorial_id", mid) >= 1, true);
+check("event memorial_owner_visit", evCount("memorial_owner_visit", "memorial_id", mid) >= 1, true);
+
 const me = await ownerApi("/api/me");
 check("me.memorials count", me.json?.memorials?.length >= 1, true);
 check("me.groups count", me.json?.groups?.length >= 1, true);

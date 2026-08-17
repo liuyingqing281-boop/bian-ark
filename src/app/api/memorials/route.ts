@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuid } from "uuid";
 import { getDb } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/auth";
+import { trackEvent } from "../../../lib/events";
 
 const VALID_TYPES = new Set(["person", "pet", "other"]);
 
@@ -29,5 +30,6 @@ export async function POST(req: NextRequest) {
     user.id
   );
   db.prepare("INSERT INTO memorial_audit_logs (memorial_id, actor_user_id, action) VALUES (?, ?, 'create')").run(id, user.id);
+  trackEvent("memorial_created", { memorial_id: id, type }, user.id);
   return NextResponse.json({ ok: true, id });
 }

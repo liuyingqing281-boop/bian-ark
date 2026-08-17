@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { v4 as uuid } from "uuid";
 import { getDb } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/auth";
+import { trackEvent } from "../../../lib/events";
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -21,5 +22,6 @@ export async function POST(req: NextRequest) {
     inviteCode
   );
   db.prepare("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, 'owner')").run(id, user.id);
+  trackEvent("group_created", { group_id: id }, user.id);
   return NextResponse.json({ ok: true, id, invite_code: inviteCode });
 }

@@ -3,6 +3,7 @@ import { getDb } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/auth";
 import { canTributeMemorial, MemorialAccessRow } from "../../../lib/permissions";
 import { moderateText } from "../../../lib/moderation";
+import { trackEvent } from "../../../lib/events";
 import { v4 as uuid } from "uuid";
 
 export async function POST(req: NextRequest) {
@@ -46,9 +47,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}?item_unavailable=1`, req.url));
   }
 
+  const itemId = item_id || "flower_white";
   db.prepare(
     "INSERT INTO tributes (id, memorial_id, item_id, message, sender_name, is_burning, user_id, review_status, review_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-  ).run(uuid(), memorial_id, item_id || "flower_white", message, sender_name, is_burning, user?.id || "", senderCheck.status, senderCheck.reason || "");
+  ).run(uuid(), memorial_id, itemId, message, sender_name, is_burning, user?.id || "", senderCheck.status, senderCheck.reason || "");
+  // 北极星事件：每周有祭奠动作的馆数按此聚合
+  trackEvent(
+    "tribute_completed",
+    { memorial_id, item_id: itemId, has_message: message ? 1 : 0, burning: is_burning, visibility: memorial.visibility },
+    user?.id || ""
+  );
 
   return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}`, req.url));
 }

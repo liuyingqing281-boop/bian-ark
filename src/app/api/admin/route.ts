@@ -20,11 +20,75 @@ export async function GET() {
   const stats = db
     .prepare("SELECT type, COUNT(*) AS c FROM events WHERE created_at > datetime('now', '-30 days') GROUP BY type ORDER BY c DESC")
     .all();
+  const funnel = buildFunnel(db);
   const pendingMedia = db.prepare("SELECT * FROM media WHERE review_status = 'pending' ORDER BY created_at LIMIT 100").all();
   const pendingItems = db.prepare("SELECT * FROM items WHERE review_status = 'pending' ORDER BY rowid LIMIT 100").all();
   const pendingTributes = db.prepare("SELECT * FROM tributes WHERE review_status = 'pending' ORDER BY created_at LIMIT 100").all();
   const appeals = db.prepare("SELECT * FROM moderation_appeals WHERE status = 'pending' ORDER BY created_at LIMIT 100").all();
-  return NextResponse.json({ memorials, items, digitalHumans, pendingMedia, pendingItems, pendingTributes, appeals, stats });
+  return NextResponse.json({ memorials, items, digitalHumans, pendingMedia, pendingItems, pendingTributes, appeals, stats, funnel });
+}
+
+// PRD 3.0 §6 漏斗：建馆 → 7日内共享 → 亲友入群 → 完成祭奠（近30天窗口）
+type FunnelEventRow = { user_id: string; at: number } & Record<string, unknown>;
+
+function buildFunnel(db: ReturnType<typeof getDb>) {
+  const readMeta = (type: string, days: number): FunnelEventRow[] =>
+    (db
+      .prepare("SELECT meta, user_id, created_at FROM events WHERE type = ? AND created_at > datetime('now', ?)")
+      .all(type, `-${days} days`) as Array<{ meta: string; user_id: string; created_at: string }>)
+      .map((row): FunnelEventRow => {
+        let parsed: Record<string, unknown> = {};
+        try {
+          parsed = JSON.parse(row.meta);
+        } catch {
+          parsed = {};
+        }
+        return { ...parsed, user_id: row.user_id, at: new Date(row.created_at.replace(" ", "T") + "Z").getTime() };
+      });
+
+  const created = readMeta("memorial_created", 30);
+  const shared = readMeta("memorial_shared", 30);
+  const joined = readMeta("group_joined", 30);
+  const tributed = readMeta("tribute_completed", 30);
+  const tributed7d = readMeta("tribute_completed", 7);
+  const ownerVisits = readMeta("memorial_owner_visit", 30);
+
+  const createdRows = created.filter((row) => typeof row.memorial_id === "string");
+  const createdIds = new Set(createdRows.map((row) => row.memorial_id as string));
+  const DAY_MS = 86_400_000;
+
+  const sharedAt = new Map<string, number[]>();
+  for (const row of shared) {
+    if (typeof row.memorial_id !== "string") continue;
+    sharedAt.set(row.memorial_id, [...(sharedAt.get(row.memorial_id) || []), row.at]);
+  }
+  const sharedWithin7d = createdRows.filter(
+    (row) => (sharedAt.get(row.memorial_id as string) || []).some((t) => t >= row.at && t <= row.at + 7 * DAY_MS)
+  );
+
+  const joinedGroups = new Set(joined.map((row) => row.group_id).filter((id): id is string => typeof id === "string"));
+  const groupsOfMemorial = new Map<string, string[]>();
+  for (const link of db.prepare("SELECT memorial_id, group_id FROM memorial_groups").all() as Array<{ memorial_id: string; group_id: string }>) {
+    groupsOfMemorial.set(link.memorial_id, [...(groupsOfMemorial.get(link.memorial_id) || []), link.group_id]);
+  }
+  const joinedAfterShare = sharedWithin7d.filter((row) =>
+    (groupsOfMemorial.get(row.memorial_id as string) || []).some((groupId) => joinedGroups.has(groupId))
+  );
+
+  const tributedIds = new Set(tributed.map((row) => row.memorial_id).filter((id): id is string => typeof id === "string"));
+  const completed = createdRows.filter((row) => tributedIds.has(row.memorial_id as string));
+
+  return {
+    windowDays: 30,
+    memorialsCreated: createdIds.size,
+    sharedWithin7d: sharedWithin7d.length,
+    groupJoinedAfterShare: joinedAfterShare.length,
+    tributeCompleted: completed.length,
+    northStarActiveMemorials7d: new Set(
+      tributed7d.map((row) => row.memorial_id).filter((id): id is string => typeof id === "string")
+    ).size,
+    ownerVisitors30d: new Set(ownerVisits.map((row) => row.user_id).filter(Boolean)).size,
+  };
 }
 
 export async function POST(req: NextRequest) {
