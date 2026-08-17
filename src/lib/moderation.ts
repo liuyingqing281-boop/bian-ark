@@ -26,9 +26,11 @@ async function aliyunGreenText(text: string): Promise<ModerationResult> {
   const accessKeyId = process.env.ALIYUN_GREEN_ACCESS_KEY_ID!;
   const accessKeySecret = process.env.ALIYUN_GREEN_ACCESS_KEY_SECRET!;
   const host = "green-cip.cn-shanghai.aliyuncs.com";
+  // comment_detection_pro：实测默认规则即拦截违禁品广告（violent_weapons 置信度100），
+  // 无需控制台规则配置；chat_detection_pro 对同类文本过宽松（2026-08-17 实测）
   const body = JSON.stringify({
-    service: "chat_detection",
-    serviceParameters: JSON.stringify({ content: text }),
+    Service: "comment_detection_pro",
+    ServiceParameters: JSON.stringify({ content: text }),
   });
 
   const hashedPayload = sha256Hex(body);
@@ -47,7 +49,8 @@ async function aliyunGreenText(text: string): Promise<ModerationResult> {
   const signedHeadersStr = signedKeys.join(";");
   const canonicalRequest = ["POST", "/", "", canonicalHeaders, signedHeadersStr, hashedPayload].join("\n");
   const stringToSign = ["ACS3-HMAC-SHA256", sha256Hex(canonicalRequest)].join("\n");
-  const signature = hmac256(`acs3-${accessKeySecret}`, stringToSign).toString("hex");
+  // ACS3-HMAC-SHA256：HMAC 密钥即 AccessKeySecret 本身（实测 2026-08-17，勿加前缀）
+  const signature = hmac256(accessKeySecret, stringToSign).toString("hex");
   const authorization = `ACS3-HMAC-SHA256 Credential=${accessKeyId},SignedHeaders=${signedHeadersStr},Signature=${signature}`;
 
   const resp = await fetch(`https://${host}/`, {

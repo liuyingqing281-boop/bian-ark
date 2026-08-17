@@ -24,29 +24,34 @@ test.describe("匿名祭奠旅程", () => {
     await page.getByPlaceholder("想说点什么...").fill(message);
     await page.getByRole("button", { name: "供奉", exact: true }).click();
 
-    // 表单提交后重定向回纪念馆；未配置自动审核时留言为 pending，匿名还看不到
+    // 表单提交后重定向回纪念馆。审核状态取决于配置：
+    // - 未配阿里云内容安全（或服务异常）→ pending，匿名暂不可见，需管理员批准
+    // - 已配 → 正常文本自动 approved，立即可见
     await page.waitForURL(/\/zh\/memorial\//, { timeout: 10_000 });
-    await expect(page.getByText(message)).toHaveCount(0);
+    await page.waitForTimeout(1_000);
+    const autoVisible = (await page.getByText(message).count()) > 0;
 
-    // 管理员审核通过后留言上墙（dev 环境登录用户即管理员）
-    const { cleanupRun, dbPath } = await import("./helpers");
-    const Database = (await import("better-sqlite3")).default;
-    const db = new Database(dbPath());
-    const tribute = db
-      .prepare("SELECT id FROM tributes WHERE memorial_id = ? AND message = ?")
-      .get(memorialId, message) as { id: string } | undefined;
-    db.close();
-    expect(tribute, "供奉应已入库").toBeTruthy();
+    if (!autoVisible) {
+      // 人工审核链路：查库拿 tribute id → admin 批准 → 上墙
+      const { dbPath } = await import("./helpers");
+      const Database = (await import("better-sqlite3")).default;
+      const db = new Database(dbPath());
+      const tribute = db
+        .prepare("SELECT id FROM tributes WHERE memorial_id = ? AND message = ?")
+        .get(memorialId, message) as { id: string } | undefined;
+      db.close();
+      expect(tribute, "供奉应已入库").toBeTruthy();
 
-    const admin = await page.context().browser()!.newContext();
-    await apiLogin(admin.request, emailOf("tribadmin"));
-    const review = await admin.request.post("/api/admin", {
-      data: { action: "review_content", resource_type: "tribute", id: tribute!.id, decision: "approve", reason: "e2e" },
-    });
-    expect(review.ok()).toBeTruthy();
-    await admin.close();
+      const admin = await page.context().browser()!.newContext();
+      await apiLogin(admin.request, emailOf("tribadmin"));
+      const review = await admin.request.post("/api/admin", {
+        data: { action: "review_content", resource_type: "tribute", id: tribute!.id, decision: "approve", reason: "e2e" },
+      });
+      expect(review.ok()).toBeTruthy();
+      await admin.close();
+      await page.reload();
+    }
 
-    await page.reload();
     await expect(page.getByText(message)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(/思念墙/).first()).toBeVisible();
   });
