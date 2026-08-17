@@ -5,7 +5,8 @@ import { sendLoginCode } from "../../../../lib/notify";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^1\d{10}$/;
-const IP_DAILY_LIMIT = 100;
+// 可通过 AUTH_IP_DAILY_LIMIT 覆盖（CI/E2E 环境调高，生产保持默认）
+const IP_DAILY_LIMIT = Number(process.env.AUTH_IP_DAILY_LIMIT || 100);
 
 function requestIp(req: NextRequest): string {
   return (req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "unknown").trim().slice(0, 64);

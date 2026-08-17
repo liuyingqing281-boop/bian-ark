@@ -17,6 +17,7 @@ export default defineConfig({
     url: "http://localhost:3002/api/health",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: { ...process.env, AUTH_IP_DAILY_LIMIT: "1000" },
   },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
