@@ -1,0 +1,6 @@
+# 换行符规范：脚本必须 LF（Linux 服务器执行），源码统一 LF
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+*.mp4 binary
