@@ -21,7 +21,9 @@ mkdir -p /data/bian-backups   # 备份独立目录（换机时可挂载独立盘
 
 echo "=== [4/6] PM2 进程守护 ==="
 npm install -g pm2
-pm2 startup systemd -y >/dev/null
+# pm2 startup 输出一条需要执行的命令（新版无 -y 选项），root 下直接执行它
+STARTUP_CMD=$(pm2 startup systemd | tail -1)
+eval "$STARTUP_CMD" >/dev/null 2>&1 || echo "!! pm2 startup 配置失败，可稍后手动执行: $STARTUP_CMD"
 
 echo "=== [5/6] Nginx 站点 ==="
 cp /var/www/bian/deploy/nginx.conf.template /etc/nginx/sites-available/bian || {
