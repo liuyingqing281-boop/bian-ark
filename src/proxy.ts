@@ -17,8 +17,14 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/api/")) {
     const method = request.method.toUpperCase();
     const origin = request.headers.get("origin");
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && origin && origin !== request.nextUrl.origin) {
-      return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
+    if (origin) {
+      // 反向代理后 Node 侧看到的是 http + 内网 Host，需用转发头推导浏览器真实 origin
+      const proto = request.headers.get("x-forwarded-proto")?.split(",")[0] || "http";
+      const host = request.headers.get("x-forwarded-host")?.split(",")[0] || request.headers.get("host") || "";
+      const expected = `${proto}://${host.trim()}`;
+      if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && origin !== expected && origin !== request.nextUrl.origin) {
+        return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
+      }
     }
     const requestHeaders = new Headers(request.headers);
     const requestId = requestHeaders.get("x-request-id") || randomUUID();
