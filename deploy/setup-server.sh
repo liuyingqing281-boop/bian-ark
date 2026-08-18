@@ -31,7 +31,7 @@ cp /var/www/bian/deploy/nginx.conf.template /etc/nginx/sites-available/bian || {
 }
 ln -sf /etc/nginx/sites-available/bian /etc/nginx/sites-enabled/bian
 rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl enable --now nginx
+nginx -t && systemctl enable --now nginx && systemctl reload nginx
 
 echo "=== [6/6] 防火墙 ==="
 ufw allow OpenSSH
