@@ -8,7 +8,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const channel = body?.channel === "sms" ? "sms" : body?.channel === "email" ? "email" : null;
   const target = String(body?.target || "").trim();
-  const code = String(body?.code || "").trim();
+  // 全角数字（中文输入法常见）归一化为半角
+  const code = String(body?.code || "")
+    .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+    .trim();
   const name = String(body?.name || "").trim().slice(0, 32);
   if (!channel || !target || !/^\d{6}$/.test(code)) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
