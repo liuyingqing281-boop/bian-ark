@@ -7,14 +7,14 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
   use: {
-    baseURL: process.env.BASE_URL || "http://localhost:3002",
+    baseURL: process.env.BASE_URL || "http://localhost:3003",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
   webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER ? undefined : {
     command: "npm run dev",
-    url: "http://localhost:3002/api/health",
+    url: "http://localhost:3003/api/health",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: { ...process.env, AUTH_IP_DAILY_LIMIT: "1000" },

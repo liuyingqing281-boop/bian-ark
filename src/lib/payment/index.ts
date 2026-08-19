@@ -7,6 +7,8 @@ import { PaymentProvider } from "./types";
 const providers: PaymentProvider[] = [new WechatPayProvider(), new AlipayProvider(), new StripePaymentProvider()];
 export function getPaymentProviders(): PaymentProvider[] {
   if (process.env.PAYMENT_PROVIDER === "mock") return [new MockPaymentProvider()];
+  if (process.env.PAYMENT_PROVIDER === "none" || process.env.PAYMENT_PROVIDER === "disabled") return [];
+  if (process.env.PAYMENT_PROVIDER) return providers.filter((provider) => provider.name === process.env.PAYMENT_PROVIDER && provider.configured());
   return providers.filter((provider) => provider.configured());
 }
 export function getPaymentProvider(name: string): PaymentProvider | undefined { return getPaymentProviders().find((provider) => provider.name === name); }

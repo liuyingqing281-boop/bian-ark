@@ -19,7 +19,8 @@ export function applyPaymentEvents(provider: string, events: PaymentEvent[]): { 
         id: string; user_id: string; kind: string; provider_session_id: string; amount_cents: number; status: string;
       } | undefined;
       if (!order) { trackEvent("payment_webhook", { provider, status: "orphan", event: event.type }); processed += 1; continue; }
-      if (event.amountCents && Number(event.amountCents) !== Number(order.amount_cents)) throw new Error("amount_mismatch");
+      if (event.amountCents === undefined || !Number.isSafeInteger(Number(event.amountCents)) || Number(event.amountCents) !== Number(order.amount_cents)) throw new Error("amount_mismatch");
+      if (event.currency && event.currency.toUpperCase() !== "CNY") throw new Error("currency_mismatch");
       if (event.type === "paid") {
         if (order.status !== "paid") {
           db.prepare("UPDATE orders SET status = 'paid', provider_payment_id = ?, updated_at = datetime('now') WHERE id = ?").run(event.paymentId || "", order.id);
