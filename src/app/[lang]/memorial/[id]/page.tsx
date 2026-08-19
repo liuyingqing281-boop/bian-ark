@@ -203,6 +203,7 @@ export default async function MemorialPage({
           myItems={myItems.map(toPanelItem)}
           loggedIn={!!user}
           labels={dict.memorial}
+          promptLabels={dict.prompt}
         />
       </section>
       <section id="tributes" className="ui-panel p-6 sm:p-8">
