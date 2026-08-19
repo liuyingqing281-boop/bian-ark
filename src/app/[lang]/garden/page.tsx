@@ -75,7 +75,7 @@ export default async function GardenPage({
 
       {memorials.length === 0 ? (
         <div className="text-center py-24">
-          <p className="text-6xl mb-6">🕯️</p>
+          <p className="text-6xl mb-6 opacity-70" style={{ filter: "drop-shadow(0 0 18px rgba(200,140,55,0.35))" }}>🕯️</p>
           <p className="text-stone-500">{dict.garden.empty}</p>
         </div>
       ) : (
