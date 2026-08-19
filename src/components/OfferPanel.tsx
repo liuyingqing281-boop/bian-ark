@@ -63,6 +63,7 @@ export default function OfferPanel({
   myItems,
   loggedIn,
   labels,
+  promptLabels,
 }: {
   lang: string;
   memorialId: string;
@@ -70,6 +71,7 @@ export default function OfferPanel({
   myItems: PanelItem[];
   loggedIn: boolean;
   labels: Labels;
+  promptLabels?: Labels;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"official" | "mine">("official");
@@ -80,6 +82,32 @@ export default function OfferPanel({
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  // 提示词助手（Issue #8）：promptLabels 未传时整个区块隐藏（向后兼容）
+  const [idea, setIdea] = useState("");
+  const [expanded, setExpanded] = useState("");
+  const [pBusy, setPBusy] = useState(false);
+  const [pErr, setPErr] = useState("");
+
+  async function expandIdea() {
+    setPBusy(true);
+    setPErr("");
+    const res = await fetch("/api/items/prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idea }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setPBusy(false);
+    if (!res.ok) {
+      setPErr(promptLabels?.["perr_" + data.error] || promptLabels?.perrGeneric || data.error || "");
+      return;
+    }
+    setExpanded(data.prompt);
+  }
+
+  function applyExpanded() {
+    setPrompt(expanded);
+  }
 
   const shownItems = tab === "official" ? officialItems : myItems;
 
@@ -233,6 +261,49 @@ export default function OfferPanel({
           </form>
 
           <div className="space-y-2">
+            {promptLabels && (
+              <div className="space-y-2 rounded-lg border border-amber-900/30 bg-amber-950/10 p-3">
+                <p className="text-xs tracking-wider text-amber-500/90">{promptLabels.title}</p>
+                <div className="flex gap-2 flex-wrap">
+                  <input
+                    value={idea}
+                    onChange={(e) => setIdea(e.target.value)}
+                    placeholder={promptLabels.ideaPlaceholder}
+                    maxLength={60}
+                    className={`${inputCls} flex-1 min-w-48`}
+                  />
+                  <button
+                    type="button"
+                    onClick={expandIdea}
+                    disabled={pBusy || idea.trim().length < 2}
+                    className="px-4 py-2 border border-amber-800 text-amber-500 hover:bg-amber-950/50 disabled:opacity-40 rounded-lg transition text-xs whitespace-nowrap"
+                  >
+                    {pBusy ? promptLabels.loading : promptLabels.expand}
+                  </button>
+                </div>
+                {expanded && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-stone-500">{promptLabels.resultLabel}</p>
+                    <textarea
+                      value={expanded}
+                      onChange={(e) => setExpanded(e.target.value)}
+                      rows={2}
+                      maxLength={200}
+                      className={`${inputCls} w-full`}
+                    />
+                    <button
+                      type="button"
+                      onClick={applyExpanded}
+                      disabled={generating || !expanded.trim()}
+                      className="px-4 py-1.5 bg-stone-700 hover:bg-stone-600 disabled:opacity-40 text-stone-200 rounded-lg transition text-xs"
+                    >
+                      {promptLabels.apply}
+                    </button>
+                  </div>
+                )}
+                {pErr && <p className="ui-status-error">{pErr}</p>}
+              </div>
+            )}
             <div className="flex gap-2 flex-wrap">
               <input
                 value={prompt}
