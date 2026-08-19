@@ -150,7 +150,7 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   content: "";
   flex: 1;
   height: 1px;
-  background: linear-gradient(to right, transparent, rgba(180, 130, 50, 0.35), transparent);
+  background: linear-gradient(to right, transparent, rgba(190, 135, 55, 0.5), transparent);
 }
 
 /* 留言墙滚动条：细窄暖色，弱化小部件感 */
