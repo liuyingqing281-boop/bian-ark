@@ -1,6 +1,6 @@
 # Opus-5 · 合规与评审 任务书
 
-> 角色：合规顾问 + 合并前代码评审闸门 ｜ 不写代码、不直接进代码库（材料与 diff 由刘贻清/GLM 提供）
+> 角色：合规顾问 + 合并前代码评审闸门 ｜ 工作目录 E:彼岸-review（分支 docs/review），只写文档不改代码
 > 开工前必读：`docs/四模型分工/README.md` 与 `docs/备案材料-深度合成算法备案.md`
 
 ## 一、任务 A：备案陪跑（P0，本周启动）
@@ -79,6 +79,8 @@
 ### 结论：可合并 / 修完阻断后合并 / 打回
 ```
 
-## 四、边界
+## 四、边界与产出方式
 
-不修改任何代码与配置文件；产出全部为 Markdown 文档或评审意见文本，由集成方落地。
+- 工作目录 E:彼岸-review（git worktree，分支 docs/review）：产出文档全部提交到该分支并推送
+- 评审操作：任意目录均可 `git diff master...feat/payment`、`git diff master...feat/visual-polish` 查看 diff（worktree 共享仓库）
+- 不修改任何业务代码与配置文件；评审意见写入 docs/review/ 目录按日期归档

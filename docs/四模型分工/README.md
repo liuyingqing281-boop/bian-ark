@@ -17,14 +17,16 @@
 | 发布 | 服务器执行 `bash deploy/deploy.sh`（备份→构建→迁移→重启→冒烟），**只有集成方执行** |
 | 关键文档 | `docs/PRD-彼岸3.0.md`（定位）`docs/项目完成规划-单人模式.md`（当前规划）`docs/团队分工与任务清单.md`（历史） |
 
-## 分工与分支
+## 分工与分支（2026-08-19 起按 worktree 物理隔离）
 
-| AI | 角色 | 分支 | 任务书 |
-|---|---|---|---|
-| GLM5.3 | 主线全栈 + **集成发布** | master | `GLM5.3-主线与集成.md` |
-| ChatGPT-5.6sol | 资金与可靠性 | feat/payment | `ChatGPT5.6sol-支付与可靠性.md` |
-| Kimi-K3 | 前端工艺与审美 | feat/visual-polish | `KimiK3-前端工艺.md` |
-| Opus-5 | 合规文档 + 合并前评审 | 不进代码库 | `Opus5-合规与评审.md` |
+| AI | 角色 | 工作目录 | 分支 | 任务书 |
+|---|---|---|---|---|
+| GLM5.3 | 主线全栈 + **集成发布** | `E:\彼岸` | master | `GLM5.3-主线与集成.md` |
+| ChatGPT-5.6sol | 资金与可靠性 | `E:\彼岸-payment` | feat/payment | `ChatGPT5.6sol-支付与可靠性.md` |
+| Kimi-K3 | 前端工艺与审美 | `E:\彼岸-visual` | feat/visual-polish | `KimiK3-前端工艺.md` |
+| Opus-5 | 合规文档 + 合并前评审 | `E:\彼岸-review` | docs/review | `Opus5-合规与评审.md` |
+
+**隔离规则**：每个 AI 只在自己的目录工作（依赖与配置已就位）；dev 端口分配——visual 用 3003、payment 用 3004（`npm run dev -- -p 3003`）；review 目录不配 .env.local（评审只读代码与产出文档，需要跑测试时向集成方申请）。四个目录共享同一 git 仓库，任何目录都能 `git diff master...feat/payment` 看全部分支。
 
 ## 并行铁律（所有人必须遵守）
 
