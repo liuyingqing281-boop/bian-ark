@@ -23,12 +23,7 @@ const fps = await page.evaluate(() => new Promise((resolve) => {
 }));
 console.log("desktop FPS (2s avg):", fps);
 
-// 2) 供奉成功仪式动效：拦截 /api/tribute 直接返回 200（绕过既有 bug：
-//    fetch 跟随 307 保留 POST → 页面路由 404 → 误报错误，已上报，逻辑层不修）
-await page.route("**/api/tribute", (route) => {
-  console.log("[intercept] tribute", route.request().method());
-  return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-});
+// 2) 供奉成功仪式动效：真实提交（方案A后 API 返回 200 JSON，无需再拦截）
 const item = page.locator('label:has(input[name="item_id"])').first();
 await item.scrollIntoViewIfNeeded();
 await item.click();

@@ -111,10 +111,10 @@ check("media delete ok", del.json?.ok, true);
 const own3 = await ownerApi(`/zh/memorial/${mid}`);
 check("gallery empty after delete", own3.text.includes("/uploads/media/"), false);
 
-// anonymous tribute on public memorial (form post, expect redirect 30x)
+// anonymous tribute on public memorial (form post, expect JSON ok)
 const tributeForm = new URLSearchParams({ memorial_id: mid, lang: "zh", message: "安息" });
 const tr = await anonymousApi("/api/tribute", { method: "POST", body: tributeForm, redirect: "manual" });
-check("anon tribute redirects", tr.status >= 300 && tr.status < 400, true);
+check("anon tribute returns ok json", tr.status === 200 && tr.json?.ok === true, true);
 
 // PRD 3.0 §6 漏斗埋点：本次运行应已产生全部六类事件
 const evCount = (type, key, val) =>

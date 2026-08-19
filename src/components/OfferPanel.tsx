@@ -95,7 +95,9 @@ export default function OfferPanel({
     setBusy(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error || labels.failed);
+      // 服务端错误码（snake_case）映射到词典 err_* 文案，未认识的码回落通用失败提示
+      const key = typeof data.error === "string" ? `err_${data.error}` : "";
+      setError((key && labels[key]) || labels.failed);
       return;
     }
     form.reset();

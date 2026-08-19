@@ -24,6 +24,10 @@ test.describe("匿名祭奠旅程", () => {
     await page.getByPlaceholder("想说点什么...").fill(message);
     await page.getByRole("button", { name: "供奉", exact: true }).click();
 
+    // 成功反馈必须出现且不得误报失败（防 307-follow 误报回归）
+    await expect(page.locator(".ui-status-success").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".ui-status-error").first()).toHaveCount(0);
+
     // 表单提交后重定向回纪念馆。审核状态取决于配置：
     // - 未配阿里云内容安全（或服务异常）→ pending，匿名暂不可见，需管理员批准
     // - 已配 → 正常文本自动 approved，立即可见

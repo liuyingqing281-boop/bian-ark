@@ -128,13 +128,12 @@ check("custom items page status", page.status, 200);
 if (candidateUrl) check("page has claimed item", page.text.includes(offeringName), true);
 check("page has uploaded item", page.text.includes(customItemName), true);
 
-// tribute with custom item (form post)
-const tr = await fetch(`${resolveBaseUrl()}/api/tribute`, {
+// tribute with custom item (form post, authed as owner: pending 审核的自定义祭品仅本人可用)
+const tr = await api("/api/tribute", {
   method: "POST",
   body: new URLSearchParams({ memorial_id: mid, lang: "zh", item_id: uploadedItem.id, message: "ai 花给你" }),
-  redirect: "manual",
 });
-check("tribute with custom item redirects", tr.status >= 300 && tr.status < 400, true);
+check("tribute with custom item returns ok", tr.status === 200 && tr.json?.ok === true, true);
 const wall = await api(`/zh/memorial/${mid}`);
 check("wall shows custom item image", wall.text.includes("/uploads/items/"), true);
 

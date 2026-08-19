@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const lang = rawLang === "en" ? "en" : "zh";
 
   if (!memorial_id) {
-    return NextResponse.redirect(new URL(`/${lang}`, req.url));
+    return NextResponse.json({ error: "memorial_not_found" }, { status: 404 });
   }
 
   const db = getDb();
@@ -22,12 +22,12 @@ export async function POST(req: NextRequest) {
     .prepare("SELECT id, user_id, visibility FROM memorials WHERE id = ? AND is_published = 1")
     .get(memorial_id) as MemorialAccessRow | undefined;
   if (!memorial) {
-    return NextResponse.redirect(new URL(`/${lang}`, req.url));
+    return NextResponse.json({ error: "memorial_not_found" }, { status: 404 });
   }
 
   const user = await getSessionUser();
   if (!canTributeMemorial(memorial, user?.id ?? null)) {
-    return NextResponse.redirect(new URL(`/${lang}/login`, req.url));
+    return NextResponse.json({ error: "tribute_not_allowed" }, { status: 403 });
   }
 
   const sender_name =
@@ -37,14 +37,14 @@ export async function POST(req: NextRequest) {
   const message = ((formData.get("message") as string) || "").slice(0, 500);
   const senderCheck = await moderateText(sender_name + " " + message);
   if (!senderCheck.pass) {
-    return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}?blocked=1`, req.url));
+    return NextResponse.json({ error: "content_blocked" }, { status: 422 });
   }
   const is_burning = formData.get("is_burning") === "1" ? 1 : 0;
   const item = db.prepare("SELECT owner_user_id, review_status FROM items WHERE id = ?").get(item_id || "flower_white") as
     | { owner_user_id: string; review_status: string }
     | undefined;
   if (!item || (item.review_status !== "approved" && item.owner_user_id !== user?.id)) {
-    return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}?item_unavailable=1`, req.url));
+    return NextResponse.json({ error: "item_unavailable" }, { status: 400 });
   }
 
   const itemId = item_id || "flower_white";
@@ -58,5 +58,5 @@ export async function POST(req: NextRequest) {
     user?.id || ""
   );
 
-  return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}`, req.url));
+  return NextResponse.json({ ok: true });
 }

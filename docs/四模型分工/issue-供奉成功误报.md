@@ -1,7 +1,7 @@
-# Issue 草稿：供奉成功后页面提示"操作失败"，但实际已入库
+# Issue：供奉成功后页面提示"操作失败"，但实际已入库
 
-> 直接复制下方分割线内内容到 GitHub New Issue 即可。
-> 建议 labels：`bug`、`priority:high`、`area:logic` ｜ 提出方：Kimi-K3 视觉线（走查发现）
+> **状态：已按方案 A 修复**（feat/visual-polish 分支，fix commit 随视觉线一并评审合并）。
+> 本文保留为 Issue 存档文本；合并后可引用修复 commit 关闭。
 
 ---
 

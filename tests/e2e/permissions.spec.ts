@@ -73,10 +73,9 @@ test("public：匿名可见且可匿名供奉（D4）", async ({ browser }) => {
   const anon = await browser.newContext();
   const tribute = await anon.request.post("/api/tribute", {
     form: { memorial_id: memorialId, lang: "zh", item_id: "flower_white", message: `匿名E2E ${RUN}` },
-    maxRedirects: 0,
   });
-  expect(tribute.status()).toBeGreaterThanOrEqual(300);
-  expect(tribute.status()).toBeLessThan(400);
+  expect(tribute.status()).toBe(200);
+  expect((await tribute.json()).ok).toBe(true);
 
   const anonPage = await anon.newPage();
   await anonPage.goto(`/zh/memorial/${memorialId}`);
