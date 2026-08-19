@@ -8,8 +8,8 @@ import type { GardenSectionData } from "./GardenScene";
 const Garden3D = dynamic(() => import("./Garden3D"), {
   ssr: false,
   loading: () => (
-    <div className="rounded-2xl border border-stone-800 bg-stone-950 h-96 flex items-center justify-center">
-      <p className="text-stone-500 text-sm animate-pulse">…</p>
+    <div className="rounded-2xl border border-stone-800 bg-stone-950 h-[480px] sm:h-[560px] flex items-center justify-center">
+      <p className="text-stone-500 text-sm animate-pulse" aria-label="loading">…</p>
     </div>
   ),
 });

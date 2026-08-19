@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { GardenSectionData } from "./GardenScene";
 
-function makeLabelTexture(name: string, dates: string, isNew: boolean): THREE.CanvasTexture {
+function makeLabelTexture(name: string, dates: string, isNew: boolean, maxAnisotropy = 4): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 160;
@@ -27,7 +27,7 @@ function makeLabelTexture(name: string, dates: string, isNew: boolean): THREE.Ca
     ctx.fillText("NEW", 216, 28);
   }
   const texture = new THREE.CanvasTexture(canvas);
-  texture.anisotropy = 4;
+  texture.anisotropy = Math.min(4, maxAnisotropy);
   return texture;
 }
 
@@ -70,15 +70,19 @@ export default function Garden3D({
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     mount.appendChild(renderer.domElement);
+
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.maxPolarAngle = Math.PI / 2.05;
     controls.minDistance = 5;
-    controls.maxDistance = 46;
+    // 大墓园放宽拉远距离，保证能看全
+    const totalMemorials = sections.reduce((n, s) => n + s.rows.length, 0);
+    controls.maxDistance = totalMemorials > 20 ? 60 : 46;
 
     // lighting: cool ambient + warm moonlight
     scene.add(new THREE.AmbientLight(0x4a5580, 1.9));
@@ -173,7 +177,7 @@ export default function Garden3D({
         group.add(slab, top, base);
 
         const dates = `${memorial.birth_date || "?"} ~ ${memorial.death_date || "?"}`;
-        const tex = makeLabelTexture(memorial.name, dates, memorial.is_new === 1);
+        const tex = makeLabelTexture(memorial.name, dates, memorial.is_new === 1, maxAniso);
         labelTextures.push(tex);
         const label = new THREE.Mesh(
           new THREE.PlaneGeometry(0.98, 0.62),
