@@ -9,6 +9,7 @@ import ThemeBackground from "../../components/ThemeBackground";
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#0c0a09",
 };
 
@@ -55,8 +56,8 @@ export default async function RootLayout({
         <footer className="border-t border-stone-800 py-8 text-center text-stone-600 text-xs space-y-2" role="contentinfo">
           <p>{dict.footer}</p>
           <p className="space-x-4">
-            <a href={`/${lang}/legal/terms`} className="hover:text-stone-400 transition">{lang === "en" ? "Terms" : "用户协议"}</a>
-            <a href={`/${lang}/legal/privacy`} className="hover:text-stone-400 transition">{lang === "en" ? "Privacy" : "隐私政策"}</a>
+            <a href={`/${lang}/legal/terms`} className="py-2 hover:text-stone-400 transition">{lang === "en" ? "Terms" : "用户协议"}</a>
+            <a href={`/${lang}/legal/privacy`} className="py-2 hover:text-stone-400 transition">{lang === "en" ? "Privacy" : "隐私政策"}</a>
           </p>
         </footer>
       </body>

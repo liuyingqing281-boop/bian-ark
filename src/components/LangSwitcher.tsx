@@ -14,7 +14,7 @@ export default function LangSwitcher({ lang }: { lang: string }) {
       onClick={() => {
         document.cookie = `NEXT_LOCALE=${target};path=/;max-age=31536000`;
       }}
-      className="px-2 py-1 rounded border border-stone-700 text-stone-400 hover:text-amber-300 hover:border-amber-700 transition text-xs"
+      className="px-3 py-2.5 rounded border sm:px-2 sm:py-1.5 border-stone-700 text-stone-400 hover:text-amber-300 hover:border-amber-700 transition text-xs"
     >
       {lang === "zh" ? "EN" : "中文"}
     </Link>

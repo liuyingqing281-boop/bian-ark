@@ -51,7 +51,7 @@ function Tombstone({ memorial, lang, isNew }: { memorial: GardenRow; lang: strin
   return (
     <Link href={`/${lang}/memorial/${memorial.id}`} className="group flex flex-col items-center relative">
       {isNew && (
-        <span className="absolute -top-3 z-10 text-[10px] px-1.5 py-0.5 rounded bg-amber-800 text-amber-100 shadow">
+        <span className="absolute -top-3 z-10 text-xs px-1.5 py-0.5 rounded bg-amber-800 text-amber-100 shadow">
           NEW
         </span>
       )}
@@ -64,7 +64,7 @@ function Tombstone({ memorial, lang, isNew }: { memorial: GardenRow; lang: strin
           )}
         </div>
         <p className="text-stone-900 text-sm font-semibold truncate leading-tight">{memorial.name}</p>
-        <p className="text-stone-700 text-[10px] mt-0.5">
+        <p className="text-stone-700 text-xs mt-0.5">
           {memorial.birth_date || "?"} ~ {memorial.death_date || "?"}
         </p>
       </div>

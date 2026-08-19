@@ -50,7 +50,7 @@ function ItemCard({
       )}
       <span className="text-xs text-stone-500 text-center leading-tight">{item.label}</span>
       {item.premium === 1 && (
-        <span className="text-[10px] text-amber-600 bg-amber-950/50 px-1 rounded">VIP</span>
+        <span className="text-xs text-amber-600 bg-amber-950/50 px-1 rounded">VIP</span>
       )}
     </label>
   );
@@ -250,7 +250,7 @@ export default function OfferPanel({
                 {generating ? labels.generating : labels.generateItem}
               </button>
             </div>
-            <p className="text-[11px] text-stone-600">{labels.quotaHint}</p>
+            <p className="text-xs text-stone-600">{labels.quotaHint}</p>
             {candidates.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-stone-500">{labels.pickOne}</p>
@@ -274,7 +274,7 @@ export default function OfferPanel({
         </div>
       )}
 
-      {!loggedIn && <p className="text-[11px] text-stone-600">{labels.loginToCustom}</p>}
+      {!loggedIn && <p className="text-xs text-stone-600">{labels.loginToCustom}</p>}
     </div>
   );
 }

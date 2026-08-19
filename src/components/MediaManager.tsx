@@ -113,7 +113,7 @@ export default function MediaManager({
                    fill />
                 </a>
               )}
-              <div className="mt-1 flex items-center gap-1 text-[11px] text-stone-500">
+              <div className="mt-1 flex items-center gap-1 text-xs text-stone-500">
                 {item.is_cover === 1 && <span className="text-amber-500">封面</span>}
                 {item.review_status !== "approved" && <span>待审核</span>}
                 <button type="button" disabled={busy} onClick={() => update(item.id, { sort_order: Math.max(0, item.sort_order - 1) })} title="前移" className="ml-auto px-1 hover:text-stone-200">←</button>

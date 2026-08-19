@@ -98,6 +98,19 @@ body {
 
 body, button, input, select, textarea { letter-spacing: 0; }
 
+/* 移动端：输入控件 ≥16px，避免 iOS Safari 聚焦时自动缩放页面 */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: max(1rem, 16px);
+  }
+}
+
+/* 刘海屏安全区：吸顶导航与页脚避开状态栏/Home 条 */
+header { padding-top: env(safe-area-inset-top); }
+footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
+
 .ui-page {
   width: min(100% - 2rem, 72rem);
   margin-inline: auto;
