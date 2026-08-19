@@ -8,12 +8,12 @@ export default function MembershipPage() {
   const dict = getDictionary(hasLocale(rawLang) ? rawLang : defaultLocale);
   const t = dict.membership;
 
-  const subscribe = async (kind: string) => {
+  const subscribe = async (kind: string, provider = "stripe") => {
     try {
-      const res = await fetch("/api/stripe", {
+      const res = await fetch("/api/payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind }),
+        body: JSON.stringify({ kind, provider }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.url) {
@@ -61,14 +61,18 @@ export default function MembershipPage() {
             ))}
           </ul>
           <div className="flex gap-3">
-            <button onClick={() => subscribe("premium_monthly")}
+            <button onClick={() => subscribe("premium_monthly", "stripe")}
               className="flex-1 py-3 rounded-lg bg-amber-700 hover:bg-amber-600 text-amber-100 text-sm transition">
               {t.monthlyButton}
             </button>
-            <button onClick={() => subscribe("premium_yearly")}
+            <button onClick={() => subscribe("premium_yearly", "stripe")}
               className="flex-1 py-3 rounded-lg bg-amber-800 hover:bg-amber-700 text-amber-200 text-sm transition">
               {t.yearlyButton}
             </button>
+          </div>
+          <div className="flex gap-3 mt-3">
+            <button onClick={() => subscribe("premium_monthly", "wechat")} className="flex-1 py-2 rounded-lg border border-green-800 text-green-300 text-xs">微信支付</button>
+            <button onClick={() => subscribe("premium_monthly", "alipay")} className="flex-1 py-2 rounded-lg border border-blue-800 text-blue-300 text-xs">支付宝</button>
           </div>
           <p className="text-xs text-stone-600 mt-4 text-center">{t.demoNote}</p>
         </div>

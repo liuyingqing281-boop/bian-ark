@@ -6,6 +6,7 @@ const suites = [
   { name: "p1", script: "tools/smoke-p1.mjs" },
   { name: "p2", script: "tools/smoke-p2.mjs" },
   { name: "p4", script: "tools/smoke-p4.mjs" },
+  { name: "payment", script: "tools/smoke-payment.mjs" },
 ];
 
 function parseMode(args) {

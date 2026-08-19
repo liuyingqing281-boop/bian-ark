@@ -9,6 +9,7 @@
     "smoke:p1": "node tools/smoke-p1.mjs",
     "smoke:p2": "node tools/smoke-p2.mjs",
     "smoke:p4": "node tools/smoke-p4.mjs",
+    "smoke:payment": "node tools/smoke-payment.mjs",
     "smoke:auth": "node tools/smoke-auth.mjs",
     "smoke": "node tools/smoke/run-all.mjs --serial",
     "smoke:parallel": "node tools/smoke/run-all.mjs --parallel",

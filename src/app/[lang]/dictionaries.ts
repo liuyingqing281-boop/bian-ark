@@ -159,6 +159,16 @@ const zh = {
       { icon: "♾️", label: "无限 AI 生成" },
     ],
   },
+  payment: {
+    title: "支付",
+    provider: "支付方式",
+    wechat: "微信支付",
+    alipay: "支付宝",
+    stripe: "银行卡 / Stripe",
+    unavailable: "暂无可用支付方式",
+    processing: "正在创建订单…",
+    failed: "支付创建失败，请稍后重试",
+  },
   digitalHuman: {
     title: "数字人 · 永生",
     intro: "上传照片和声音，生成一个 AI 数字人，让逝者以另一种方式陪伴",
@@ -473,6 +483,16 @@ const en = {
       { icon: "🎨", label: "Themes" },
       { icon: "♾️", label: "Unlimited AI Items" },
     ],
+  },
+  payment: {
+    title: "Payment",
+    provider: "Payment method",
+    wechat: "WeChat Pay",
+    alipay: "Alipay",
+    stripe: "Card / Stripe",
+    unavailable: "No payment method is available",
+    processing: "Creating payment…",
+    failed: "Could not create payment. Please try again.",
   },
   digitalHuman: {
     title: "Digital Human · Eternal Life",
