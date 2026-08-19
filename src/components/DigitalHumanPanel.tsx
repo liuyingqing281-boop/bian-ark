@@ -128,6 +128,11 @@ export default function DigitalHumanPanel({
 
   const statusLabel = (status: string) => labels["status_" + status] || status;
 
+  const friendlyError = (raw: string) => {
+    const code = raw.split(":")[0].trim();
+    return labels["err_" + code] || raw || labels.errGeneric;
+  };
+
   return (
     <div className="space-y-5">
       {tasks.length > 0 && (
@@ -152,8 +157,8 @@ export default function DigitalHumanPanel({
                 {task.status === "done" && task.result_video_url && (
                   <ResultMedia url={task.result_video_url} badge={labels.aiBadge} />
                 )}
-                {task.status === "failed" && (
-                  <p className="text-xs text-red-400">{task.error || labels.errGeneric}</p>
+                {task.status === "failed" && task.error && (
+                  <p className="text-xs text-red-400">{friendlyError(task.error)}</p>
                 )}
               </div>
             </div>
