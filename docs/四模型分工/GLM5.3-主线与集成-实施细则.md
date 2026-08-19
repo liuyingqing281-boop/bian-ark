@@ -116,7 +116,7 @@ async function chatArk(system: string, user: string, opts: ChatOptions): Promise
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: process.env.ARK_LLM_MODEL || "doubao-seed-1-6-flash-250828",
+      model: process.env.ARK_LLM_MODEL || "doubao-seed-2-1-turbo-260628",
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -149,7 +149,7 @@ function mockChat(_system: string, user: string): string {
 
 ```bash
 # Doubao chat model for prompt assistance (LLM 地基，Issue #7)
-ARK_LLM_MODEL=doubao-seed-1-6-flash-250828
+ARK_LLM_MODEL=doubao-seed-2-1-turbo-260628
 ```
 
 ### B3. 验收
