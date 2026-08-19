@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -100,7 +100,7 @@ export default function MemorialHero({
 
       {/* Avatar + name */}
       <div className="relative -mt-20 mb-10 px-4 text-center sm:-mt-24">
-        <div className="relative mb-4 inline-flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-stone-950 bg-stone-800 text-4xl ring-1 ring-amber-700/40 shadow-[0_0_44px_-10px_rgba(190,130,50,0.4)] sm:h-28 sm:w-28">
+        <div className="relative mb-4 inline-flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-stone-950 bg-stone-800 text-4xl ring-1 ring-amber-600/50 shadow-[0_0_60px_-8px_rgba(200,140,55,0.5)] sm:h-28 sm:w-28">
           {avatarIsImage ? (
             <Image src={memorial.avatar_url} alt={memorial.name} fill className="object-cover" />
           ) : (
@@ -131,7 +131,7 @@ export default function MemorialHero({
           {memorial.birth_date || "?"} ~ {memorial.death_date || "?"}
         </p>
         {memorial.epitaph && (
-          <p className="mx-auto mt-5 max-w-prose text-base text-amber-100/70 italic leading-loose">
+          <p className="mx-auto mt-5 max-w-prose text-base text-amber-100/85 italic leading-loose">
             {labels.epitaphFormat.replace("{text}", memorial.epitaph)}
           </p>
         )}
