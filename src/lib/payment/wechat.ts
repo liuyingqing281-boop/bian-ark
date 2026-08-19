@@ -1,5 +1,6 @@
 import { createSign, randomBytes, verify, createDecipheriv } from "node:crypto";
 import { PaymentEvent, PaymentIntent, PaymentProvider, PaymentResult } from "./types";
+import { getWechatPlatformCertificate } from "./wechat-certs";
 
 const env = (name: string) => process.env[name] || "";
 const configured = () => ["WECHAT_PAY_MCH_ID", "WECHAT_PAY_API_V3_KEY", "WECHAT_PAY_SERIAL_NO", "WECHAT_PAY_PRIVATE_KEY", "WECHAT_PAY_NOTIFY_URL"].every((key) => !!env(key)) && !!(env("WECHAT_PAY_APP_ID") || env("WECHAT_APP_ID"));
@@ -37,7 +38,10 @@ export class WechatPayProvider implements PaymentProvider {
     const nonce = headers.get("wechatpay-nonce") || "";
     const signature = headers.get("wechatpay-signature") || "";
     const message = `${timestamp}\n${nonce}\n${raw}\n`;
-    const publicKey = env("WECHAT_PAY_PLATFORM_PUBLIC_KEY").replace(/\\n/g, "\n");
+    if (!timestamp || !nonce || !signature) throw new Error("invalid_signature_headers");
+    const serialNo = headers.get("wechatpay-serial") || "";
+    const certificate = serialNo ? await getWechatPlatformCertificate(serialNo) : undefined;
+    const publicKey = serialNo ? certificate?.pem || "" : env("WECHAT_PAY_PLATFORM_PUBLIC_KEY").replace(/\\n/g, "\n");
     if (!publicKey || !verify("RSA-SHA256", Buffer.from(message), publicKey, Buffer.from(signature, "base64"))) throw new Error("invalid_signature");
     const envelope = JSON.parse(raw) as { id: string; resource: { ciphertext: string; nonce: string; associated_data: string } };
     const key = Buffer.from(env("WECHAT_PAY_API_V3_KEY"));
