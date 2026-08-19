@@ -109,7 +109,17 @@ body, button, input, select, textarea { letter-spacing: 0; }
 
 /* 刘海屏安全区：吸顶导航与页脚避开状态栏/Home 条 */
 header { padding-top: env(safe-area-inset-top); }
-footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
+footer[role="contentinfo"] {
+  padding-bottom: env(safe-area-inset-bottom);
+  /* 页脚正文对比度：stone-600 在深底上约 2.6:1，升至 secondary（≈7:1） */
+  color: var(--text-secondary);
+}
+
+/* 焦点可见：统一 amber 焦点环（.ui-control:focus-visible 已有自定义样式，优先级更高不受影响） */
+:focus-visible {
+  outline: 2px solid var(--accent-memorial);
+  outline-offset: 2px;
+}
 
 .ui-page {
   width: min(100% - 2rem, 72rem);

@@ -46,7 +46,7 @@ const STARS = [
   { left: "12%", top: "24%", size: 2, delay: "3.6s" },
 ];
 
-function Tombstone({ memorial, lang, isNew }: { memorial: GardenRow; lang: string; isNew: boolean }) {
+function Tombstone({ memorial, lang, isNew, avatarAltFormat }: { memorial: GardenRow; lang: string; isNew: boolean; avatarAltFormat: string }) {
   const avatarIsImage = memorial.avatar_url?.startsWith("/uploads/");
   return (
     <Link href={`/${lang}/memorial/${memorial.id}`} className="group flex flex-col items-center relative">
@@ -58,7 +58,7 @@ function Tombstone({ memorial, lang, isNew }: { memorial: GardenRow; lang: strin
       <div className="w-24 md:w-28 rounded-t-[3rem] bg-gradient-to-b from-stone-500/90 via-stone-600 to-stone-700 px-2 pt-5 pb-3 text-center shadow-lg shadow-black/60 transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_0_28px_-6px_rgba(200,140,55,0.45)]">
         <div className="w-10 h-10 mx-auto rounded-full bg-stone-700/60 border border-amber-700/40 shadow-[0_0_14px_-4px_rgba(200,140,55,0.35)] flex items-center justify-center text-lg overflow-hidden mb-1.5">
           {avatarIsImage ? (
-            <Image src={memorial.avatar_url} alt={memorial.name} className="object-cover"  fill />
+            <Image src={memorial.avatar_url} alt={avatarAltFormat.replace("{name}", memorial.name)} className="object-cover"  fill />
           ) : (
             memorial.avatar_url || (memorial.type === "pet" ? "🐾" : "🕊️")
           )}
@@ -77,10 +77,12 @@ export default function GardenScene({
   sections,
   newTodayText,
   lang,
+  avatarAltFormat,
 }: {
   sections: GardenSectionData[];
   newTodayText: string;
   lang: string;
+  avatarAltFormat: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -217,7 +219,7 @@ export default function GardenScene({
               }}
             >
               {section.rows.map((memorial) => (
-                <Tombstone key={memorial.id} memorial={memorial} lang={lang} isNew={memorial.is_new === 1} />
+                <Tombstone key={memorial.id} memorial={memorial} lang={lang} isNew={memorial.is_new === 1} avatarAltFormat={avatarAltFormat} />
               ))}
             </div>
           </div>

@@ -61,6 +61,9 @@ const results = {};
 if (!args.includes("--skip-visual")) {
   results.visual = run("B5 visual verify", process.execPath, ["tools/b5-verify.mjs"]);
 }
+if (!args.includes("--skip-focus")) {
+  results.focusWalk = run("B7 focus walk", process.execPath, ["tools/b7-focus-walk.mjs"]);
+}
 results.smoke = run("smoke", process.execPath, ["tools/smoke/run-all.mjs", "--serial"]);
 if (!args.includes("--skip-e2e")) {
   results.e2e = run("playwright e2e", process.execPath, ["node_modules/@playwright/test/cli.js", "test"], { PLAYWRIGHT_EXTERNAL_SERVER: "1" });

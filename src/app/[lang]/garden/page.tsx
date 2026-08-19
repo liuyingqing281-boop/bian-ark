@@ -55,7 +55,7 @@ export default async function GardenPage({
     <div className="ui-page py-10 sm:py-14">
       <div className="text-center mb-8">
         <h1 className="mb-2 text-3xl font-semibold leading-tight text-amber-300 md:text-4xl">{dict.garden.title}</h1>
-        <p className="text-stone-500 text-sm">{dict.garden.subtitle}</p>
+        <p className="text-stone-400 text-sm">{dict.garden.subtitle}</p>
       </div>
 
       <div className="flex justify-center gap-2 mb-8 flex-wrap">
@@ -76,13 +76,14 @@ export default async function GardenPage({
       {memorials.length === 0 ? (
         <div className="text-center py-24">
           <p className="text-6xl mb-6 opacity-70" style={{ filter: "drop-shadow(0 0 18px rgba(200,140,55,0.35))" }}>🕯️</p>
-          <p className="text-stone-500">{dict.garden.empty}</p>
+          <p className="text-stone-400">{dict.garden.empty}</p>
         </div>
       ) : (
         <GardenViewSwitch
           sections={sections}
           newTodayText={newCount > 0 ? `${dict.garden.newToday}: ${newCount}` : ""}
           lang={lang}
+          avatarAltFormat={dict.visual.tombstoneAvatar}
           labels={{
             view3d: dict.garden.view3d,
             view2d: dict.garden.view2d,

@@ -127,7 +127,7 @@ export default function MemorialHero({
         </div>
 
         <h1 className="break-words text-3xl font-semibold leading-tight text-amber-300 mb-1.5 tracking-wide">{memorial.name}</h1>
-        <p className="text-stone-500 text-sm tabular-nums tracking-[0.2em]">
+        <p className="text-stone-400 text-sm tabular-nums tracking-[0.2em]">
           {memorial.birth_date || "?"} ~ {memorial.death_date || "?"}
         </p>
         {memorial.epitaph && (

@@ -74,3 +74,5 @@
 - **[结构层] 会员页支付按钮不足**：`微信支付`/`支付宝` 151×34px（master 审计可见；视觉线分支无 payment 页改动）。
 - **[结构层] memorial 页隐藏 input 被量测 13×13**：疑为 visually-hidden 文件上传框，建议加 `sr-only` 语义或豁免规则。
 - **[结构层] memorial 页「← 返回墓园」74×20px**（master 数据页量测到，本分支种子页未现）。
+- **[跨边界·需配合] `OfferPanel.tsx` AI 候选图 `alt="candidate"` 硬编码**：词典 `visual.candidateImage` 已备好（zh/en），需在 `memorial/[id]/page.tsx` 给 OfferPanel 的 labels 加一行 `visualCandidate: dict.visual.candidateImage` 再替换——父页面属主线边界，请集成方顺手接上。
+- **[跨边界·同上报] 对比度未达标但不在视觉线边界的正文**：`DigitalHumanPanel`、`MediaManager`、`TimelineManager`、admin/me/membership/legal/memorial 页内大量 `text-stone-600`（≈2.6:1）与 `text-stone-500`（≈4.0:1）正文，建议各线归属方统一升档（正文 600→500→400 规则同本分支），清单见 B7 commit。

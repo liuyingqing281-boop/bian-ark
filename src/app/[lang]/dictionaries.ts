@@ -326,6 +326,12 @@ const zh = {
     confirmDelete: "确定删除该纪念馆？",
     confirmSeed: "确定填充演示数据？",
   },
+  visual: {
+    tombstoneAvatar: "{name}的遗像",
+    offeringItem: "祭品：{label}",
+    candidateImage: "AI 生成候选图",
+    mediaImage: "{name}的影像记忆",
+  },
 };
 
 type Dict = typeof zh;
@@ -650,6 +656,12 @@ const en = {
     reject: "Reject",
     confirmDelete: "Delete this memorial?",
     confirmSeed: "Seed demo data?",
+  },
+  visual: {
+    tombstoneAvatar: "Portrait of {name}",
+    offeringItem: "Offering: {label}",
+    candidateImage: "AI-generated candidate",
+    mediaImage: "Memory of {name}",
   },
 };
 

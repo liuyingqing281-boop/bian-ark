@@ -30,7 +30,7 @@ function ItemCard({
   const hue = item.id ? item.id.charCodeAt(0) * 37 + item.id.length * 13 : 0;
   return (
     <label
-      className={`flex h-28 min-w-0 cursor-pointer flex-col items-center gap-1 rounded-lg border p-2 transition ${
+      className={`flex h-28 min-w-0 cursor-pointer flex-col items-center gap-1 rounded-lg border p-2 transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-amber-600 ${
         selected ? "border-amber-600 bg-amber-950/30 shadow-lg shadow-amber-900/20" : "border-stone-800 hover:border-amber-700/50"
       }`}
     >
@@ -48,7 +48,7 @@ function ItemCard({
           <span aria-hidden style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))" }}>{item.icon || "🕯️"}</span>
         </div>
       )}
-      <span className="text-xs text-stone-500 text-center leading-tight">{item.label}</span>
+      <span className="text-xs text-stone-400 text-center leading-tight">{item.label}</span>
       {item.premium === 1 && (
         <span className="text-xs text-amber-600 bg-amber-950/50 px-1 rounded">VIP</span>
       )}
@@ -189,7 +189,7 @@ export default function OfferPanel({
             ))}
           </div>
         ) : (
-          tab === "mine" && <p className="text-xs text-stone-600">{labels.noCustomItems}</p>
+          tab === "mine" && <p className="text-xs text-stone-400">{labels.noCustomItems}</p>
         )}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_auto]">
           <input name="sender_name" placeholder={labels.namePlaceholder} className={`${inputCls} flex-1`} />
@@ -202,7 +202,7 @@ export default function OfferPanel({
             {labels.offerButton}
           </button>
         </div>
-        <label className="flex items-center gap-2 cursor-pointer text-xs text-stone-500">
+        <label className="flex items-center gap-2 cursor-pointer text-xs text-stone-400">
           <input type="checkbox" name="is_burning" value="1" className="accent-amber-600" />
           {labels.burnLabel}
         </label>
@@ -258,10 +258,10 @@ export default function OfferPanel({
                 {generating ? labels.generating : labels.generateItem}
               </button>
             </div>
-            <p className="text-xs text-stone-600">{labels.quotaHint}</p>
+            <p className="text-xs text-stone-400">{labels.quotaHint}</p>
             {candidates.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs text-stone-500">{labels.pickOne}</p>
+                <p className="text-xs text-stone-400">{labels.pickOne}</p>
                 <div className="grid grid-cols-4 gap-2">
                   {candidates.map((url) => (
                     <button
@@ -282,7 +282,7 @@ export default function OfferPanel({
         </div>
       )}
 
-      {!loggedIn && <p className="text-xs text-stone-600">{labels.loginToCustom}</p>}
+      {!loggedIn && <p className="text-xs text-stone-400">{labels.loginToCustom}</p>}
     </div>
   );
 }
