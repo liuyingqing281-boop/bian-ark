@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef } from "react";
 
@@ -32,7 +32,7 @@ export default function Flame({
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const dpr = Math.min(window.devicePixelRatio, 2);
+    const dpr = Math.min(window.devicePixelRatio, 1.5);
     const w = width * dpr;
     const h = height * dpr;
     canvas.width = w;
@@ -42,6 +42,8 @@ export default function Flame({
     let particles: Particle[] = [];
     let raf = 0;
     let lastTime = 0;
+    // 粒子上限随画布宽度缩放，封顶 80，保证多燃烧条目不卡
+    const MAX_PARTICLES = Math.min(80, Math.max(18, Math.round(width * 0.6)));
 
     function emit() {
       const count = reducedMotion ? 0 : 1;
@@ -60,7 +62,7 @@ export default function Flame({
           light: 50 + Math.random() * 30,
         });
       }
-      if (particles.length > 18) particles.splice(0, particles.length - 18);
+      if (particles.length > MAX_PARTICLES) particles.splice(0, particles.length - MAX_PARTICLES);
     }
 
     function animate(time: number) {
@@ -72,17 +74,23 @@ export default function Flame({
       // Emit
       emit();
 
+      // 明暗呼吸：低频整体亮度起伏
+      const breath = 0.85 + 0.15 * Math.sin(time / 380);
+
       // Update & draw
       particles = particles.filter((p) => {
         p.life -= 1;
         if (p.life <= 0) return false;
         const progress = 1 - p.life / p.maxLife;
-        p.x += p.vx + (Math.random() - 0.5) * 0.3;
+        // 锥形：向中轴轻微回拉；横向抖动随上升增大（顶部飘）
+        p.vx += (width / 2 - p.x) * 0.0015;
+        const jitter = 0.15 + progress * 0.5;
+        p.x += p.vx + (Math.random() - 0.5) * jitter;
         p.y += p.vy + (Math.random() - 0.5) * 0.2;
         p.vy -= 0.02;
         p.vx *= 0.99;
         p.size *= 0.98;
-        const alpha = 1 - progress * progress;
+        const alpha = (1 - progress * progress) * breath;
         const size = Math.max(0.5, p.size * (1 - progress * 0.6));
 
         // Glow
@@ -105,8 +113,10 @@ export default function Flame({
       gradient.addColorStop(0, "hsla(35, 90%, 55%, 0.25)");
       gradient.addColorStop(0.5, "hsla(20, 85%, 40%, 0.1)");
       gradient.addColorStop(1, "hsla(0, 0%, 0%, 0)");
+      ctx!.globalAlpha = breath;
       ctx!.fillStyle = gradient;
       ctx!.fillRect(0, height - 12, width, 12);
+      ctx!.globalAlpha = 1;
 
       if (reducedMotion) return;
       raf = requestAnimationFrame(animate);

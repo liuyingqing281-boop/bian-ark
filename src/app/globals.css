@@ -212,6 +212,32 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 @keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
 .animate-spin { animation: spin 0.8s linear infinite; }
 .animate-shake { animation: shake 0.4s ease-in-out; }
+
+/* 供奉成功仪式反馈：一次性轻量动效（≤1.2s，reduced-motion 由全局 media query 兜底降级） */
+@keyframes ritual-flame-sway {
+  0%, 100% { transform: translateX(0); opacity: 0.85; }
+  25% { transform: translateX(-2px); opacity: 1; }
+  50% { transform: translateX(2px); opacity: 0.9; }
+  75% { transform: translateX(-1px); opacity: 1; }
+}
+.ritual-flame-sway { animation: ritual-flame-sway 0.9s ease-in-out 1; }
+@keyframes ritual-petal-fall {
+  0% { transform: translateY(-24px) rotate(0deg); opacity: 0; }
+  30% { opacity: 0.8; }
+  100% { transform: translateY(16px) rotate(40deg); opacity: 0; }
+}
+.ritual-petal {
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 12px;
+  border-radius: 60% 40% 60% 40%;
+  background: rgba(253, 230, 138, 0.3);
+  animation: ritual-petal-fall 1.2s ease-out 1 both;
+  pointer-events: none;
+}
+.ritual-petal:nth-child(2) { animation-delay: 0.15s; }
+.ritual-petal:nth-child(3) { animation-delay: 0.3s; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }

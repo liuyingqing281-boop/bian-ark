@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Image from "next/image";
 import ItemAsset from "./ItemAsset";
 
@@ -207,7 +207,15 @@ export default function OfferPanel({
           {labels.burnLabel}
         </label>
         <div aria-live="polite">
-          {success && <p className="ui-status-success">{labels.offerSuccess}</p>}
+          {success && (
+            <div className="relative">
+              {/* 一次性仪式反馈：花瓣缓落（纯装饰，reduced-motion 自动降级） */}
+              <span className="ritual-petal" style={{ left: "12%" }} aria-hidden="true" />
+              <span className="ritual-petal" style={{ left: "46%" }} aria-hidden="true" />
+              <span className="ritual-petal" style={{ left: "78%" }} aria-hidden="true" />
+              <p className="ui-status-success ritual-flame-sway">{labels.offerSuccess}</p>
+            </div>
+          )}
           {error && <p className="ui-status-error">{error}</p>}
         </div>
       </form>
