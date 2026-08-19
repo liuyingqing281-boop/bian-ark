@@ -1,4 +1,7 @@
 // 方舟对话模型客户端（Issue #7）：无 ARK_API_KEY 时 mock 回落
+// 注意：用 node:https 直连而非全局 fetch——Next dev 对 fetch 打补丁后
+// 调用 chat/completions 会无限滞塞（实测 2026-08-19），https 模块不受影响
+import https from "https";
 import crypto from "crypto";
 
 export function llmProvider(): string {
@@ -6,7 +9,7 @@ export function llmProvider(): string {
   return process.env.ARK_API_KEY ? "ark" : "mock";
 }
 
-export interface ChatOptions { maxTokens?: number; temperature?: number; timeoutMs?: number }
+export interface ChatOptions { maxTokens?: number; temperature?: number; timeoutMs?: number; thinking?: "enabled" | "disabled" }
 
 export async function chat(system: string, user: string, opts: ChatOptions = {}): Promise<{ text: string; provider: string; durationMs: number }> {
   const started = Date.now();
@@ -15,13 +18,42 @@ export async function chat(system: string, user: string, opts: ChatOptions = {})
   return { text, provider, durationMs: Date.now() - started };
 }
 
+function httpsPostJson(host: string, path: string, headers: Record<string, string>, payload: unknown, timeoutMs: number): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const req = https.request(
+      { host, path, method: "POST", headers: { ...headers, "Content-Length": Buffer.byteLength(body) }, timeout: timeoutMs },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          let parsed: unknown = {};
+          try { parsed = JSON.parse(text); } catch { parsed = {}; }
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) resolve(parsed);
+          else {
+            const err = parsed as { error?: { code?: string } };
+            reject(new Error(`llm_http_${res.statusCode}${err?.error?.code ? `: ${err.error.code}` : ""}`));
+          }
+        });
+      }
+    );
+    req.on("timeout", () => { req.destroy(); reject(new Error("llm_timeout")); });
+    req.on("error", (e: Error & { code?: string }) =>
+      reject(e.code === "ECONNRESET" || e.message.includes("socket hang up") ? new Error("llm_timeout") : e)
+    );
+    req.end(body);
+  });
+}
+
 async function chatArk(system: string, user: string, opts: ChatOptions): Promise<string> {
   const key = process.env.ARK_API_KEY;
   if (!key) throw new Error("llm_key_missing");
-  const resp = await fetch("https://ark.cn-beijing.volces.com/api/v3/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const body = await httpsPostJson(
+    "ark.cn-beijing.volces.com",
+    "/api/v3/chat/completions",
+    { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    {
       model: process.env.ARK_LLM_MODEL || "doubao-seed-2-1-turbo-260628",
       messages: [
         { role: "system", content: system },
@@ -29,18 +61,13 @@ async function chatArk(system: string, user: string, opts: ChatOptions): Promise
       ],
       temperature: opts.temperature ?? 0.7,
       max_tokens: opts.maxTokens ?? 512,
-    }),
-    signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
-  });
-  const body = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    const err = body as { error?: { code?: string; message?: string } } | null;
-    throw new Error(`llm_http_${resp.status}${err?.error?.code ? `: ${err.error.code}` : ""}`);
-  }
-  interface ArkChatResponse {
+      thinking: { type: opts.thinking ?? "disabled" }, // 推理模型默认关思考：扩写场景 31s→4.5s
+    },
+    opts.timeoutMs ?? 30_000
+  ) as {
     choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>;
-  }
-  const text = (body as ArkChatResponse)?.choices?.[0]?.message?.content;
+  };
+  const text = body?.choices?.[0]?.message?.content;
   const out = typeof text === "string" ? text : Array.isArray(text) ? text.map((p) => p.text || "").join("") : "";
   if (!out.trim()) throw new Error("llm_empty");
   return out.trim();
