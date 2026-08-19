@@ -133,6 +133,35 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   line-height: 1.4;
 }
 
+/* 仪式感章节标题：居中 + 两侧渐隐饰线（生平/祭奠/留言墙） */
+.ui-section-ornate {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  color: var(--accent-memorial);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-align: center;
+}
+.ui-section-ornate::before,
+.ui-section-ornate::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(180, 130, 50, 0.35), transparent);
+}
+
+/* 留言墙滚动条：细窄暖色，弱化小部件感 */
+.wall-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 130, 50, 0.35) transparent;
+}
+.wall-scroll::-webkit-scrollbar { width: 4px; }
+.wall-scroll::-webkit-scrollbar-thumb { background: rgba(180, 130, 50, 0.35); border-radius: 9999px; }
+.wall-scroll::-webkit-scrollbar-track { background: transparent; }
+
 .ui-control {
   min-height: 2.625rem;
   border: 1px solid var(--border-subtle);

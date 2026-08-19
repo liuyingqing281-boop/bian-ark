@@ -75,8 +75,10 @@ export default function MemorialHero({
         {hasCover ? (
           <Image src={memorial.cover_url} alt="" fill className="object-cover" />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-b from-stone-700/70 to-stone-900/80 flex items-center justify-center">
-            <span className="text-6xl opacity-20">🕊️</span>
+          <div className="absolute inset-0 bg-gradient-to-b from-stone-800 to-stone-900">
+            {/* 无封面时的烛光氛围：底部暖色微光，庄重不空洞 */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_115%,rgba(160,105,40,0.28),transparent_70%)]" />
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-6xl opacity-15 select-none">🕊️</span>
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/20 to-stone-950/10" />
@@ -98,7 +100,7 @@ export default function MemorialHero({
 
       {/* Avatar + name */}
       <div className="relative -mt-20 mb-10 px-4 text-center sm:-mt-24">
-        <div className="relative mb-4 inline-flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-stone-950 bg-stone-800 text-4xl sm:h-28 sm:w-28">
+        <div className="relative mb-4 inline-flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-stone-950 bg-stone-800 text-4xl ring-1 ring-amber-700/40 shadow-[0_0_44px_-10px_rgba(190,130,50,0.4)] sm:h-28 sm:w-28">
           {avatarIsImage ? (
             <Image src={memorial.avatar_url} alt={memorial.name} fill className="object-cover" />
           ) : (
@@ -124,12 +126,12 @@ export default function MemorialHero({
           )}
         </div>
 
-        <h1 className="break-words text-3xl font-semibold leading-tight text-amber-300 mb-1">{memorial.name}</h1>
-        <p className="text-stone-500 text-sm">
+        <h1 className="break-words text-3xl font-semibold leading-tight text-amber-300 mb-1.5 tracking-wide">{memorial.name}</h1>
+        <p className="text-stone-500 text-sm tabular-nums tracking-[0.2em]">
           {memorial.birth_date || "?"} ~ {memorial.death_date || "?"}
         </p>
         {memorial.epitaph && (
-          <p className="mx-auto mt-4 max-w-prose text-stone-400 italic leading-relaxed">
+          <p className="mx-auto mt-5 max-w-prose text-base text-amber-100/70 italic leading-loose">
             {labels.epitaphFormat.replace("{text}", memorial.epitaph)}
           </p>
         )}

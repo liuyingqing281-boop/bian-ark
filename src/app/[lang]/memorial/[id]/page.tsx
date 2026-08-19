@@ -125,7 +125,7 @@ export default async function MemorialPage({
     <div className="ui-page max-w-4xl pb-16 pt-8 sm:pb-24 sm:pt-12">
       <MemorialHero memorial={memorial} isOwner={isOwner} lang={lang} labels={dict.memorial} />
       <section id="biography" className="ui-panel mb-10 p-6 sm:p-8">
-        <h2 className="ui-section-title mb-4">{dict.memorial.biography}</h2>
+        <h2 className="ui-section-ornate mb-6">{dict.memorial.biography}</h2>
         {memorial.biography ? (
           <div className="prose prose-invert max-w-prose text-sm leading-7 text-stone-400" dangerouslySetInnerHTML={{ __html: renderLimitedMarkdown(memorial.biography) }} />
         ) : (
@@ -151,7 +151,7 @@ export default async function MemorialPage({
 
       {(lifeEvents.length > 0 || isOwner) && (
         <section id="timeline" className="ui-panel mb-10 p-6 sm:p-8">
-          <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.memorial.timelineTitle}</h2>
+          <h2 className="ui-section-ornate mb-6">{dict.memorial.timelineTitle}</h2>
           {lifeEvents.length > 0 && (
             <div className="relative pl-6 border-l border-stone-700 space-y-5 mb-5">
               {lifeEvents.map((ev) => (
@@ -170,7 +170,7 @@ export default async function MemorialPage({
 
       {(media.length > 0 || isOwner) && (
         <section id="media" className="ui-panel mb-10 p-6 sm:p-8">
-          <h2 className="text-sm tracking-widest text-amber-500 mb-4">{dict.memorial.gallery}</h2>
+          <h2 className="ui-section-ornate mb-6">{dict.memorial.gallery}</h2>
           {isOwner ? (
             <MediaManager memorialId={memorial.id} media={media} labels={dict.memorial} />
           ) : (
@@ -195,7 +195,7 @@ export default async function MemorialPage({
       )}
 
       <section id="offerings" className="ui-panel mb-10 p-6 sm:p-8">
-        <h2 className="ui-section-title mb-4">{dict.memorial.offeringTitle}</h2>
+        <h2 className="ui-section-ornate mb-6">{dict.memorial.offeringTitle}</h2>
         <OfferPanel
           lang={lang}
           memorialId={memorial.id}
@@ -206,17 +206,17 @@ export default async function MemorialPage({
         />
       </section>
       <section id="tributes" className="ui-panel p-6 sm:p-8">
-        <h2 className="ui-section-title mb-6">
+        <h2 className="ui-section-ornate mb-7">
           {dict.memorial.wallTitle.replace("{count}", String(tributes.length))}
         </h2>
         {tributes.length === 0 ? (
           <p className="text-stone-600 text-sm text-center py-8">{dict.memorial.wallEmpty}</p>
         ) : (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="wall-scroll space-y-3 max-h-[38rem] overflow-y-auto pr-1">
             {tributes.map((t) => {
               const item = getItem(t.item_id);
               return (
-                <div key={t.id} className={`flex items-start gap-3 p-3 rounded-lg ${t.is_burning ? "bg-amber-950/20 border border-amber-900/30" : "bg-stone-800/40"}`}>
+                <div key={t.id} className={`flex items-start gap-3 p-3.5 rounded-lg ${t.is_burning ? "bg-amber-950/20 border border-amber-900/30" : "bg-stone-800/40"}`}>
                   {item?.image_url ? (
                     <div className="relative mt-0.5">
                       <ItemAsset src={item.image_url} alt={itemLabel(item)} fallback={item.icon} size={32} />
@@ -230,9 +230,10 @@ export default async function MemorialPage({
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm text-stone-300 font-medium">{t.sender_name || dict.memorial.anonymous}</span>
+                      <span className="text-sm text-amber-200/90 font-medium">{t.sender_name || dict.memorial.anonymous}</span>
                       <span className="text-xs text-stone-600">{dict.memorial.offered.replace("{item}", itemLabel(item))}</span>
                       {t.is_burning === 1 && <span className="text-xs text-amber-600 bg-amber-950/50 px-1.5 py-0.5 rounded">{dict.memorial.burned}</span>}
+                      {t.created_at && <span className="ml-auto text-xs text-stone-600 tabular-nums">{t.created_at.slice(0, 16)}</span>}
                     </div>
                     {t.message && <p className="text-sm text-stone-400 mt-1">{t.message}</p>}
                     <p className="text-xs text-stone-600 mt-1">{t.created_at}</p>
