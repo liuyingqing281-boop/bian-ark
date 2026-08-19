@@ -10,6 +10,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
   try {
     const events = await provider.verifyWebhook(raw, req.headers);
     const result = applyPaymentEvents(provider.name, events);
+    if (provider.name === "wechat") {
+      return NextResponse.json({ code: "SUCCESS", message: "成功", ...result });
+    }
+    if (provider.name === "alipay") {
+      return new NextResponse("success", { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    }
     return NextResponse.json({ received: true, ...result });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "webhook_failed" }, { status: 400 });
