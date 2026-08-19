@@ -91,6 +91,7 @@ export function cleanupRun(): void {
       db.prepare(`DELETE FROM sessions WHERE user_id IN (${ph})`).run(...uids);
       db.prepare(`DELETE FROM ai_generation_jobs WHERE user_id IN (${ph})`).run(...uids);
       db.prepare(`DELETE FROM events WHERE user_id IN (${ph})`).run(...uids);
+      db.prepare(`DELETE FROM prompt_usage WHERE user_id IN (${ph})`).run(...uids);
       db.prepare(`DELETE FROM items WHERE owner_user_id IN (${ph})`).run(...uids);
       db.prepare(`DELETE FROM group_members WHERE user_id IN (${ph})`).run(...uids);
       db.prepare(`DELETE FROM groups WHERE owner_user_id IN (${ph})`).run(...uids);
