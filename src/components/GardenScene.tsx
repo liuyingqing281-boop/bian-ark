@@ -1,7 +1,6 @@
 "use client";
 import Image from "next/image";
 
-import Link from "next/link";
 import { useRef, useState } from "react";
 
 export interface GardenRow {
@@ -12,6 +11,7 @@ export interface GardenRow {
   birth_date: string;
   death_date: string;
   is_new: number;
+  epitaph?: string;
 }
 
 export interface GardenSectionData {
@@ -46,10 +46,10 @@ const STARS = [
   { left: "12%", top: "24%", size: 2, delay: "3.6s" },
 ];
 
-function Tombstone({ memorial, lang, isNew }: { memorial: GardenRow; lang: string; isNew: boolean }) {
+function Tombstone({ memorial, isNew, onSelect }: { memorial: GardenRow; isNew: boolean; onSelect: (id: string) => void }) {
   const avatarIsImage = memorial.avatar_url?.startsWith("/uploads/");
   return (
-    <Link href={`/${lang}/memorial/${memorial.id}`} className="group flex flex-col items-center relative">
+    <button type="button" onClick={() => onSelect(memorial.id)} aria-label={`${memorial.name} ${memorial.birth_date || "?"} ~ ${memorial.death_date || "?"}`} className="group flex flex-col items-center relative min-w-[44px]">
       {isNew && (
         <span className="absolute -top-3 z-10 text-xs px-1.5 py-0.5 rounded bg-amber-800 text-amber-100 shadow">
           NEW
@@ -69,18 +69,18 @@ function Tombstone({ memorial, lang, isNew }: { memorial: GardenRow; lang: strin
         </p>
       </div>
       <div className="w-28 md:w-32 h-2.5 bg-stone-700 rounded-b-md shadow-md shadow-black/50" />
-    </Link>
+    </button>
   );
 }
 
 export default function GardenScene({
   sections,
   newTodayText,
-  lang,
+  onSelect,
 }: {
   sections: GardenSectionData[];
   newTodayText: string;
-  lang: string;
+  onSelect: (id: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -192,7 +192,7 @@ export default function GardenScene({
               }}
             >
               {section.rows.map((memorial) => (
-                <Tombstone key={memorial.id} memorial={memorial} lang={lang} isNew={memorial.is_new === 1} />
+                <Tombstone key={memorial.id} memorial={memorial} isNew={memorial.is_new === 1} onSelect={onSelect} />
               ))}
             </div>
           </div>
