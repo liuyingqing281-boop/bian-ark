@@ -1,0 +1,37 @@
+<!-- V3 对话页（keep-alive） -->
+<div class="navbar">
+  <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
+  <span class="title" id="chat-title">和 TA 说说话</span>
+  <button class="nav-btn" id="chat-more"><i class="fa-solid fa-ellipsis"></i></button>
+</div>
+
+<div class="scroll pad pt-2 pb-3" id="chat-scroll">
+  <div class="divider my-3">今天</div>
+  <div id="chat-msgs"></div>
+  <div id="chat-typing" style="display:none">
+    <div class="flex gap-2">
+      <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
+      <div class="bubble-ta flex items-center gap-1.5">
+        <span class="typing-dot"></span>
+        <span class="typing-dot" style="animation-delay:.18s"></span>
+        <span class="typing-dot" style="animation-delay:.36s"></span>
+        <span class="text-[12px] t3 ml-1">正在想你问的话…</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 快捷提问：空对话时显示 -->
+<div class="pad pb-2 flex gap-2 overflow-x-auto" id="chat-chips" style="scrollbar-width:none">
+  <button class="chip">“TA 以前最喜欢什么？”</button>
+  <button class="chip">“我想听听 TA 的故事。”</button>
+  <button class="chip">“我今天有点想 TA。”</button>
+</div>
+
+<div class="pad pb-6 pt-1">
+  <div class="inputbar">
+    <input placeholder="想对 TA 说……" id="chat-input"/>
+    <button class="icon-btn" title="语音（准备中）" style="opacity:.4" id="chat-voice"><i class="fa-solid fa-microphone"></i></button>
+    <button class="send" id="chat-send"><i class="fa-solid fa-arrow-up"></i></button>
+  </div>
+</div>

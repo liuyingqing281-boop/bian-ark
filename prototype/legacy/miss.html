@@ -6,7 +6,7 @@
 <title>彼岸 · 想念</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-<link rel="stylesheet" href="shared/ui.css"/>
+<link rel="stylesheet" href="../shared/ui.css"/>
 </head>
 <body>
 <div class="screen">
@@ -23,7 +23,7 @@
   <div class="scroll">
     <section class="pad flex flex-col items-center text-center pt-4">
       <h1 class="display text-2xl tracking-wider">今天想和 TA 说些什么？</h1>
-      <img src="assets/portrait.png" alt="TA 的照片" class="w-20 h-20 rounded-full object-cover mt-5"
+      <img src="../assets/portrait.png" alt="TA 的照片" class="w-20 h-20 rounded-full object-cover mt-5"
            style="box-shadow:0 0 30px rgba(255,122,47,.45)"/>
       <p class="t3 text-[13px] mt-3">“想说的话，可以告诉我。”</p>
       <button class="btn-primary mt-5" style="width:auto;padding:0 40px"><i class="fa-solid fa-comment-dots"></i>和 TA 说说话</button>
@@ -62,7 +62,7 @@
     <div class="tab"><i class="fa-solid fa-user"></i><span>我的</span></div>
   </nav>
 </div>
-<script src="shared/api.js"></script>
+<script src="../shared/api.js"></script>
 <script>
 (async () => {
   const A = window.BianApi, id = A.memorialId(), q = `?id=${encodeURIComponent(id)}`;

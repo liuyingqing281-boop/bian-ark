@@ -6,7 +6,7 @@
 <title>彼岸 · TA 的记忆档案</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-<link rel="stylesheet" href="shared/ui.css"/>
+<link rel="stylesheet" href="../shared/ui.css"/>
 </head>
 <body>
 <div class="screen">
@@ -30,7 +30,7 @@
     <button class="btn-primary" id="mem-add"><i class="fa-solid fa-plus"></i>添加记忆</button>
   </div>
 </div>
-<script src="shared/api.js"></script>
+<script src="../shared/api.js"></script>
 <script>
 (async () => {
   const A = window.BianApi, id = A.memorialId(), q = `?id=${encodeURIComponent(id)}`;

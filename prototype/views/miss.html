@@ -1,0 +1,40 @@
+<!-- V2 想念页 -->
+<div class="navbar">
+  <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
+  <span class="title">想念</span>
+  <span class="w-10"></span>
+</div>
+
+<div class="scroll">
+  <section class="pad flex flex-col items-center text-center pt-4">
+    <h1 class="display text-2xl tracking-wider">今天想和 TA 说些什么？</h1>
+    <img src="assets/portrait.png" alt="TA 的照片" class="w-20 h-20 rounded-full object-cover mt-5"
+         style="box-shadow:0 0 30px rgba(255,122,47,.45)"/>
+    <p class="t3 text-[13px] mt-3">“想说的话，可以告诉我。”</p>
+    <button class="btn-primary mt-5" id="v2-cta" style="width:auto;padding:0 40px"><i class="fa-solid fa-comment-dots"></i>和 TA 说说话</button>
+  </section>
+
+  <section class="pad pt-8 pb-6">
+    <h2 class="display text-lg tracking-wider">留下你的话</h2>
+    <div class="card mt-3 p-4">
+      <textarea rows="5" id="miss-text" class="w-full bg-transparent outline-none resize-none text-[15px] placeholder:text-[rgba(255,246,236,.35)]"
+        style="color:var(--text)" placeholder="写下想对 TA 说的话……"></textarea>
+      <div class="flex items-center justify-between mt-1">
+        <span class="t3 text-xs">写下想对 TA 说的话……</span>
+        <span class="t3 text-xs" id="miss-count">0/500</span>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-3" id="miss-types">
+      <button class="chip" data-type="eulogy">悼文</button>
+      <button class="chip" data-type="private"><i class="fa-solid fa-lock mr-1 text-[10px]"></i>悄悄话</button>
+      <button class="chip active" data-type="public">留言</button>
+    </div>
+    <p class="t3 text-[11px] mt-2 leading-relaxed">留言公开可见 · 悄悄话仅自己可见 · 悼文将在馆内置顶</p>
+    <button class="btn-primary mt-4" id="miss-submit" disabled style="opacity:.5">提 交</button>
+  </section>
+
+  <section class="pad pb-8">
+    <h2 class="display text-lg tracking-wider">你留下的</h2>
+    <div id="miss-list"></div>
+  </section>
+</div>

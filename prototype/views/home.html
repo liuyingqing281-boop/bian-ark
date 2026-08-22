@@ -1,0 +1,73 @@
+<!-- V1 纪念馆首页 -->
+<div class="navbar">
+  <span class="w-10"></span>
+  <span class="title">纪念馆</span>
+  <button class="nav-btn" id="v1-more"><i class="fa-solid fa-ellipsis"></i></button>
+</div>
+
+<div class="scroll">
+  <section class="pad flex flex-col items-center text-center pt-3 pb-7 relative">
+    <div class="relative">
+      <img src="assets/portrait.png" alt="TA 的照片" id="v1-avatar"
+           class="w-28 h-28 rounded-full object-cover"
+           style="box-shadow:0 0 40px rgba(255,122,47,.5),0 0 90px rgba(244,93,18,.3)"/>
+      <span class="absolute -bottom-1 -right-1 w-8 h-8 rounded-full card flex items-center justify-center text-xs"><span class="flame" style="width:8px;height:12px"></span></span>
+    </div>
+    <h1 class="display text-3xl mt-5 tracking-widest" id="m-name">…</h1>
+    <p class="t3 text-sm mt-1 tracking-[0.3em]" id="m-years"></p>
+    <p class="t2 text-[13px] mt-3" id="m-epitaph"></p>
+    <button class="btn-primary mt-6" id="cta-chat"><i class="fa-solid fa-comment-dots"></i>和 TA 说说话</button>
+    <p class="t3 text-[11px] mt-3 flex items-center gap-1.5" id="candle-line" style="display:none"><span class="flame" style="width:7px;height:11px"></span><span id="candle-text">你点的灯还亮着</span></p>
+  </section>
+
+  <!-- 三等宽 Tab：记忆=页内锚点；想念/祭奠=切视图 -->
+  <div class="grid grid-cols-3 border-y border-white/10 sticky top-0 z-10" style="background:rgba(7,3,2,.8);backdrop-filter:blur(14px)">
+    <button class="h-12 text-[15px] relative" id="tab-memory" style="color:var(--ember-soft)">记忆<span class="absolute inset-x-12 bottom-1.5 h-0.5 rounded" style="background:var(--ember)"></span></button>
+    <button class="h-12 text-[15px] t2" id="tab-miss">想念</button>
+    <button class="h-12 text-[15px] t2" id="tab-offer">祭奠</button>
+  </div>
+
+  <section class="pad pt-6" id="sec-memory">
+    <div class="flex items-center justify-between">
+      <h2 class="display text-lg tracking-wider">TA 的人生</h2>
+      <button class="chip text-xs" id="v1-goto-memory"><i class="fa-solid fa-book mr-1"></i>记忆档案</button>
+    </div>
+    <div class="card mt-3 p-5">
+      <div class="space-y-4" id="timeline-list">
+        <p class="t3 text-[13px]">还没有记录 TA 的故事</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="pad pt-7">
+    <h2 class="display text-lg tracking-wider">最近的纪念</h2>
+    <div class="card mt-3 divide-y divide-white/5" id="feed-list">
+      <p class="px-4 py-6 text-center t3 text-[13px]">成为第一个纪念 TA 的人</p>
+    </div>
+  </section>
+
+  <section class="pad pt-7 pb-8">
+    <h2 class="display text-lg tracking-wider">今天想为 TA 做什么？</h2>
+    <div class="grid grid-cols-3 gap-3 mt-3" id="offer-grid">
+      <button class="card p-3 flex flex-col items-center gap-2 relative overflow-hidden" data-i="0">
+        <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
+        <img src="assets/flower.png" class="w-12 h-12 rounded-xl object-cover" alt="献花"/>
+        <span class="text-[13px] t2">献花</span>
+      </button>
+      <button class="card p-3 flex flex-col items-center gap-2 relative overflow-hidden" data-i="1">
+        <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
+        <img src="assets/candle.png" class="w-12 h-12 rounded-xl object-cover" alt="点灯"/>
+        <span class="text-[13px] t2">点灯</span>
+      </button>
+      <button class="card p-3 flex flex-col items-center gap-2 relative overflow-hidden" data-i="2">
+        <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
+        <img src="assets/incense.png" class="w-12 h-12 rounded-xl object-cover" alt="清香"/>
+        <span class="text-[13px] t2">清香</span>
+      </button>
+    </div>
+    <button class="card w-full mt-3 px-5 py-4 flex items-center justify-between" id="v1-goto-offer">
+      <span class="text-[14px] t2"><i class="fa-solid fa-gift mr-2" style="color:var(--ember-soft)"></i>更多祭奠与礼物</span>
+      <i class="fa-solid fa-chevron-right t3 text-xs"></i>
+    </button>
+  </section>
+</div>

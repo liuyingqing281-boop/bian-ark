@@ -6,7 +6,7 @@
 <title>彼岸 · 和爷爷说说话</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-<link rel="stylesheet" href="shared/ui.css"/>
+<link rel="stylesheet" href="../shared/ui.css"/>
 </head>
 <body>
 <div class="screen">
@@ -25,7 +25,7 @@
     <div id="chat-msgs"></div>
     <div id="chat-typing" style="display:none">
       <div class="flex gap-2">
-        <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
+        <img src="../assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
         <div class="bubble-ta flex items-center gap-1.5">
           <span class="typing-dot"></span>
           <span class="typing-dot" style="animation-delay:.18s"></span>
@@ -65,7 +65,7 @@
     <button class="btn-primary mt-4" id="ev-close">关 闭</button>
   </div>
 </div>
-<script src="shared/api.js"></script>
+<script src="../shared/api.js"></script>
 <script>
 (async () => {
   const A = window.BianApi, id = A.memorialId(), q = `?id=${encodeURIComponent(id)}`;
@@ -105,7 +105,7 @@
          <button class="chip mt-2 ask-memory">添加一段关于 TA 的记忆</button>` : "";
     msgs.insertAdjacentHTML("beforeend", `
       <div class="flex gap-2 mb-4">
-        <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
+        <img src="../assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
         <div><div class="bubble-ta">${esc(text)}</div>${ev}${tag}${ask}</div>
       </div>`);
     scrollEnd();

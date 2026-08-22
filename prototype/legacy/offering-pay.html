@@ -6,7 +6,7 @@
 <title>彼岸 · 一口价确认（弹窗态）</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-<link rel="stylesheet" href="shared/ui.css"/>
+<link rel="stylesheet" href="../shared/ui.css"/>
 </head>
 <body>
 <div class="screen">
@@ -24,9 +24,9 @@
   <div class="scroll pad pt-2 opacity-50">
     <h1 class="display text-2xl tracking-wider text-center">今天想为 TA 做什么？</h1>
     <div class="grid grid-cols-3 gap-3 mt-6">
-      <div class="card p-3 flex flex-col items-center gap-2"><img src="assets/flower.png" class="w-14 h-14 rounded-xl object-cover" alt=""/><span class="text-[13px]">献花</span></div>
-      <div class="card p-3 flex flex-col items-center gap-2"><img src="assets/candle.png" class="w-14 h-14 rounded-xl object-cover" alt=""/><span class="text-[13px]">点灯</span></div>
-      <div class="card p-3 flex flex-col items-center gap-2"><img src="assets/incense.png" class="w-14 h-14 rounded-xl object-cover" alt=""/><span class="text-[13px]">清香</span></div>
+      <div class="card p-3 flex flex-col items-center gap-2"><img src="../assets/flower.png" class="w-14 h-14 rounded-xl object-cover" alt=""/><span class="text-[13px]">献花</span></div>
+      <div class="card p-3 flex flex-col items-center gap-2"><img src="../assets/candle.png" class="w-14 h-14 rounded-xl object-cover" alt=""/><span class="text-[13px]">点灯</span></div>
+      <div class="card p-3 flex flex-col items-center gap-2"><img src="../assets/incense.png" class="w-14 h-14 rounded-xl object-cover" alt=""/><span class="text-[13px]">清香</span></div>
     </div>
   </div>
 
@@ -34,7 +34,7 @@
   <div class="sheet-mask"></div>
   <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 pad">
     <div class="card p-6 text-center" style="background:#150806;border-radius:26px;box-shadow:0 24px 60px rgba(0,0,0,.6)">
-      <img src="assets/tea.png" class="w-20 h-20 rounded-2xl object-cover mx-auto" alt="敬一杯茶"
+      <img src="../assets/tea.png" class="w-20 h-20 rounded-2xl object-cover mx-auto" alt="敬一杯茶"
            style="box-shadow:0 0 30px rgba(255,122,47,.4)"/>
       <h3 class="display text-xl mt-4 tracking-wider">敬一杯茶</h3>
       <p class="display text-2xl mt-2" style="color:var(--ember-soft)">一口价 ¥6</p>
@@ -46,7 +46,7 @@
     </div>
   </div>
 </div>
-<script src="shared/api.js"></script>
+<script src="../shared/api.js"></script>
 <script>
 (async () => {
   const A = window.BianApi;

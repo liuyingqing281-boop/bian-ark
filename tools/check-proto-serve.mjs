@@ -33,23 +33,44 @@ try {
   check("proto CSP 允许 self 嵌框", csp.includes("frame-ancestors 'self'"), csp.slice(0, 80));
   check("proto CSP 允许 tailwind CDN", csp.includes("cdn.tailwindcss.com"));
 
-  for (const p of ["home.html", "chat.html", "miss.html", "memory.html", "memory-add.html", "offering.html", "offering-pay.html", "gift.html", "profile.html", "chat-intro.html", "pc.html"]) {
+  for (const p of [
+    // 单屏壳 + 共享层
+    "index.html", "shared/api.js", "shared/router.js", "shared/shell.js", "shared/ui.css",
+    // 7 视图 partial + 逻辑
+    "views/home.html", "views/home.js", "views/miss.html", "views/miss.js",
+    "views/chat.html", "views/chat.js", "views/memory.html", "views/memory.js",
+    "views/offering.html", "views/offering.js", "views/gift.html", "views/gift.js",
+    "views/profile.html", "views/profile.js",
+    // legacy 走查版（路径已修正为 ../shared、../assets）
+    "legacy/index.html", "legacy/home.html", "legacy/chat.html", "legacy/miss.html",
+    "legacy/memory.html", "legacy/memory-add.html", "legacy/offering.html",
+    "legacy/offering-pay.html", "legacy/gift.html", "legacy/profile.html",
+    "legacy/chat-intro.html", "legacy/pc.html",
+    "assets/portrait.png",
+  ]) {
     const r = await fetch(`${BASE}/proto/${p}`);
     check(`GET /proto/${p} 200`, r.status === 200);
   }
 
   const js = await fetch(`${BASE}/proto/shared/api.js`);
-  check("api.js 可访问且为 js", js.status === 200 && (js.headers.get("content-type") || "").includes("javascript"));
-  const css = await fetch(`${BASE}/proto/shared/ui.css`);
-  check("ui.css 可访问", css.status === 200);
+  check("api.js content-type 为 js", (js.headers.get("content-type") || "").includes("javascript"));
   const png = await fetch(`${BASE}/proto/assets/portrait.png`);
-  check("assets/portrait.png 可访问", png.status === 200 && (png.headers.get("content-type") || "").includes("image/png"));
+  check("assets/portrait.png content-type 为 png", (png.headers.get("content-type") || "").includes("image/png"));
 
   const esc = await fetch(`${BASE}/proto/..%2F..%2Fpackage.json`);
   check("目录穿越被拒", [400, 403, 404].includes(esc.status), `status=${esc.status}`);
 
-  // 原型页已接入 api.js
-  check("home.html 引用 api.js", idxHtml.includes("iframe") && (await (await fetch(`${BASE}/proto/home.html`)).text()).includes("shared/api.js"));
+  // 单壳结构断言：视图容器 + 浮层 + 路由脚本
+  check("index.html 为单壳（view-root/overlay-root/tabbar）",
+    idxHtml.includes('id="view-root"') && idxHtml.includes('id="overlay-root"') && idxHtml.includes('id="tabbar"'));
+  check("index.html 含 4 浮层（intro/pay/memadd/evidence）",
+    ["ov-intro", "ov-pay", "ov-memadd", "ov-evidence"].every((x) => idxHtml.includes(`id="${x}"`)));
+  check("index.html 引用 router.js 与 7 视图 js",
+    idxHtml.includes("shared/router.js") && ["home", "miss", "chat", "memory", "offering", "gift", "profile"].every((v) => idxHtml.includes(`views/${v}.js`)));
+
+  // legacy 路径修正断言
+  const legacyHome = await (await fetch(`${BASE}/proto/legacy/home.html`)).text();
+  check("legacy 页资源路径已修正（../shared）", legacyHome.includes('../shared/'));
 
   // 非 proto 路径安全头不变
   const api = await fetch(`${BASE}/api/health`);

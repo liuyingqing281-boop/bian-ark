@@ -6,7 +6,7 @@
 <title>彼岸 · PC 端纪念馆</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-<link rel="stylesheet" href="shared/ui.css"/>
+<link rel="stylesheet" href="../shared/ui.css"/>
 <style>
   /* ============ PC 端布局层 ============
      视觉语言完全沿用移动端 shared/ui.css（熔火/余烬深色主题），
@@ -67,6 +67,28 @@
     .pc-grid { grid-template-columns: repeat(12, 1fr); }
     .pc-grid .col-main { grid-column: span 8; }
     .pc-grid .col-rail { grid-column: span 4; }
+  }
+
+  /* ---- ≤1024px：左导航收起为 64px 图标栏（走查项 C02） ---- */
+  @media (max-width: 1024px) {
+    .pc-sidenav { width: 64px; padding: 20px 8px; align-items: center; }
+    /* 品牌区：只留 logo 块 */
+    .pc-sidenav > div:first-child { padding: 0; }
+    .pc-sidenav > div:first-child > div:last-child { display: none; }
+    /* 导航项：只留图标，隐藏文字与「后续」角标 */
+    .pc-sidenav nav { margin-top: 24px; width: 100%; }
+    .pc-sidenav .side-link {
+      justify-content: center; gap: 0;
+      padding: 12px 0; font-size: 0;   /* 文字节点随 0 号字隐藏 */
+    }
+    .pc-sidenav .side-link i { width: auto; font-size: 16px; }
+    .pc-sidenav .side-link span { display: none; }
+    /* 用户卡：只留头像，居中 */
+    .pc-sidenav .card { padding: 6px; border: none; background: transparent; box-shadow: none; backdrop-filter: none; }
+    .pc-sidenav .card > div:last-of-type, .pc-sidenav .card > i { display: none; }
+    /* 主区让位 64px */
+    .pc-main { margin-left: 64px; }
+    .pc-container { padding: 24px 24px 56px; }
   }
 
   /* ---- 对话侧板：覆盖式 360px，可收起为右缘 56px 竖条，不挤压主区 ---- */
@@ -147,10 +169,10 @@
 
     <!-- Hero 沉浸区：横向布局，沿用移动端发光照片语言 -->
     <section class="card relative overflow-hidden">
-      <img src="assets/hero.png" class="absolute inset-0 w-full h-full object-cover opacity-50" alt=""/>
+      <img src="../assets/hero.png" class="absolute inset-0 w-full h-full object-cover opacity-50" alt=""/>
       <div class="absolute inset-0" style="background:linear-gradient(to right, rgba(7,3,2,.88), rgba(7,3,2,.45) 55%, rgba(7,3,2,.15))"></div>
       <div class="relative flex items-center gap-8 p-8 flex-wrap">
-        <img src="assets/portrait.png" alt="TA 的照片" class="w-32 h-32 rounded-full object-cover"
+        <img src="../assets/portrait.png" alt="TA 的照片" class="w-32 h-32 rounded-full object-cover"
              style="box-shadow:0 0 44px rgba(255,122,47,.55),0 0 100px rgba(244,93,18,.3)"/>
         <div class="flex-1 min-w-[220px]">
           <h1 class="display text-[32px] tracking-[0.2em]">林守拙</h1>
@@ -194,7 +216,7 @@
             <div class="flex items-center gap-5 py-2.5"><span class="display text-[15px] w-10 text-right" style="color:var(--ember-soft)">1998</span><span class="w-2 h-2 rounded-full relative z-10" style="background:var(--ember)"></span><span class="text-[14px]">退休</span></div>
           </div>
           <div class="mt-4 rounded-2xl overflow-hidden relative">
-            <img src="assets/sea.png" class="w-full h-40 object-cover opacity-90" alt="青岛看海"/>
+            <img src="../assets/sea.png" class="w-full h-40 object-cover opacity-90" alt="青岛看海"/>
             <p class="absolute bottom-0 inset-x-0 px-5 py-3 text-[12px] t2" style="background:linear-gradient(to top, rgba(7,3,2,.85), transparent)">1978 · 第一次一起旅行，去青岛看海</p>
           </div>
         </section>
@@ -209,19 +231,19 @@
           <div class="mt-4 rounded-2xl p-5 relative overflow-hidden" style="background:rgba(255,255,255,.03);border:1px solid var(--card-border)">
             <div class="absolute inset-0 opacity-40" style="background:radial-gradient(70% 70% at 50% 0%, rgba(255,122,47,.35), transparent 70%)"></div>
             <div class="relative flex items-end justify-center gap-10">
-              <img src="assets/flower.png" class="w-14 h-14 rounded-xl object-cover opacity-80" alt="献花"/>
-              <div class="flex flex-col items-center"><span class="flame"></span><img src="assets/candle.png" class="w-16 h-16 rounded-xl object-cover mt-1" alt="点灯"/></div>
-              <img src="assets/incense.png" class="w-14 h-14 rounded-xl object-cover opacity-80" alt="清香"/>
+              <img src="../assets/flower.png" class="w-14 h-14 rounded-xl object-cover opacity-80" alt="献花"/>
+              <div class="flex flex-col items-center"><span class="flame"></span><img src="../assets/candle.png" class="w-16 h-16 rounded-xl object-cover mt-1" alt="点灯"/></div>
+              <img src="../assets/incense.png" class="w-14 h-14 rounded-xl object-cover opacity-80" alt="清香"/>
             </div>
           </div>
           <!-- 6 项宫格一行 -->
           <div class="grid grid-cols-6 gap-3 mt-4">
-            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="assets/flower.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">献花</span></button>
-            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="assets/candle.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">点灯</span></button>
-            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="assets/incense.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">清香</span></button>
-            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span><img src="assets/fruit.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">水果</span></button>
-            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span><img src="assets/tea.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">敬茶</span></button>
-            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥19</span><img src="assets/gift.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">纪念物</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="../assets/flower.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">献花</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="../assets/candle.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">点灯</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="../assets/incense.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">清香</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span><img src="../assets/fruit.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">水果</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span><img src="../assets/tea.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">敬茶</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥19</span><img src="../assets/gift.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">纪念物</span></button>
           </div>
           <button class="card w-full mt-4 px-5 py-3.5 flex items-center justify-between" style="opacity:.85">
             <span class="text-[13px] t2"><i class="fa-solid fa-wand-magic-sparkles mr-2" style="color:var(--ember-soft)"></i>为 TA 准备特别的礼物</span>
@@ -291,7 +313,7 @@
 <!-- 展开态：360px 侧板 -->
 <aside class="chat-panel collapsed" id="chatPanel" aria-hidden="true">
   <div class="flex items-center gap-3 px-5 py-4 border-b border-white/5">
-    <img src="assets/portrait.png" class="w-9 h-9 rounded-full object-cover" alt="TA"
+    <img src="../assets/portrait.png" class="w-9 h-9 rounded-full object-cover" alt="TA"
          style="box-shadow:0 0 16px rgba(255,122,47,.4)"/>
     <div class="flex-1">
       <p class="display text-[15px] tracking-wider">和爷爷说说话</p>
@@ -337,7 +359,7 @@
 <!-- ============ 身份说明弹层（首次必经，不可点遮罩关闭，无 ×） ============ -->
 <div class="intro-mask" id="introMask" style="display:none">
   <div class="intro-dialog text-center">
-    <img src="assets/portrait.png" class="w-20 h-20 rounded-full object-cover mx-auto" alt="TA"
+    <img src="../assets/portrait.png" class="w-20 h-20 rounded-full object-cover mx-auto" alt="TA"
          style="box-shadow:0 0 32px rgba(255,122,47,.45)"/>
     <h2 class="display text-[20px] tracking-widest mt-4">和 TA 说说话</h2>
     <p class="t2 text-[14px] mt-4 leading-7">根据 TA 的文字、故事、照片等资料构建纪念性 AI。<br/>它不是 TA 本人，也不能真正代表 TA。</p>

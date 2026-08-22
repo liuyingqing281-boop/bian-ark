@@ -1,0 +1,68 @@
+<!-- V5 祭奠页 -->
+<div class="navbar">
+  <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
+  <span class="title">祭奠</span>
+  <span class="w-10"></span>
+</div>
+
+<div class="scroll pad pt-2 pb-8">
+  <h1 class="display text-2xl tracking-wider text-center">今天想为 TA 做什么？</h1>
+
+  <!-- 供桌 -->
+  <div class="card mt-5 p-5 relative overflow-hidden">
+    <div class="absolute inset-0 opacity-40" style="background:radial-gradient(80% 60% at 50% 0%, rgba(255,122,47,.35), transparent 70%)"></div>
+    <div class="relative flex items-end justify-center gap-6">
+      <img src="assets/flower.png" class="w-12 h-12 rounded-xl object-cover opacity-80" alt=""/>
+      <div class="flex flex-col items-center">
+        <span class="flame"></span>
+        <img src="assets/candle.png" class="w-14 h-14 rounded-xl object-cover mt-1" alt=""/>
+      </div>
+      <img src="assets/incense.png" class="w-12 h-12 rounded-xl object-cover opacity-80" alt=""/>
+    </div>
+    <p class="relative text-center t3 text-[11px] mt-3">供桌 · 你点的灯还亮着</p>
+  </div>
+
+  <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">基础祭奠 · 免费</h2>
+  <div class="grid grid-cols-3 gap-3" id="free-grid">
+    <button class="card p-3 flex flex-col items-center gap-2 relative" data-i="0">
+      <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
+      <img src="assets/flower.png" class="w-14 h-14 rounded-xl object-cover" alt="献花"/>
+      <span class="text-[13px]">献花</span>
+    </button>
+    <button class="card p-3 flex flex-col items-center gap-2 relative" data-i="1">
+      <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
+      <img src="assets/candle.png" class="w-14 h-14 rounded-xl object-cover" alt="点灯"/>
+      <span class="text-[13px]">点灯</span>
+    </button>
+    <button class="card p-3 flex flex-col items-center gap-2 relative" data-i="2">
+      <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
+      <img src="assets/incense.png" class="w-14 h-14 rounded-xl object-cover" alt="清香"/>
+      <span class="text-[13px]">清香</span>
+    </button>
+  </div>
+
+  <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">心意祭品 · 一口价</h2>
+  <div class="grid grid-cols-3 gap-3" id="paid-grid">
+    <button class="card p-3 flex flex-col items-center gap-2 relative" data-i="0">
+      <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span>
+      <img src="assets/fruit.png" class="w-14 h-14 rounded-xl object-cover" alt="水果"/>
+      <span class="text-[13px]">水果</span>
+    </button>
+    <button class="card p-3 flex flex-col items-center gap-2 relative" data-i="1">
+      <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span>
+      <img src="assets/tea.png" class="w-14 h-14 rounded-xl object-cover" alt="茶"/>
+      <span class="text-[13px]">敬一杯茶</span>
+    </button>
+    <button class="card p-3 flex flex-col items-center gap-2 relative" data-i="2">
+      <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥19</span>
+      <img src="assets/gift.png" class="w-14 h-14 rounded-xl object-cover" alt="纪念物"/>
+      <span class="text-[13px]">纪念物</span>
+    </button>
+  </div>
+
+  <button class="card w-full mt-6 px-5 py-4 flex items-center justify-between" style="opacity:.85" id="gift-entry">
+    <span class="text-[14px] t2"><i class="fa-solid fa-wand-magic-sparkles mr-2" style="color:var(--ember-soft)"></i>为 TA 准备特别的礼物</span>
+    <span class="t3 text-[11px]">AI 生成 · 实验</span>
+  </button>
+  <p class="t3 text-[11px] text-center mt-4">全部一口价 · 无充值 · 无礼包 · 无打榜</p>
+</div>

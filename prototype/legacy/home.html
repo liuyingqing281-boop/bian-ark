@@ -6,7 +6,7 @@
 <title>彼岸 · 纪念馆首页</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-<link rel="stylesheet" href="shared/ui.css"/>
+<link rel="stylesheet" href="../shared/ui.css"/>
 </head>
 <body>
 <div class="screen">
@@ -27,7 +27,7 @@
     <!-- 顶部沉浸区 -->
     <section class="pad flex flex-col items-center text-center pt-3 pb-7 relative">
       <div class="relative">
-        <img src="assets/portrait.png" alt="TA 的照片"
+        <img src="../assets/portrait.png" alt="TA 的照片"
              class="w-28 h-28 rounded-full object-cover"
              style="box-shadow:0 0 40px rgba(255,122,47,.5),0 0 90px rgba(244,93,18,.3)"/>
         <span class="absolute -bottom-1 -right-1 w-8 h-8 rounded-full card flex items-center justify-center text-xs"><span class="flame" style="width:8px;height:12px"></span></span>
@@ -61,7 +61,7 @@
         </div>
       </div>
       <div class="card mt-3 overflow-hidden">
-        <img src="assets/sea.png" alt="第一次一起旅行" class="w-full h-32 object-cover opacity-90"/>
+        <img src="../assets/sea.png" alt="第一次一起旅行" class="w-full h-32 object-cover opacity-90"/>
         <p class="px-5 py-3 text-[13px] t2">1978 · 第一次一起旅行，去青岛看海</p>
       </div>
     </section>
@@ -95,17 +95,17 @@
       <div class="grid grid-cols-3 gap-3 mt-3" id="offer-grid">
         <button class="card p-3 flex flex-col items-center gap-2 relative overflow-hidden">
           <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
-          <img src="assets/flower.png" class="w-12 h-12 rounded-xl object-cover" alt="献花"/>
+          <img src="../assets/flower.png" class="w-12 h-12 rounded-xl object-cover" alt="献花"/>
           <span class="text-[13px] t2">献花</span>
         </button>
         <button class="card p-3 flex flex-col items-center gap-2 relative overflow-hidden">
           <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
-          <img src="assets/candle.png" class="w-12 h-12 rounded-xl object-cover" alt="点灯"/>
+          <img src="../assets/candle.png" class="w-12 h-12 rounded-xl object-cover" alt="点灯"/>
           <span class="text-[13px] t2">点灯</span>
         </button>
         <button class="card p-3 flex flex-col items-center gap-2 relative overflow-hidden">
           <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
-          <img src="assets/incense.png" class="w-12 h-12 rounded-xl object-cover" alt="清香"/>
+          <img src="../assets/incense.png" class="w-12 h-12 rounded-xl object-cover" alt="清香"/>
           <span class="text-[13px] t2">清香</span>
         </button>
       </div>
@@ -123,7 +123,7 @@
     <div class="tab"><i class="fa-solid fa-user"></i><span>我的</span></div>
   </nav>
 </div>
-<script src="shared/api.js"></script>
+<script src="../shared/api.js"></script>
 <script>
 (async () => {
   const A = window.BianApi, id = A.memorialId(), q = `?id=${encodeURIComponent(id)}`;
