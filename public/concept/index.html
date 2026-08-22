@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>彼岸 · 思念有处安放</title>
-<meta name="description" content="思念有处安放 —— 彼岸视觉概念稿" />
+<meta name="description" content="思念有处安放 —— 彼岸登录首页" />
 <style>
   :root {
     --ink: #10141c;
@@ -15,15 +15,51 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body {
-    background: var(--ink);
+    background:
+      radial-gradient(1100px 500px at 50% -5%, rgba(216, 169, 92, 0.14), transparent 60%),
+      radial-gradient(900px 420px at 85% 105%, rgba(178, 60, 48, 0.10), transparent 65%),
+      #050201;
     color: var(--text);
     font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-    overflow: hidden;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 0;
     -webkit-font-smoothing: antialiased;
   }
+
+  /* ===== 手机壳（与单屏原型同款 · 6.83" 20:9） ===== */
+  .phone {
+    width: 416px;
+    border-radius: 52px;
+    padding: 8px;
+    background: linear-gradient(160deg, #2a2a2e, #0c0c0f 40%, #1c1c20);
+    box-shadow:
+      0 40px 90px rgba(0, 0, 0, 0.75),
+      0 0 70px rgba(216, 169, 92, 0.10),
+      inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .punch {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #1f2937, #000 70%);
+    box-shadow: inset 0 0 3px rgba(120, 160, 220, 0.4), 0 0 0 3px rgba(0,0,0,0.65);
+    z-index: 30; pointer-events: none;
+  }
+  .screen-wrap {
+    width: 400px; height: 866px;
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    background: var(--ink);
+  }
+
   /* WebGL 画布；不可用时露出的静态渐变即降级方案 */
   #stage {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background:
       radial-gradient(120% 90% at 30% 20%, rgba(216, 169, 92, 0.28), transparent 55%),
@@ -32,33 +68,45 @@
   }
   #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
+  /* 状态栏 */
+  .statusbar {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 26px 0;
+    font-size: 12px; color: rgba(232, 226, 214, 0.85);
+    pointer-events: none;
+  }
+  .statusbar .icons { display: flex; gap: 6px; align-items: center; }
+
+  /* 屏幕内内容 */
   .content {
-    position: fixed;
+    position: absolute;
     inset: 0;
+    z-index: 10;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 28px;
+    gap: 22px;
     text-align: center;
-    padding: 0 24px;
+    padding: 0 28px;
   }
   h1 {
     font-family: "Songti SC", "Noto Serif SC", "SimSun", serif;
     font-weight: 600;
-    font-size: clamp(72px, 14vw, 160px);
+    font-size: 84px;
     letter-spacing: 0.22em;
     margin-right: -0.22em; /* 抵消末字间距，保持视觉居中 */
     text-shadow: 0 2px 40px rgba(0, 0, 0, 0.45);
   }
   .tagline {
-    font-size: clamp(16px, 2.4vw, 22px);
+    font-size: 16px;
     letter-spacing: 0.5em;
     margin-right: -0.5em;
     color: var(--muted);
   }
   .cta {
-    margin-top: 20px;
+    margin-top: 26px;
     display: inline-block;
     padding: 14px 52px;
     border: 1px solid rgba(216, 169, 92, 0.65);
@@ -72,23 +120,28 @@
     background: rgba(16, 20, 28, 0.25);
     transition: background 0.4s ease, box-shadow 0.4s ease;
   }
-  .cta:hover {
+  .cta:hover, .cta:active {
     background: rgba(216, 169, 92, 0.14);
     box-shadow: 0 0 32px rgba(216, 169, 92, 0.25);
   }
+  .login-link {
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(232, 226, 214, 0.25);
+    padding-bottom: 2px;
+    transition: color 0.3s ease, border-color 0.3s ease;
+  }
+  .login-link:hover { color: var(--gold); border-color: rgba(216, 169, 92, 0.6); }
 
-  .corner {
-    position: fixed;
+  /* 换意境按钮：屏幕右下角 */
+  #paletteBtn {
+    position: absolute; bottom: 22px; right: 22px; z-index: 20;
+    font: inherit;
     font-size: 12px;
     letter-spacing: 0.15em;
-    color: rgba(232, 226, 214, 0.38);
-    user-select: none;
-  }
-  .corner.tl { top: 24px; left: 28px; }
-  .corner.br { bottom: 24px; right: 28px; }
-  #paletteBtn {
-    font: inherit;
-    color: inherit;
+    color: rgba(232, 226, 214, 0.55);
     background: none;
     border: 1px solid rgba(232, 226, 214, 0.22);
     border-radius: 999px;
@@ -97,21 +150,60 @@
     transition: border-color 0.3s ease, color 0.3s ease;
   }
   #paletteBtn:hover { border-color: rgba(216, 169, 92, 0.6); color: var(--gold); }
+
+  /* 真机访问：手机壳融为全屏 */
+  @media (max-width: 480px) {
+    body { padding: 0; }
+    .phone {
+      width: 100%; height: 100dvh;
+      border-radius: 0; padding: 0;
+      background: none;
+      box-shadow: none;
+    }
+    .punch { display: none; }
+    .screen-wrap { width: 100%; height: 100%; border-radius: 0; }
+  }
 </style>
 </head>
 <body>
-<div id="stage"><canvas id="gl"></canvas></div>
+<div class="phone">
+  <div class="punch"></div>
+  <div class="screen-wrap">
+    <div id="stage"><canvas id="gl"></canvas></div>
 
-<main class="content">
-  <h1>彼岸</h1>
-  <p class="tagline">思念有处安放</p>
-  <a class="cta" href="/zh">进入彼岸</a>
-</main>
+    <div class="statusbar">
+      <span id="clock">21:47</span>
+      <div class="icons">
+        <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><rect x="0" y="6" width="2.5" height="4" rx="0.8"/><rect x="3.8" y="4" width="2.5" height="6" rx="0.8"/><rect x="7.6" y="2" width="2.5" height="8" rx="0.8"/><rect x="11.4" y="0" width="2.5" height="10" rx="0.8"/></svg>
+        <svg width="14" height="10" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M1.5 4.5a10 10 0 0 1 13 0"/><path d="M4 7.2a6.2 6.2 0 0 1 8 0"/><circle cx="8" cy="10" r="1.1" fill="currentColor" stroke="none"/></svg>
+        <svg width="20" height="10" viewBox="0 0 25 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.6" y="0.6" width="20" height="10.8" rx="3"/><rect x="2.4" y="2.4" width="13" height="7.2" rx="1.8" fill="currentColor" stroke="none"/><path d="M22.8 4v4a2.2 2.2 0 0 0 0-4z" fill="currentColor" stroke="none"/></svg>
+      </div>
+    </div>
 
-<div class="corner br"><button id="paletteBtn" type="button">换个意境</button></div>
+    <main class="content">
+      <h1>彼岸</h1>
+      <p class="tagline">思念有处安放</p>
+      <a class="cta" href="/zh">进入彼岸</a>
+      <a class="login-link" href="/zh/login">已有账号 · 登录</a>
+    </main>
+
+    <button id="paletteBtn" type="button">换个意境</button>
+  </div>
+</div>
 
 <script>
 "use strict";
+// 状态栏时钟：跟真实时间走
+(function () {
+  const el = document.getElementById("clock");
+  function tick() {
+    const d = new Date();
+    el.textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  tick();
+  setInterval(tick, 30000);
+})();
+
 // ============ 色板（curated）============
 // 每组：底色 + 两层流动光 + 微光点缀，均为 rgb(0-1)
 const PALETTES = [
@@ -237,7 +329,7 @@ else {
   window.addEventListener("resize", resize);
   resize();
 
-  // 鼠标视差（缓动跟随）
+  // 鼠标/触摸视差（缓动跟随）
   let mx = 0, my = 0, tx = 0, ty = 0;
   window.addEventListener("pointermove", (e) => {
     tx = (e.clientX / window.innerWidth) * 2 - 1;
