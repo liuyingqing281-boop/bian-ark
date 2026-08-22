@@ -88,17 +88,7 @@ export default async function HallPage({
             <a
               key={tab.key}
               href={`#${tab.key}`}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3.5 text-[13px] transition-colors"
-              style={{
-                color: "rgba(255,246,236,.45)",
-                borderBottom: "2px solid transparent",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.color = "#fff6ec";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.color = "rgba(255,246,236,.45)";
-              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-3.5 text-[13px] transition-colors border-b-2 border-transparent text-[rgba(255,246,236,.45)] hover:text-[#fff6ec]"
             >
               <span>{tab.icon}</span>
               <span>{tab.label}</span>
@@ -164,6 +154,33 @@ export default async function HallPage({
                 今天想为 TA 做什么？
               </h2>
               <HallOffer memorialId={id} lang={lang} items={freeItems} />
+
+              {/* 特别礼物入口（次级：通栏描边卡片，视觉弱于宫格，无催促元素） */}
+              <a
+                href={`/${lang}/gift/${id}`}
+                className="mt-4 h-12 rounded-2xl flex items-center justify-center gap-2 text-[14px] transition active:opacity-85"
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,179,92,.3)",
+                  color: EMBER_SOFT,
+                }}
+              >
+                ✨ 为 TA 准备特别的礼物
+              </a>
+
+              {isOwner && (
+                <a
+                  href={`/${lang}/family/${id}`}
+                  className="mt-3 h-12 rounded-2xl flex items-center justify-center gap-2 text-[14px] transition active:opacity-85"
+                  style={{
+                    background: "rgba(255,255,255,.04)",
+                    border: "1px solid rgba(255,255,255,.1)",
+                    color: "rgba(255,246,236,.75)",
+                  }}
+                >
+                  👪 亲友共同纪念
+                </a>
+              )}
             </section>
 
             {/* TA 的人生 */}
