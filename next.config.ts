@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["three", "zustand", "uuid"],
   },
+  async rewrites() {
+    return [
+      // 概念落地页：/concept 保持干净 URL，实际取静态文件
+      { source: "/concept", destination: "/concept/index.html" },
+    ];
+  },
   async headers() {
     return [
       {

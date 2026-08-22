@@ -14,6 +14,14 @@ function detectLocale(request: NextRequest): string {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // 概念落地页：作为站点首页，独立于 [lang] 体系
+  if (pathname === "/concept" || pathname.startsWith("/concept/")) {
+    return NextResponse.next();
+  }
+  if (pathname === "/") {
+    // 根路径统一进概念页（WebGL 落地页），由页内 CTA 引导进入 /zh
+    return NextResponse.redirect(new URL("/concept", request.url));
+  }
   const isProto =
     pathname === "/prototype" || pathname.startsWith("/prototype/") ||
     pathname === "/proto-zcode" || pathname.startsWith("/proto-zcode/") ||
