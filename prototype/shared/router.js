@@ -49,6 +49,9 @@
     if (direction === "pop") node.classList.add("view-in-left");
     viewRoot.appendChild(node);
 
+    const top = stack[stack.length - 1];
+    if (top && top.name === name) top.node = node; // 栈条目挂上 DOM，go/back 才能摘出
+
     ctx.params = params || {};
     await def.init(node, ctx);
     updateTabbar(def);

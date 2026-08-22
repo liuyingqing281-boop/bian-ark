@@ -11,7 +11,7 @@ import {
 import { getMemorialForAccess } from "../../../lib/memories";
 
 export async function GET(req: NextRequest) {
-  const memorialId = req.nextUrl.searchParams.get("memorial_id");
+  const memorialId = req.nextUrl.searchParams.get("memorial_id") || req.nextUrl.searchParams.get("memorialId");
   if (!memorialId) return NextResponse.json({ error: "missing memorial_id" }, { status: 400 });
 
   const memorial = getMemorialForAccess(memorialId);
@@ -29,17 +29,18 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { memorial_id?: string; msg_type?: string; content?: string };
+  let body: { memorial_id?: string; memorialId?: string; msg_type?: string; msgType?: string; content?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const memorialId = body.memorial_id;
+  const memorialId = body.memorial_id || body.memorialId;
+  const msgType = body.msg_type || body.msgType;
   const content = (body.content || "").trim();
   if (!memorialId) return NextResponse.json({ error: "missing memorial_id" }, { status: 400 });
-  if (!isMessageType(body.msg_type)) return NextResponse.json({ error: "invalid_msg_type" }, { status: 400 });
+  if (!isMessageType(msgType)) return NextResponse.json({ error: "invalid_msg_type" }, { status: 400 });
   if (!content) return NextResponse.json({ error: "empty_content" }, { status: 400 });
   if (content.length > MAX_MESSAGE_LENGTH) return NextResponse.json({ error: "content_too_long" }, { status: 400 });
 
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
   const id = createMessage({
     memorial_id: memorialId,
     user_id: user.id,
-    msg_type: body.msg_type,
+    msg_type: msgType,
     content,
     review_status: check.status,
     review_reason: check.reason || "",

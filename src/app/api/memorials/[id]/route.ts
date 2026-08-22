@@ -4,6 +4,75 @@ import { getSessionUser } from "../../../../lib/auth";
 import { deleteUpload } from "../../../../lib/upload";
 import { moderateText } from "../../../../lib/moderation";
 import { trackEvent } from "../../../../lib/events";
+import { canViewMemorial, MemorialAccessRow } from "../../../../lib/permissions";
+import { canManageMemorial } from "../../../../lib/memories";
+
+// GET：纪念馆详情（F1 MemorialView）。公开馆游客可读；私密/群组馆按 canViewMemorial。
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const db = getDb();
+  const memorial = db
+    .prepare(
+      `SELECT id, user_id, visibility, name, appellation, birth_date, death_date, epitaph, biography,
+              avatar_url, cover_url, type, created_at
+       FROM memorials WHERE id = ? AND is_published = 1`
+    )
+    .get(id) as
+    | (MemorialAccessRow & {
+        name: string; appellation: string; birth_date: string; death_date: string;
+        epitaph: string; biography: string; avatar_url: string; cover_url: string; type: string;
+      })
+    | undefined;
+
+  const user = await getSessionUser();
+  if (!memorial || !canViewMemorial(memorial, user?.id ?? null)) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  const viewerRole = !user
+    ? "guest"
+    : memorial.user_id === user.id
+      ? "owner"
+      : canManageMemorial(memorial, user.id)
+        ? "collaborator"
+        : "member";
+
+  // 「你点的灯还亮着」：本人 24h 窗口内的燃烧态供奉
+  let candleLit = false;
+  let candleLitHours = 0;
+  if (user) {
+    const burning = db
+      .prepare(
+        `SELECT created_at FROM tributes
+         WHERE memorial_id = ? AND user_id = ? AND is_burning = 1
+           AND created_at >= datetime('now', '-24 hours')
+         ORDER BY created_at DESC LIMIT 1`
+      )
+      .get(id, user.id) as { created_at: string } | undefined;
+    if (burning) {
+      candleLit = true;
+      const litAt = new Date(burning.created_at.replace(" ", "T") + "Z").getTime();
+      candleLitHours = Math.max(1, Math.floor((Date.now() - litAt) / 3600000));
+    }
+  }
+
+  return NextResponse.json({
+    id: memorial.id,
+    name: memorial.name,
+    appellation: memorial.appellation || "",
+    birthDate: memorial.birth_date,
+    deathDate: memorial.death_date,
+    epitaph: memorial.epitaph,
+    biography: memorial.biography,
+    avatarUrl: memorial.avatar_url,
+    coverUrl: memorial.cover_url,
+    type: memorial.type,
+    visibility: memorial.visibility || "public",
+    viewerRole,
+    candleLit,
+    candleLitHours,
+  });
+}
 
 const EDITABLE_FIELDS = [
   "name",

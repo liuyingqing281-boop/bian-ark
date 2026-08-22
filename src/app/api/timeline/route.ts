@@ -3,6 +3,43 @@ import { v4 as uuid } from "uuid";
 import { getDb } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/auth";
 import { moderateText } from "../../../lib/moderation";
+import { canViewMemorial, MemorialAccessRow } from "../../../lib/permissions";
+
+// GET：生平时间线（F2 TimelineItem[]）。公开馆游客可读。
+export async function GET(req: NextRequest) {
+  const memorialId =
+    req.nextUrl.searchParams.get("memorialId") || req.nextUrl.searchParams.get("memorial_id") || "";
+  if (!memorialId) return NextResponse.json({ error: "missing memorialId" }, { status: 400 });
+
+  const db = getDb();
+  const memorial = db
+    .prepare("SELECT id, user_id, visibility FROM memorials WHERE id = ? AND is_published = 1")
+    .get(memorialId) as MemorialAccessRow | undefined;
+  const user = await getSessionUser();
+  if (!memorial || !canViewMemorial(memorial, user?.id ?? null)) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT le.id, le.year, le.title, le.description, COALESCE(m.url, '') AS image_url
+       FROM life_events le
+       LEFT JOIN media m ON m.id = le.media_id
+       WHERE le.memorial_id = ?
+       ORDER BY le.year ASC, le.sort_order ASC`
+    )
+    .all(memorialId) as Array<{ id: string; year: string; title: string; description: string; image_url: string }>;
+
+  return NextResponse.json({
+    items: rows.map((r) => ({
+      id: r.id,
+      year: r.year,
+      title: r.title,
+      description: r.description,
+      imageUrl: r.image_url || null,
+    })),
+  });
+}
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
