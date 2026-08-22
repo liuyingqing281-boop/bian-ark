@@ -16,7 +16,8 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProto =
     pathname === "/prototype" || pathname.startsWith("/prototype/") ||
-    pathname === "/proto-zcode" || pathname.startsWith("/proto-zcode/");
+    pathname === "/proto-zcode" || pathname.startsWith("/proto-zcode/") ||
+    pathname === "/proto" || pathname.startsWith("/proto/");
   if (isProto) {
     // 高保真原型路由：独立于 [lang] 体系，跳过多语言重定向
     return NextResponse.next();

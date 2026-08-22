@@ -22,43 +22,28 @@
 
   <div class="scroll pad pt-4 pb-8">
     <!-- 用户卡片 -->
-    <div class="card p-5 flex items-center gap-4">
+    <div class="card p-5 flex items-center gap-4" id="me-card">
       <div class="w-14 h-14 rounded-full flex items-center justify-center display text-xl"
-           style="background:linear-gradient(135deg,#ff8a3d,#b43a0e);box-shadow:0 0 24px rgba(244,93,18,.4)">林</div>
+           style="background:linear-gradient(135deg,#ff8a3d,#b43a0e);box-shadow:0 0 24px rgba(244,93,18,.4)" id="me-initial">–</div>
       <div class="flex-1">
-        <p class="text-[16px]">林**</p>
-        <p class="t3 text-[12px] mt-0.5">已守护 1 座纪念馆 · 128 天</p>
+        <p class="text-[16px]" id="me-name">未登录</p>
+        <p class="t3 text-[12px] mt-0.5" id="me-sub">登录后守护你的纪念馆</p>
       </div>
       <i class="fa-solid fa-chevron-right t3 text-xs"></i>
     </div>
 
     <!-- 我的纪念 -->
     <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">我的纪念</h2>
-    <div class="card divide-y divide-white/5">
-      <button class="w-full flex items-center gap-4 px-5 py-4">
-        <img src="assets/portrait.png" class="w-11 h-11 rounded-full object-cover" alt=""/>
-        <div class="flex-1 text-left">
-          <p class="text-[15px]">林守拙的纪念馆</p>
-          <p class="t3 text-[12px]">馆主 · 32 条记忆 · 灯还亮着</p>
-        </div>
-        <span class="text-[10px] px-2 py-1 rounded-full" style="background:rgba(255,122,47,.14);color:var(--ember-soft)">馆主</span>
-      </button>
-      <button class="w-full flex items-center gap-4 px-5 py-4">
-        <div class="w-11 h-11 rounded-full card flex items-center justify-center t3"><i class="fa-solid fa-user"></i></div>
-        <div class="flex-1 text-left">
-          <p class="text-[15px]">陈奶奶的纪念馆</p>
-          <p class="t3 text-[12px]">协作人 · 可编辑记忆档案</p>
-        </div>
-        <span class="text-[10px] px-2 py-1 rounded-full" style="background:rgba(255,255,255,.06);color:var(--text-2)">协作</span>
-      </button>
+    <div class="card divide-y divide-white/5" id="me-memorials">
+      <p class="px-5 py-4 t3 text-[13px]">加载中……</p>
     </div>
 
     <!-- 功能列表 -->
     <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">服务</h2>
     <div class="card divide-y divide-white/5">
-      <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]">
+      <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]" id="me-orders">
         <i class="fa-solid fa-receipt w-5 text-center" style="color:var(--ember-soft)"></i><span class="flex-1 text-left">订单记录</span>
-        <span class="t3 text-[11px]">一口价流水</span><i class="fa-solid fa-chevron-right t3 text-xs"></i>
+        <span class="t3 text-[11px]" id="me-orders-sub">一口价流水</span><i class="fa-solid fa-chevron-right t3 text-xs"></i>
       </button>
       <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]">
         <i class="fa-solid fa-user-group w-5 text-center" style="color:var(--ember-soft)"></i><span class="flex-1 text-left">亲友共同纪念</span>
@@ -87,5 +72,63 @@
     <div class="tab active"><i class="fa-solid fa-user"></i><span>我的</span></div>
   </nav>
 </div>
+<script src="shared/api.js"></script>
+<script>
+(async () => {
+  const A = window.BianApi, q = `?id=${encodeURIComponent(A.memorialId())}`;
+  const REL_META = { created: ["馆主", "background:rgba(255,122,47,.14);color:var(--ember-soft)"], owner: ["馆主", "background:rgba(255,122,47,.14);color:var(--ember-soft)"], collaborating: ["协作", "background:rgba(255,255,255,.06);color:var(--text-2)"], collaborator: ["协作", "background:rgba(255,255,255,.06);color:var(--text-2)"], tributed: ["纪念过", "background:rgba(255,255,255,.06);color:var(--text-2)"], visited: ["纪念过", "background:rgba(255,255,255,.06);color:var(--text-2)"] };
+
+  const me = await A.getMe();
+  if (!me.ok) {
+    document.getElementById("me-name").textContent = "未登录";
+    document.getElementById("me-sub").textContent = "点击前往登录";
+    document.getElementById("me-card").style.cursor = "pointer";
+    document.getElementById("me-card").addEventListener("click", () => (location.href = "/zh/login"));
+    document.getElementById("me-memorials").innerHTML = `<p class="px-5 py-4 t3 text-[13px]">登录后展示你创建、协作和纪念过的纪念馆。</p>`;
+    return;
+  }
+  const u = me.data?.user || {};
+  const name = (u.name || u.email || "我").trim();
+  document.getElementById("me-name").textContent = name;
+  document.getElementById("me-initial").textContent = name.slice(0, 1);
+
+  // 我的纪念聚合
+  const mm = await A.getMeMemorials();
+  const list = Array.isArray(mm.data?.items) ? mm.data.items : [];
+  const box = document.getElementById("me-memorials");
+  box.innerHTML = list.length
+    ? list.map((m) => {
+        const [badge, style] = REL_META[m.relation] || REL_META.visited;
+        const avatar = m.avatar_url || m.avatarUrl;
+        const mid = m.memorial_id || m.memorialId || m.id;
+        return `<button class="w-full flex items-center gap-4 px-5 py-4" data-mid="${mid}">
+          ${avatar ? `<img src="${avatar}" class="w-11 h-11 rounded-full object-cover" alt=""/>` : `<div class="w-11 h-11 rounded-full card flex items-center justify-center t3"><i class="fa-solid fa-user"></i></div>`}
+          <div class="flex-1 text-left"><p class="text-[15px]">${m.name}的纪念馆</p></div>
+          <span class="text-[10px] px-2 py-1 rounded-full" style="${style}">${badge}</span>
+        </button>`;
+      }).join("")
+    : `<p class="px-5 py-4 t3 text-[13px]">还没有守护的纪念馆。</p>`;
+  box.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-mid]");
+    if (b) location.href = `home.html?id=${encodeURIComponent(b.dataset.mid)}`;
+  });
+
+  // 守护统计：守护数 = 馆主+协作去重；天数自最早建馆起
+  const guarded = list.filter((m) => ["created", "owner", "collaborating", "collaborator"].includes(m.relation));
+  if (guarded.length) {
+    const earliest = guarded.map((m) => new Date(String(m.last_at || m.lastActiveAt || "").replace(" ", "T") + "Z").getTime()).filter((t) => !isNaN(t)).sort()[0];
+    const days = earliest ? Math.max(1, Math.floor((Date.now() - earliest) / 86400000)) : null;
+    document.getElementById("me-sub").textContent = `已守护 ${guarded.length} 座纪念馆${days ? ` · ${days} 天` : ""}`;
+  }
+
+  // 订单流水
+  const od = await A.getMeOrders();
+  const orders = Array.isArray(od.data?.items) ? od.data.items : [];
+  document.getElementById("me-orders-sub").textContent = orders.length ? `共 ${orders.length} 笔` : "暂无订单";
+  document.getElementById("me-orders").addEventListener("click", () => {
+    A.toast(orders.length ? `最近一笔：${orders[0].itemName} · ${A.yuan(orders[0].amountCents)} · ${{ paid: "已支付", refunded: "已退款", pending: "待支付", failed: "未完成" }[orders[0].status] || orders[0].status}` : "暂无订单");
+  });
+})();
+</script>
 </body>
 </html>

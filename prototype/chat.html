@@ -20,47 +20,24 @@
     <button class="nav-btn"><i class="fa-solid fa-ellipsis"></i></button>
   </div>
 
-  <div class="scroll pad pt-2 pb-3">
+  <div class="scroll pad pt-2 pb-3" id="chat-scroll">
     <div class="divider my-3">今天</div>
-
-    <!-- 用户气泡 -->
-    <div class="bubble-me mb-4">爷爷，我今天工作特别累。</div>
-
-    <!-- TA 气泡 + 依据 + 推测角标 -->
-    <div class="flex gap-2 mb-4">
-      <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
-      <div>
-        <div class="bubble-ta">如果是以前，爷爷大概会先问你有没有好好吃饭。</div>
-        <button class="text-[12px] mt-1.5 underline underline-offset-4" style="color:var(--ember-soft)">查看这句话的依据</button>
-        <p class="tag-inferred mt-1">基于 TA 的资料推测</p>
-      </div>
-    </div>
-
-    <div class="bubble-me mb-4">他以前最喜欢什么？</div>
-
-    <div class="flex gap-2 mb-4">
-      <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
-      <div>
-        <div class="bubble-ta">爷爷大概会笑一笑，说：“钓鱼啊，急不得，慢慢来。”</div>
-        <button class="text-[12px] mt-1.5 underline underline-offset-4" style="color:var(--ember-soft)">查看这句话的依据</button>
-        <p class="tag-inferred mt-1">基于 TA 的资料推测</p>
-      </div>
-    </div>
-
-    <!-- 正在输入 -->
-    <div class="flex gap-2">
-      <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
-      <div class="bubble-ta flex items-center gap-1.5">
-        <span class="typing-dot"></span>
-        <span class="typing-dot" style="animation-delay:.18s"></span>
-        <span class="typing-dot" style="animation-delay:.36s"></span>
-        <span class="text-[12px] t3 ml-1">正在想你问的话…</span>
+    <div id="chat-msgs"></div>
+    <div id="chat-typing" style="display:none">
+      <div class="flex gap-2">
+        <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
+        <div class="bubble-ta flex items-center gap-1.5">
+          <span class="typing-dot"></span>
+          <span class="typing-dot" style="animation-delay:.18s"></span>
+          <span class="typing-dot" style="animation-delay:.36s"></span>
+          <span class="text-[12px] t3 ml-1">正在想你问的话…</span>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- 快捷提问 -->
-  <div class="pad pb-2 flex gap-2 overflow-x-auto" style="scrollbar-width:none">
+  <div class="pad pb-2 flex gap-2 overflow-x-auto" id="chat-chips" style="scrollbar-width:none">
     <button class="chip">“TA 以前最喜欢什么？”</button>
     <button class="chip">“我想听听 TA 的故事。”</button>
     <button class="chip">“我今天有点想 TA。”</button>
@@ -69,11 +46,130 @@
   <!-- 输入栏 -->
   <div class="pad pb-6 pt-1">
     <div class="inputbar">
-      <input placeholder="想对 TA 说……"/>
-      <button class="icon-btn" title="语音（准备中）" style="opacity:.4"><i class="fa-solid fa-microphone"></i></button>
-      <button class="send"><i class="fa-solid fa-arrow-up"></i></button>
+      <input placeholder="想对 TA 说……" id="chat-input"/>
+      <button class="icon-btn" title="语音（准备中）" style="opacity:.4" id="chat-voice"><i class="fa-solid fa-microphone"></i></button>
+      <button class="send" id="chat-send"><i class="fa-solid fa-arrow-up"></i></button>
     </div>
   </div>
+
+  <!-- 依据弹层 -->
+  <div class="sheet-mask" id="ev-mask" style="display:none"></div>
+  <div class="sheet" id="ev-sheet" style="display:none">
+    <div class="grabber"></div>
+    <h3 class="display text-lg text-center tracking-wider">这句话的依据</h3>
+    <div class="card mt-4 p-4">
+      <p class="text-[13px]" style="color:var(--ember-soft)">📖 你记录的故事</p>
+      <p class="text-[15px] mt-2 leading-relaxed" id="ev-quote"></p>
+      <p class="t3 text-[12px] mt-3" id="ev-date"></p>
+    </div>
+    <button class="btn-primary mt-4" id="ev-close">关 闭</button>
+  </div>
 </div>
+<script src="shared/api.js"></script>
+<script>
+(async () => {
+  const A = window.BianApi, id = A.memorialId(), q = `?id=${encodeURIComponent(id)}`;
+  const msgs = document.getElementById("chat-msgs");
+  const typing = document.getElementById("chat-typing");
+  const chips = document.getElementById("chat-chips");
+  const input = document.getElementById("chat-input");
+  const sendBtn = document.getElementById("chat-send");
+  const scrollBox = document.getElementById("chat-scroll");
+
+  // 顶栏标题：和 + 称谓 + 说说话；⋯ 菜单：清空对话
+  const m = await A.getMemorial(id);
+  const appellation = m.ok ? (m.data?.appellation || "TA") : "TA";
+  document.querySelector(".navbar .title").textContent = `和${appellation}说说话`;
+  document.querySelectorAll(".navbar .nav-btn")[1]?.addEventListener("click", async () => {
+    if (!confirm("清空这段对话记录？")) return;
+    const r = await A.clearChatHistory();
+    if (r.ok) { msgs.innerHTML = ""; chips.style.display = "flex"; A.toast("已清空"); }
+    else if (r.status === 401) A.toast("登录后才能清空对话");
+    else A.toast("没有清空成功，请再试一次");
+  });
+
+  function scrollEnd() { scrollBox.scrollTop = scrollBox.scrollHeight; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+  function addMe(text) {
+    msgs.insertAdjacentHTML("beforeend", `<div class="bubble-me mb-4">${esc(text)}</div>`);
+    scrollEnd();
+  }
+  function addTa(text, evidence, inferred, askMemory, followup) {
+    const ev = evidence
+      ? `<button class="text-[12px] mt-1.5 underline underline-offset-4 ev-link" style="color:var(--ember-soft)"
+           data-quote="${esc(evidence.quote)}" data-date="${esc(A.fmtDate(evidence.createdAt || evidence.created_at))}">查看这句话的依据</button>` : "";
+    const tag = inferred ? `<p class="tag-inferred mt-1">基于 TA 的资料推测</p>` : "";
+    const ask = askMemory
+      ? `${followup ? `<p class="text-[13px] t2 mt-2">${esc(followup)}</p>` : ""}
+         <button class="chip mt-2 ask-memory">添加一段关于 TA 的记忆</button>` : "";
+    msgs.insertAdjacentHTML("beforeend", `
+      <div class="flex gap-2 mb-4">
+        <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
+        <div><div class="bubble-ta">${esc(text)}</div>${ev}${tag}${ask}</div>
+      </div>`);
+    scrollEnd();
+  }
+
+  // 事件代理：依据链接 / 补充记忆
+  msgs.addEventListener("click", (e) => {
+    const ev = e.target.closest(".ev-link");
+    if (ev) {
+      document.getElementById("ev-quote").textContent = `“${ev.dataset.quote}”`;
+      document.getElementById("ev-date").textContent = `📅 添加于 ${ev.dataset.date}`;
+      document.getElementById("ev-mask").style.display = "block";
+      document.getElementById("ev-sheet").style.display = "block";
+      return;
+    }
+    if (e.target.closest(".ask-memory")) location.href = "memory-add.html" + q + "&source=chat";
+  });
+  const closeEv = () => {
+    document.getElementById("ev-mask").style.display = "none";
+    document.getElementById("ev-sheet").style.display = "none";
+  };
+  document.getElementById("ev-mask").addEventListener("click", closeEv);
+  document.getElementById("ev-close").addEventListener("click", closeEv);
+
+  // 历史恢复（登录用户）
+  const h = await A.getChatHistory();
+  if (h.ok && Array.isArray(h.data?.items) && h.data.items.length) {
+    chips.style.display = "none";
+    for (const it of h.data.items) {
+      if (it.role === "user") addMe(it.content);
+      else addTa(it.content, null, true, false, null); // 历史依据引用从略，仅新回复带完整 evidence
+    }
+  }
+
+  // 发送
+  let busy = false;
+  async function send(text) {
+    const content = String(text || "").trim().slice(0, 500);
+    if (!content || busy) return;
+    busy = true;
+    chips.style.display = "none";
+    addMe(content);
+    input.value = "";
+    typing.style.display = "block";
+    scrollEnd();
+    const r = await A.chat(content);
+    typing.style.display = "none";
+    if (r.ok && r.data) {
+      addTa(r.data.text, r.data.evidence || null, r.data.inferred !== false, r.data.askMemory, r.data.followupQuestion);
+    } else if (r.status === 422) {
+      addTa("这个话题我们轻轻带过。", null, false, false, null);
+    } else {
+      addTa("刚才没说上话，再试一次。", null, false, false, null);
+    }
+    busy = false;
+  }
+  sendBtn.addEventListener("click", () => send(input.value));
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") send(input.value); });
+  chips.addEventListener("click", (e) => {
+    const c = e.target.closest(".chip");
+    if (c) send(c.textContent.replace(/[“”]/g, ""));
+  });
+  document.getElementById("chat-voice").addEventListener("click", () => A.toast("语音功能正在准备中"));
+})();
+</script>
 </body>
 </html>

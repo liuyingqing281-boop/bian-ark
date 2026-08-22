@@ -39,26 +39,58 @@
     <div class="grabber"></div>
     <h3 class="display text-lg text-center tracking-wider">添加记忆</h3>
 
-    <div class="flex flex-wrap gap-2 mt-5">
-      <button class="chip">👤 TA 是怎样的人</button>
-      <button class="chip">❤️ 我和 TA</button>
-      <button class="chip active">🎵 TA 喜欢什么</button>
-      <button class="chip">💬 TA 怎么说话</button>
-      <button class="chip">📄 基础资料</button>
+    <div class="flex flex-wrap gap-2 mt-5" id="add-sections">
+      <button class="chip" data-section="personality">👤 TA 是怎样的人</button>
+      <button class="chip" data-section="relation">❤️ 我和 TA</button>
+      <button class="chip active" data-section="likes">🎵 TA 喜欢什么</button>
+      <button class="chip" data-section="speech">💬 TA 怎么说话</button>
+      <button class="chip" data-section="profile">📄 基础资料</button>
     </div>
 
     <div class="card mt-4 p-4">
-      <textarea rows="3" class="w-full bg-transparent outline-none resize-none text-[15px] placeholder:text-[rgba(255,246,236,.35)]"
-        style="color:var(--text)" placeholder="他年轻的时候经常带我去河边……">他年轻的时候经常带我去河边钓鱼，一坐就是一下午。</textarea>
+      <textarea rows="3" id="add-text" class="w-full bg-transparent outline-none resize-none text-[15px] placeholder:text-[rgba(255,246,236,.35)]"
+        style="color:var(--text)" placeholder="他年轻的时候经常带我去河边……"></textarea>
     </div>
 
     <div class="flex items-center gap-2 mt-3 t3 text-[11px]">
       <i class="fa-solid fa-microphone"></i>语音转文字 · 即将支持
     </div>
 
-    <button class="btn-primary mt-4">保 存</button>
-    <p class="t3 text-[11px] text-center mt-3">保存后将出现在「🎵 TA 喜欢什么」分区</p>
+    <button class="btn-primary mt-4" id="add-save">保 存</button>
+    <p class="t3 text-[11px] text-center mt-3" id="add-hint">保存后将出现在「🎵 TA 喜欢什么」分区</p>
   </div>
 </div>
+<script src="shared/api.js"></script>
+<script>
+(() => {
+  const A = window.BianApi;
+  const q = `?id=${encodeURIComponent(A.memorialId())}`;
+  const params = new URLSearchParams(location.search);
+  const source = params.get("source") === "chat" ? "chat" : undefined;
+  let section = "likes";
+  const NAMES = { personality: "👤 TA 是怎样的人", relation: "❤️ 我和 TA", likes: "🎵 TA 喜欢什么", speech: "💬 TA 怎么说话", profile: "📄 基础资料" };
+
+  document.querySelectorAll("#add-sections .chip").forEach((c) =>
+    c.addEventListener("click", () => {
+      document.querySelectorAll("#add-sections .chip").forEach((x) => x.classList.remove("active"));
+      c.classList.add("active");
+      section = c.dataset.section;
+      document.getElementById("add-hint").textContent = `保存后将出现在「${NAMES[section]}」分区`;
+    })
+  );
+
+  document.getElementById("add-save").addEventListener("click", async () => {
+    const content = document.getElementById("add-text").value.trim();
+    if (!content) return A.toast("先写点什么再保存");
+    const r = await A.postMemory(section, content, source);
+    if (r.ok) {
+      A.toast("已保存到 TA 的记忆档案");
+      setTimeout(() => (location.href = (source === "chat" ? "chat.html" : "memory.html") + q), 700);
+    } else if (r.status === 403) A.toast("只有馆主和协作人可以添加记忆");
+    else if (r.status === 422) A.toast("这个话题我们轻轻带过");
+    else A.toast("没有保存成功，请再试一次");
+  });
+})();
+</script>
 </body>
 </html>

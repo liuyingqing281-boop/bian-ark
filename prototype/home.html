@@ -32,11 +32,11 @@
              style="box-shadow:0 0 40px rgba(255,122,47,.5),0 0 90px rgba(244,93,18,.3)"/>
         <span class="absolute -bottom-1 -right-1 w-8 h-8 rounded-full card flex items-center justify-center text-xs"><span class="flame" style="width:8px;height:12px"></span></span>
       </div>
-      <h1 class="display text-3xl mt-5 tracking-widest">林守拙</h1>
-      <p class="t3 text-sm mt-1 tracking-[0.3em]">1940 — 2023</p>
-      <p class="t2 text-[13px] mt-3">“想念从未离开”</p>
-      <button class="btn-primary mt-6"><i class="fa-solid fa-comment-dots"></i>和 TA 说说话</button>
-      <p class="t3 text-[11px] mt-3 flex items-center gap-1.5"><span class="flame" style="width:7px;height:11px"></span>你点的灯还亮着 · 已持续 3 小时</p>
+      <h1 class="display text-3xl mt-5 tracking-widest" id="m-name">林守拙</h1>
+      <p class="t3 text-sm mt-1 tracking-[0.3em]" id="m-years">1940 — 2023</p>
+      <p class="t2 text-[13px] mt-3" id="m-epitaph">“想念从未离开”</p>
+      <button class="btn-primary mt-6" id="cta-chat"><i class="fa-solid fa-comment-dots"></i>和 TA 说说话</button>
+      <p class="t3 text-[11px] mt-3 flex items-center gap-1.5" id="candle-line" style="display:none"><span class="flame" style="width:7px;height:11px"></span><span id="candle-text">你点的灯还亮着</span></p>
     </section>
 
     <!-- 三等宽锚点 Tab -->
@@ -53,7 +53,7 @@
         <button class="chip text-xs"><i class="fa-solid fa-plus mr-1"></i>添加</button>
       </div>
       <div class="card mt-3 p-5">
-        <div class="space-y-4">
+        <div class="space-y-4" id="timeline-list">
           <div class="flex items-baseline gap-4"><span class="display w-12 text-[15px]" style="color:var(--ember-soft)">1940</span><span class="text-[15px]">出生</span></div>
           <div class="flex items-baseline gap-4"><span class="display w-12 text-[15px]" style="color:var(--ember-soft)">1965</span><span class="text-[15px]">结婚</span></div>
           <div class="flex items-baseline gap-4"><span class="display w-12 text-[15px]" style="color:var(--ember-soft)">1970</span><span class="text-[15px]">长子出生</span></div>
@@ -69,7 +69,7 @@
     <!-- 想念 · 最近的纪念 -->
     <section class="pad pt-7">
       <h2 class="display text-lg tracking-wider">最近的纪念</h2>
-      <div class="card mt-3 divide-y divide-white/5">
+      <div class="card mt-3 divide-y divide-white/5" id="feed-list">
         <div class="flex items-center gap-3 px-4 py-3.5">
           <span class="w-9 h-9 rounded-full flex items-center justify-center text-sm" style="background:rgba(255,122,47,.14);color:var(--ember-soft)"><i class="fa-solid fa-seedling"></i></span>
           <span class="flex-1 text-[14px]">献花 · 李**</span><span class="t3 text-xs">2 小时前</span>
@@ -92,7 +92,7 @@
     <!-- 祭奠 · 基础三项 -->
     <section class="pad pt-7 pb-8">
       <h2 class="display text-lg tracking-wider">今天想为 TA 做什么？</h2>
-      <div class="grid grid-cols-3 gap-3 mt-3">
+      <div class="grid grid-cols-3 gap-3 mt-3" id="offer-grid">
         <button class="card p-3 flex flex-col items-center gap-2 relative overflow-hidden">
           <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
           <img src="assets/flower.png" class="w-12 h-12 rounded-xl object-cover" alt="献花"/>
@@ -123,5 +123,80 @@
     <div class="tab"><i class="fa-solid fa-user"></i><span>我的</span></div>
   </nav>
 </div>
+<script src="shared/api.js"></script>
+<script>
+(async () => {
+  const A = window.BianApi, id = A.memorialId(), q = `?id=${encodeURIComponent(id)}`;
+  // 主 CTA：首次 → 身份说明页；再次 → 对话页
+  document.getElementById("cta-chat").addEventListener("click", () => {
+    location.href = (localStorage.getItem("bian_seen_intro") ? "chat.html" : "chat-intro.html") + q;
+  });
+
+  // 纪念馆资料（F1）
+  const m = await A.getMemorial(id);
+  if (m.ok && m.data) {
+    const d = m.data;
+    if (d.name) document.getElementById("m-name").textContent = d.name;
+    const years = [d.birthDate || d.birth_date, d.deathDate || d.death_date].filter(Boolean).join(" — ");
+    if (years) document.getElementById("m-years").textContent = years;
+    const ep = d.epitaph; if (ep) document.getElementById("m-epitaph").textContent = `“${ep}”`;
+    const appellation = d.appellation;
+    if (appellation) document.getElementById("cta-chat").innerHTML = `<i class="fa-solid fa-comment-dots"></i>和 ${appellation} 说说话`;
+    if (d.candleLit || d.candle_lit) {
+      document.getElementById("candle-line").style.display = "flex";
+      const h = d.candleLitHours;
+      if (h) document.getElementById("candle-text").textContent = `你点的灯还亮着 · 已持续 ${h} 小时`;
+    }
+    const avatar = d.avatarUrl || d.avatar_url;
+    if (avatar) document.querySelector("img[alt='TA 的照片']")?.setAttribute("src", avatar);
+  }
+
+  // 生平时间线（F2）
+  const tl = await A.getTimeline(id);
+  if (tl.ok && Array.isArray(tl.data?.items) && tl.data.items.length) {
+    document.getElementById("timeline-list").innerHTML = tl.data.items
+      .map((t) => `<div class="flex items-baseline gap-4"><span class="display w-12 text-[15px]" style="color:var(--ember-soft)">${t.year}</span><span class="text-[15px]">${t.title}</span></div>`)
+      .join("");
+  }
+
+  // 混合纪念流（F3）
+  async function renderFeed() {
+    const f = await A.getFeed(id);
+    if (!f.ok || !Array.isArray(f.data?.items)) return;
+    const list = f.data.items.slice(0, 5);
+    document.getElementById("feed-list").innerHTML = list.length
+      ? list.map((it) => `
+        <div class="flex items-center gap-3 px-4 py-3.5">
+          <span class="w-9 h-9 rounded-full flex items-center justify-center text-sm" style="background:rgba(255,122,47,.14)">${it.icon}</span>
+          <span class="flex-1 text-[14px]">${it.label} · ${it.isMine ? "我" : it.senderMasked}</span>
+          <span class="t3 text-xs">${A.relTime(it.createdAt)}</span>
+        </div>`).join("")
+      : `<p class="px-4 py-6 text-center t3 text-[13px]">成为第一个纪念 TA 的人</p>`;
+  }
+  await renderFeed();
+
+  // 免费三项（F6）：真实供奉 → 刷新纪念流
+  const itemsRes = await A.getItems(id);
+  const items = Array.isArray(itemsRes.data?.items) ? itemsRes.data.items : [];
+  const free = items.filter((x) => !x.priceCents && !x.price_cents).slice(0, 3);
+  const names = ["献花", "点灯", "清香"];
+  document.querySelectorAll("#offer-grid > button").forEach((btn, i) => {
+    btn.addEventListener("click", async () => {
+      const item = free[i];
+      if (!item) return A.toast("祭品目录加载中，请稍后再试");
+      const r = await A.tribute(item.id);
+      if (r.ok) {
+        A.toast(`已为 TA ${item.name || names[i]}`);
+        if ((item.name || names[i]).includes("灯")) document.getElementById("candle-line").style.display = "flex";
+        renderFeed();
+      } else if (r.status === 401) {
+        A.toast("登录后才能供奉，请先到「我的」登录");
+      } else {
+        A.toast("没有供奉成功，请再试一次");
+      }
+    });
+  });
+})();
+</script>
 </body>
 </html>

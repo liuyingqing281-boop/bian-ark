@@ -39,7 +39,7 @@
 
     <!-- 基础三项：免费 -->
     <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">基础祭奠 · 免费</h2>
-    <div class="grid grid-cols-3 gap-3">
+    <div class="grid grid-cols-3 gap-3" id="free-grid">
       <button class="card p-3 flex flex-col items-center gap-2 relative">
         <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span>
         <img src="assets/flower.png" class="w-14 h-14 rounded-xl object-cover" alt="献花"/>
@@ -59,7 +59,7 @@
 
     <!-- 付费祭品：一口价，点击前可见 -->
     <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">心意祭品 · 一口价</h2>
-    <div class="grid grid-cols-3 gap-3">
+    <div class="grid grid-cols-3 gap-3" id="paid-grid">
       <button class="card p-3 flex flex-col items-center gap-2 relative">
         <span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span>
         <img src="assets/fruit.png" class="w-14 h-14 rounded-xl object-cover" alt="水果"/>
@@ -78,7 +78,7 @@
     </div>
 
     <!-- 次级入口：AI 生成纪念物（视觉降权） -->
-    <button class="card w-full mt-6 px-5 py-4 flex items-center justify-between" style="opacity:.85">
+    <button class="card w-full mt-6 px-5 py-4 flex items-center justify-between" style="opacity:.85" id="gift-entry">
       <span class="text-[14px] t2"><i class="fa-solid fa-wand-magic-sparkles mr-2" style="color:var(--ember-soft)"></i>为 TA 准备特别的礼物</span>
       <span class="t3 text-[11px]">AI 生成 · 实验</span>
     </button>
@@ -91,5 +91,39 @@
     <div class="tab"><i class="fa-solid fa-user"></i><span>我的</span></div>
   </nav>
 </div>
+<script src="shared/api.js"></script>
+<script>
+(async () => {
+  const A = window.BianApi, id = A.memorialId(), q = `?id=${encodeURIComponent(id)}`;
+  document.getElementById("gift-entry").addEventListener("click", () => (location.href = "gift.html" + q));
+
+  const r = await A.getItems(id);
+  const items = Array.isArray(r.data?.items) ? r.data.items : [];
+  const price = (x) => x.priceCents ?? x.price_cents ?? 0;
+  const free = items.filter((x) => !price(x)).slice(0, 3);
+  const paid = items.filter((x) => price(x) > 0).slice(0, 3);
+
+  // 免费三项：真实供奉
+  document.querySelectorAll("#free-grid > button").forEach((btn, i) => {
+    btn.addEventListener("click", async () => {
+      const item = free[i];
+      if (!item) return A.toast("祭品目录加载中，请稍后再试");
+      const res = await A.tribute(item.id);
+      if (res.ok) A.toast(`已为 TA ${item.name}`);
+      else if (res.status === 401) A.toast("登录后才能供奉，请先到「我的」登录");
+      else A.toast("没有供奉成功，请再试一次");
+    });
+  });
+
+  // 付费三项：价格点击前可见；原型态不跳转真实收银台
+  document.querySelectorAll("#paid-grid > button").forEach((btn, i) => {
+    btn.addEventListener("click", () => {
+      const item = paid[i];
+      const label = item ? `${item.name} · 一口价 ${A.yuan(price(item))}` : "心意祭品";
+      location.href = `offering-pay.html${q}${item ? `&item=${encodeURIComponent(item.id)}` : ""}`;
+    });
+  });
+})();
+</script>
 </body>
 </html>

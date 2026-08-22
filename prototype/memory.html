@@ -20,45 +20,72 @@
     <span class="w-10"></span>
   </div>
 
-  <div class="scroll pad pt-1 pb-28">
-    <p class="t2 text-[13px]">已建立 <span style="color:var(--ember-soft)" class="display">32</span> 条记忆</p>
-
-    <section class="mt-5">
-      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-user text-[13px]" style="color:var(--ember-soft)"></i>TA 是怎样的人</h2>
-      <div class="card mt-2 px-4 py-3.5 text-[14px]">温和、幽默、喜欢喝茶</div>
-    </section>
-
-    <section class="mt-6">
-      <h2 class="text-[15px] flex items-center gap-2 display" style="color:var(--ember-soft)"><i class="fa-solid fa-heart text-[13px]"></i>我和 TA<span class="text-[10px] px-2 py-0.5 rounded-full" style="background:rgba(255,122,47,.14)">关系记忆</span></h2>
-      <div class="card mt-2 overflow-hidden">
-        <img src="assets/sea.png" class="w-full h-28 object-cover opacity-90" alt="青岛看海"/>
-        <p class="px-4 py-3 text-[14px]">我们第一次一起旅行，是去了青岛看海。</p>
-      </div>
-    </section>
-
-    <section class="mt-6">
-      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-mug-hot text-[13px]" style="color:var(--ember-soft)"></i>TA 喜欢什么</h2>
-      <div class="card mt-2 divide-y divide-white/5">
-        <p class="px-4 py-3.5 text-[14px]">京剧、茶、钓鱼</p>
-        <p class="px-4 py-3.5 text-[14px]">年轻时经常带我去河边钓鱼，一坐就是一下午。</p>
-      </div>
-    </section>
-
-    <section class="mt-6">
-      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-quote-left text-[13px]" style="color:var(--ember-soft)"></i>TA 怎么说话</h2>
-      <div class="card mt-2 px-4 py-3.5 text-[14px] display">“慢慢来，不着急。”</div>
-    </section>
-
-    <section class="mt-6">
-      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-file-lines text-[13px]" style="color:var(--ember-soft)"></i>基础资料</h2>
-      <div class="card mt-2 px-4 py-3.5 text-[14px] t2">姓名：林守拙 / 1940 年生 / 退休教师</div>
-    </section>
+  <div class="scroll pad pt-1 pb-28" id="mem-body">
+    <p class="t2 text-[13px]">已建立 <span style="color:var(--ember-soft)" class="display" id="mem-total">…</span> 条记忆</p>
+    <div id="mem-sections"></div>
   </div>
 
   <!-- 底部固定主按钮 -->
   <div class="absolute inset-x-0 bottom-0 pad pb-7 pt-10" style="background:linear-gradient(to top, var(--bg) 55%, transparent)">
-    <button class="btn-primary"><i class="fa-solid fa-plus"></i>添加记忆</button>
+    <button class="btn-primary" id="mem-add"><i class="fa-solid fa-plus"></i>添加记忆</button>
   </div>
 </div>
+<script src="shared/api.js"></script>
+<script>
+(async () => {
+  const A = window.BianApi, id = A.memorialId(), q = `?id=${encodeURIComponent(id)}`;
+  document.getElementById("mem-add").addEventListener("click", () => (location.href = "memory-add.html" + q));
+
+  const SECTIONS = [
+    { key: "personality", icon: "fa-user", name: "TA 是怎样的人", hint: "还不知道怎么描述 TA？" },
+    { key: "relation", icon: "fa-heart", name: "我和 TA", hint: "你们的故事值得被记住", star: true },
+    { key: "likes", icon: "fa-mug-hot", name: "TA 喜欢什么", hint: "TA 平时喜欢做什么？" },
+    { key: "speech", icon: "fa-quote-left", name: "TA 怎么说话", hint: "TA 常挂在嘴边的话是？" },
+    { key: "profile", icon: "fa-file-lines", name: "基础资料", hint: "引导填写 TA 的基础资料" },
+  ];
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  async function render() {
+    const r = await A.getMemories(id);
+    if (!r.ok || !r.data) return;
+    const d = r.data;
+    document.getElementById("mem-total").textContent = d.total ?? 0;
+    // entries（带 id，供删除）；无 entries 时由 sections 文本数组兜底
+    const entries = Array.isArray(d.entries)
+      ? d.entries
+      : Object.entries(d.sections || {}).flatMap(([section, arr]) => arr.map((content) => ({ id: "", section, content })));
+    document.getElementById("mem-sections").innerHTML = SECTIONS.map((s) => {
+      const list = entries.filter((e) => e.section === s.key);
+      const body = list.length
+        ? `<div class="card mt-2 divide-y divide-white/5">${list
+            .map(
+              (e) => `<p class="px-4 py-3.5 text-[14px] flex items-start gap-2">
+                <span class="flex-1">${esc(e.content)}</span>
+                ${e.id ? `<button class="t3 text-[11px] mem-del" data-id="${e.id}">删除</button>` : ""}
+              </p>`
+            )
+            .join("")}</div>`
+        : `<p class="t3 text-[13px] mt-2">${s.hint}</p>`;
+      return `<section class="mt-6">
+        <h2 class="text-[15px] flex items-center gap-2 ${s.star ? "display" : ""}" ${s.star ? 'style="color:var(--ember-soft)"' : ""}>
+          <i class="fa-solid ${s.icon} text-[13px]" ${s.star ? "" : 'style="color:var(--ember-soft)"'}></i>${s.name}
+          ${s.star ? '<span class="text-[10px] px-2 py-0.5 rounded-full" style="background:rgba(255,122,47,.14)">关系记忆</span>' : ""}
+        </h2>${body}</section>`;
+    }).join("");
+  }
+  await render();
+
+  // 删除（二次确认；仅馆主/协作人可成功）
+  document.getElementById("mem-sections").addEventListener("click", async (e) => {
+    const btn = e.target.closest(".mem-del");
+    if (!btn) return;
+    if (!confirm("删除这条记忆？此操作不可恢复。")) return;
+    const r = await A.deleteMemory(btn.dataset.id);
+    if (r.ok) { A.toast("已删除"); render(); }
+    else if (r.status === 403) A.toast("只有馆主和协作人可以删除记忆");
+    else A.toast("没有删除成功，请再试一次");
+  });
+})();
+</script>
 </body>
 </html>

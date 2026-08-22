@@ -160,5 +160,16 @@
   彼岸 · 想念从未离开 ｜ 原型共 10 屏 · 每屏独立 HTML · 可直接 iframe 嵌入或逐屏对接开发
 </footer>
 
+<script>
+// 将 ?id= 透传给各屏 iframe，使 10 屏连到同一座纪念馆
+(function () {
+  const q = location.search;
+  if (!q) return;
+  document.querySelectorAll("iframe").forEach((f) => {
+    const src = f.getAttribute("src");
+    if (src && !src.includes("?")) f.setAttribute("src", src + q);
+  });
+})();
+</script>
 </body>
 </html>

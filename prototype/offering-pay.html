@@ -46,5 +46,32 @@
     </div>
   </div>
 </div>
+<script src="shared/api.js"></script>
+<script>
+(async () => {
+  const A = window.BianApi;
+  const params = new URLSearchParams(location.search);
+  const itemId = params.get("item");
+  const [cancelBtn, payBtn] = document.querySelectorAll(".grid.grid-cols-2 button");
+  cancelBtn.addEventListener("click", () => history.back());
+
+  // 展示真实目录中的名称与一口价（白名单：图标+名称+价格+说明+双按钮）
+  let item = null;
+  if (itemId) {
+    const r = await A.getItems();
+    item = (r.data?.items || []).find((x) => x.id === itemId);
+    if (item) {
+      document.querySelector("h3.display").textContent = item.name;
+      document.querySelector("p.display.text-2xl").textContent = `一口价 ${A.yuan(item.priceCents ?? item.price_cents)}`;
+    }
+  }
+
+  payBtn.addEventListener("click", async () => {
+    // 原型演示态：不接真实 Stripe 收银台；直接提示链路去向
+    A.toast("演示环境：线上将跳转支付收银台，支付成功后出现在供桌上");
+    setTimeout(() => history.back(), 1200);
+  });
+})();
+</script>
 </body>
 </html>

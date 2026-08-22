@@ -51,5 +51,15 @@
     </div>
   </div>
 </div>
+<script src="shared/api.js"></script>
+<script>
+(() => {
+  const q = location.search || "";
+  document.querySelector(".btn-primary").addEventListener("click", () => {
+    localStorage.setItem("bian_seen_intro", "1"); // 点击 = 确认边界
+    location.href = "chat.html" + q;
+  });
+})();
+</script>
 </body>
 </html>
