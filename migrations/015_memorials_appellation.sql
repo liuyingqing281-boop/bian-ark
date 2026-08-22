@@ -1,0 +1,2 @@
+-- M1: 纪念馆称谓（04 屏标题「和爷爷说说话」数据源），空则前端回落「TA」
+-- @add-column memorials appellation TEXT DEFAULT ''

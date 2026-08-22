@@ -11,8 +11,8 @@ interface MemorialRow extends MemorialAccessRow { name: string; birth_date: stri
 interface ModelReply { text: string; evidence_memory_id: string | null; ask_memory: boolean; followup_question: string | null }
 function parseReply(raw: string): ModelReply { try { const p = JSON.parse(raw) as Partial<ModelReply>; if (typeof p.text === "string") return { text: p.text, evidence_memory_id: typeof p.evidence_memory_id === "string" ? p.evidence_memory_id : null, ask_memory: p.ask_memory === true, followup_question: typeof p.followup_question === "string" ? p.followup_question : null }; } catch {} return { text: raw, evidence_memory_id: null, ask_memory: false, followup_question: null }; }
 export async function POST(req: NextRequest) {
-  let body: { memorial_id?: string; message?: string }; try { body = await req.json(); } catch { return NextResponse.json({ error: "bad_request" }, { status: 400 }); }
-  const memorialId = (body.memorial_id || "").trim(); const message = (body.message || "").trim().slice(0, 500); if (!memorialId || !message) return NextResponse.json({ error: "bad_request" }, { status: 400 });
+  let body: { memorial_id?: string; memorialId?: string; message?: string }; try { body = await req.json(); } catch { return NextResponse.json({ error: "bad_request" }, { status: 400 }); }
+  const memorialId = (body.memorialId || body.memorial_id || "").trim(); const message = (body.message || "").trim().slice(0, 500); if (!memorialId || !message) return NextResponse.json({ error: "bad_request" }, { status: 400 });
   const check = await moderateText(message); if (!check.pass) return NextResponse.json({ error: "blocked" }, { status: 422 });
   const db = getDb(); const memorial = db.prepare("SELECT id, user_id, visibility, name, birth_date, death_date, epitaph, biography FROM memorials WHERE id = ? AND is_published = 1").get(memorialId) as MemorialRow | undefined; const user = await getSessionUser();
   if (!memorial || !canViewMemorial(memorial, user?.id ?? null)) return NextResponse.json({ error: "not_found" }, { status: 404 });

@@ -1,0 +1,2 @@
+-- M3: 时间线图文卡片配图（可空，关联 media.id）
+-- @add-column life_events media_id TEXT DEFAULT ''
