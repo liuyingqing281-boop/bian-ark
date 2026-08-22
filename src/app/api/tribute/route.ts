@@ -40,11 +40,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}?blocked=1`, req.url));
   }
   const is_burning = formData.get("is_burning") === "1" ? 1 : 0;
-  const item = db.prepare("SELECT owner_user_id, review_status FROM items WHERE id = ?").get(item_id || "flower_white") as
-    | { owner_user_id: string; review_status: string }
+  const item = db.prepare("SELECT owner_user_id, review_status, is_premium FROM items WHERE id = ?").get(item_id || "flower_white") as
+    | { owner_user_id: string; review_status: string; is_premium: number }
     | undefined;
   if (!item || (item.review_status !== "approved" && item.owner_user_id !== user?.id)) {
     return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}?item_unavailable=1`, req.url));
+  }
+
+  // G7 一口价链路：仅付费祭品需要关联已支付订单；免费项路径不变
+  if (item.is_premium === 1) {
+    const order_id = ((formData.get("order_id") as string) || "").trim();
+    const order = order_id
+      ? (db.prepare("SELECT status FROM orders WHERE id = ?").get(order_id) as { status: string } | undefined)
+      : undefined;
+    if (!order || order.status !== "paid") {
+      return NextResponse.redirect(new URL(`/${lang}/memorial/${memorial_id}?order_required=1`, req.url));
+    }
   }
 
   const itemId = item_id || "flower_white";
