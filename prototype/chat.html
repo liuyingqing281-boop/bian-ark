@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>彼岸 · 和爷爷说说话</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<link rel="stylesheet" href="shared/ui.css"/>
+</head>
+<body>
+<div class="screen">
+  <div class="statusbar">
+    <span>21:47</span>
+    <div class="icons"><i class="fa-solid fa-signal"></i><i class="fa-solid fa-wifi"></i><i class="fa-solid fa-battery-three-quarters"></i></div>
+  </div>
+  <div class="navbar">
+    <button class="nav-btn"><i class="fa-solid fa-chevron-left"></i></button>
+    <span class="title">和爷爷说说话</span>
+    <button class="nav-btn"><i class="fa-solid fa-ellipsis"></i></button>
+  </div>
+
+  <div class="scroll pad pt-2 pb-3">
+    <div class="divider my-3">今天</div>
+
+    <!-- 用户气泡 -->
+    <div class="bubble-me mb-4">爷爷，我今天工作特别累。</div>
+
+    <!-- TA 气泡 + 依据 + 推测角标 -->
+    <div class="flex gap-2 mb-4">
+      <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
+      <div>
+        <div class="bubble-ta">如果是以前，爷爷大概会先问你有没有好好吃饭。</div>
+        <button class="text-[12px] mt-1.5 underline underline-offset-4" style="color:var(--ember-soft)">查看这句话的依据</button>
+        <p class="tag-inferred mt-1">基于 TA 的资料推测</p>
+      </div>
+    </div>
+
+    <div class="bubble-me mb-4">他以前最喜欢什么？</div>
+
+    <div class="flex gap-2 mb-4">
+      <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
+      <div>
+        <div class="bubble-ta">爷爷大概会笑一笑，说：“钓鱼啊，急不得，慢慢来。”</div>
+        <button class="text-[12px] mt-1.5 underline underline-offset-4" style="color:var(--ember-soft)">查看这句话的依据</button>
+        <p class="tag-inferred mt-1">基于 TA 的资料推测</p>
+      </div>
+    </div>
+
+    <!-- 正在输入 -->
+    <div class="flex gap-2">
+      <img src="assets/portrait.png" class="w-7 h-7 rounded-full object-cover shrink-0 mt-1" alt="TA"/>
+      <div class="bubble-ta flex items-center gap-1.5">
+        <span class="typing-dot"></span>
+        <span class="typing-dot" style="animation-delay:.18s"></span>
+        <span class="typing-dot" style="animation-delay:.36s"></span>
+        <span class="text-[12px] t3 ml-1">正在想你问的话…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 快捷提问 -->
+  <div class="pad pb-2 flex gap-2 overflow-x-auto" style="scrollbar-width:none">
+    <button class="chip">“TA 以前最喜欢什么？”</button>
+    <button class="chip">“我想听听 TA 的故事。”</button>
+    <button class="chip">“我今天有点想 TA。”</button>
+  </div>
+
+  <!-- 输入栏 -->
+  <div class="pad pb-6 pt-1">
+    <div class="inputbar">
+      <input placeholder="想对 TA 说……"/>
+      <button class="icon-btn" title="语音（准备中）" style="opacity:.4"><i class="fa-solid fa-microphone"></i></button>
+      <button class="send"><i class="fa-solid fa-arrow-up"></i></button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

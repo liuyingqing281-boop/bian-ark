@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>彼岸 · 添加记忆（抽屉态）</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<link rel="stylesheet" href="shared/ui.css"/>
+</head>
+<body>
+<div class="screen">
+  <div class="statusbar">
+    <span>21:47</span>
+    <div class="icons"><i class="fa-solid fa-signal"></i><i class="fa-solid fa-wifi"></i><i class="fa-solid fa-battery-three-quarters"></i></div>
+  </div>
+  <div class="navbar">
+    <button class="nav-btn"><i class="fa-solid fa-chevron-left"></i></button>
+    <span class="title">TA 的记忆档案</span>
+    <span class="w-10"></span>
+  </div>
+
+  <!-- 背景页（被遮罩） -->
+  <div class="scroll pad pt-1 pb-28 opacity-60">
+    <p class="t2 text-[13px]">已建立 <span style="color:var(--ember-soft)" class="display">32</span> 条记忆</p>
+    <section class="mt-5">
+      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-user text-[13px]" style="color:var(--ember-soft)"></i>TA 是怎样的人</h2>
+      <div class="card mt-2 px-4 py-3.5 text-[14px]">温和、幽默、喜欢喝茶</div>
+    </section>
+    <section class="mt-6">
+      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-mug-hot text-[13px]" style="color:var(--ember-soft)"></i>TA 喜欢什么</h2>
+      <div class="card mt-2 px-4 py-3.5 text-[14px]">京剧、茶、钓鱼</div>
+    </section>
+  </div>
+
+  <!-- 底部抽屉 -->
+  <div class="sheet-mask"></div>
+  <div class="sheet">
+    <div class="grabber"></div>
+    <h3 class="display text-lg text-center tracking-wider">添加记忆</h3>
+
+    <div class="flex flex-wrap gap-2 mt-5">
+      <button class="chip">👤 TA 是怎样的人</button>
+      <button class="chip">❤️ 我和 TA</button>
+      <button class="chip active">🎵 TA 喜欢什么</button>
+      <button class="chip">💬 TA 怎么说话</button>
+      <button class="chip">📄 基础资料</button>
+    </div>
+
+    <div class="card mt-4 p-4">
+      <textarea rows="3" class="w-full bg-transparent outline-none resize-none text-[15px] placeholder:text-[rgba(255,246,236,.35)]"
+        style="color:var(--text)" placeholder="他年轻的时候经常带我去河边……">他年轻的时候经常带我去河边钓鱼，一坐就是一下午。</textarea>
+    </div>
+
+    <div class="flex items-center gap-2 mt-3 t3 text-[11px]">
+      <i class="fa-solid fa-microphone"></i>语音转文字 · 即将支持
+    </div>
+
+    <button class="btn-primary mt-4">保 存</button>
+    <p class="t3 text-[11px] text-center mt-3">保存后将出现在「🎵 TA 喜欢什么」分区</p>
+  </div>
+</div>
+</body>
+</html>

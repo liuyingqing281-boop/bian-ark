@@ -14,6 +14,13 @@ function detectLocale(request: NextRequest): string {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isProto =
+    pathname === "/prototype" || pathname.startsWith("/prototype/") ||
+    pathname === "/proto-zcode" || pathname.startsWith("/proto-zcode/");
+  if (isProto) {
+    // 高保真原型路由：独立于 [lang] 体系，跳过多语言重定向
+    return NextResponse.next();
+  }
   if (pathname.startsWith("/api/")) {
     const method = request.method.toUpperCase();
     const origin = request.headers.get("origin");

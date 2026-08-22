@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>彼岸 · 高保真原型总览（Redmi K90 至尊版）</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<style>
+  body {
+    background:
+      radial-gradient(1100px 500px at 50% -5%, rgba(244, 93, 18, 0.22), transparent 60%),
+      radial-gradient(900px 420px at 85% 105%, rgba(180, 58, 14, 0.16), transparent 65%),
+      #050201;
+    color: #fff6ec;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+  }
+  .display { font-family: "Noto Serif SC", "Songti SC", "SimSun", serif; }
+
+  /* Redmi K90 至尊版 · 6.83" 20:9（400×866 逻辑像素）+ 居中打孔前摄 */
+  .phone {
+    width: 416px;
+    border-radius: 52px;
+    padding: 8px;
+    background: linear-gradient(160deg, #2a2a2e, #0c0c0f 40%, #1c1c20);
+    box-shadow:
+      0 40px 90px rgba(0, 0, 0, 0.75),
+      0 0 70px rgba(244, 93, 18, 0.12),
+      inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+    position: relative;
+  }
+  .phone .screen-wrap {
+    width: 400px; height: 866px;
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    background: #070302;
+  }
+  .phone .punch {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #1f2937, #000 70%);
+    box-shadow: inset 0 0 3px rgba(120, 160, 220, 0.4), 0 0 0 3px rgba(0,0,0,0.65);
+    z-index: 30; pointer-events: none;
+  }
+  .phone iframe {
+    width: 400px; height: 866px; border: none; display: block;
+  }
+  .badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid rgba(255, 179, 92, 0.4); color: #ffb35c;
+  }
+</style>
+</head>
+<body class="px-8 py-12">
+
+<header class="text-center mb-4">
+  <p class="badge inline-block">高保真原型 · 可直接用于开发走查</p>
+  <h1 class="display text-4xl mt-4 tracking-widest">彼岸 · 线上祭奠 App</h1>
+  <p class="mt-3 text-sm" style="color:rgba(255,246,236,.55)">
+    熔火 / 余烬视觉语言 · Redmi K90 至尊版（400×866 逻辑像素 · 居中打孔）· 全部页面平铺展示
+  </p>
+  <p class="mt-2 text-xs" style="color:rgba(255,246,236,.35)">
+    信息架构：纪念馆（记忆 / 想念 / 祭奠）· 发现（后续阶段）· 我的 ｜ 文案红线：无充值礼包 · 无打榜攀比 · AI 非逝者本人
+  </p>
+</header>
+
+<!-- 手机平铺网格 -->
+<main class="flex flex-wrap justify-center gap-x-10 gap-y-14 mt-10 max-w-[1500px] mx-auto">
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="home.html" title="纪念馆首页"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">01 · 纪念馆首页 <span class="t3 text-xs" style="color:#ffb35c">★★★★★ P0</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">沉浸区 / 记忆·想念·祭奠锚点 / 纪念流 / 免费三项</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="miss.html" title="想念页"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">02 · 想念页 <span class="text-xs" style="color:#ffb35c">★★★★★ P0</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">留言 / 悄悄话 / 悼文 · 500 字计数</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="chat-intro.html" title="身份说明页"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">03 · 和 TA 说说话 · 身份说明 <span class="text-xs" style="color:#ffb35c">P0 首次必经</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">声明文案逐字使用 · 不可跳过</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="chat.html" title="对话页"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">04 · 和爷爷说说话 <span class="text-xs" style="color:#ffb35c">★★★★★ P0</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">气泡 / 依据链接 / 推测角标 / 快捷 chip / 🎙置灰</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="memory.html" title="记忆档案"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">05 · TA 的记忆档案 <span class="text-xs" style="color:#ffb35c">★★★★★ P0</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">五大分区 · 底部固定添加入口</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="memory-add.html" title="添加记忆"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">06 · 添加记忆（抽屉态） <span class="text-xs" style="color:#ffb35c">P0</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">选分区 → 录入 → 保存 · 对话页补充记忆同款</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="offering.html" title="祭奠页"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">07 · 祭奠页 <span class="text-xs" style="color:#ffb35c">★★★★ P0</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">供桌烛火 / 免费三项 / 一口价前置明示</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="offering-pay.html" title="一口价确认"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">08 · 一口价确认（弹窗态） <span class="text-xs" style="color:#ffb35c">P1</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">元素白名单：图标+名称+价格+说明+双按钮</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="gift.html" title="AI 生成纪念物"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">09 · 为 TA 准备一份礼物 <span class="text-xs" style="color:#ffb35c">P1 · 实验</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">三步流程 · 收藏到纪念馆 / 分享 / 再来一件</p>
+    </figcaption>
+  </figure>
+
+  <figure class="flex flex-col items-center gap-4">
+    <div class="phone"><div class="punch"></div><div class="screen-wrap"><iframe src="profile.html" title="我的"></iframe></div></div>
+    <figcaption class="text-center">
+      <p class="text-[15px]">10 · 我的 <span class="text-xs" style="color:#ffb35c">P0</span></p>
+      <p class="text-xs mt-1" style="color:rgba(255,246,236,.45)">纪念馆管理 / 订单流水 / 通知·隐私</p>
+    </figcaption>
+  </figure>
+
+</main>
+
+<footer class="text-center mt-16 pb-8 text-xs" style="color:rgba(255,246,236,.35)">
+  彼岸 · 想念从未离开 ｜ 原型共 10 屏 · 每屏独立 HTML · 可直接 iframe 嵌入或逐屏对接开发
+</footer>
+
+</body>
+</html>

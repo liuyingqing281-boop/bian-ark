@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* 彼岸 · 高保真原型 —— 严格按 docs/前端具体设计流程.md §1.3 视觉规范 */
+@theme {
+  /* 色彩系统 */
+  --color-ink: #2b2b2b; /* 主文字 */
+  --color-ink-2: #6e6a61; /* 次文字 */
+  --color-ink-3: #a39e93; /* 弱提示 */
+  --color-dai: #3e4c59; /* 主色 · 黛蓝灰 */
+  --color-paper: #f7f5f0; /* 背景 · 宣纸白 */
+  --color-warm: #8a8578; /* 辅助 · 暖灰 */
+  --color-flame: #d98e4a; /* 点缀 · 烛火橙（克制使用） */
+  --color-leaf: #5b7f5c; /* 成功 · 黛绿 */
+  --color-rust: #a85448; /* 警示 · 赭红 */
+  --color-bone: #e8e4dc; /* 骨架屏深色块 */
+  --color-bone-2: #f0ede6; /* 骨架屏浅色块 */
+  --color-disabled: #d8d4cc; /* 置灰底 */
+
+  /* 字体：标题衬线 / 正文无衬线 */
+  --font-song: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --font-hei: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+
+  /* 一级轻投影（唯一允许的阴影） */
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+  /* 动效：200–300ms ease-out，禁止弹性过冲 */
+  --animate-fade-up: fade-up 260ms ease-out both;
+  --animate-sheet-up: sheet-up 280ms ease-out both;
+  --animate-fade-in: fade-in 220ms ease-out both;
+  --animate-flame: flame 1.1s ease-in-out infinite;
+  --animate-typing: typing 1s ease-in-out infinite;
+  --animate-breathe: breathe 1.6s ease-in-out infinite;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes sheet-up {
+    from { opacity: 0; transform: translateY(48px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes flame {
+    0%, 100% { transform: scaleY(1) scaleX(1); opacity: 0.92; }
+    50% { transform: scaleY(1.12) scaleX(0.94); opacity: 1; }
+  }
+  @keyframes typing {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  @keyframes breathe {
+    0%, 100% { background-color: var(--color-bone); }
+    50% { background-color: var(--color-bone-2); }
+  }
+}
+
+html,
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-hei);
+  line-height: 1.6;
+}
+
+/* 原型页桌面背景（手机框外）：安静的深灰，不抢戏 */
+.proto-stage {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(62, 76, 89, 0.12), transparent 60%),
+    var(--color-paper);
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>彼岸 · 和 TA 说说话 · 身份说明</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<link rel="stylesheet" href="shared/ui.css"/>
+</head>
+<body>
+<div class="screen">
+  <div class="statusbar">
+    <span>21:47</span>
+    <div class="icons"><i class="fa-solid fa-signal"></i><i class="fa-solid fa-wifi"></i><i class="fa-solid fa-battery-three-quarters"></i></div>
+  </div>
+  <div class="navbar">
+    <button class="nav-btn"><i class="fa-solid fa-chevron-left"></i></button>
+    <span class="title">和 TA 说说话</span>
+    <span class="w-10"></span>
+  </div>
+
+  <div class="scroll flex flex-col items-center text-center pad pt-10 pb-8">
+    <img src="assets/portrait.png" alt="TA 的照片" class="w-24 h-24 rounded-full object-cover"
+         style="box-shadow:0 0 36px rgba(255,122,47,.5),0 0 80px rgba(244,93,18,.25)"/>
+
+    <!-- 声明文案：逐字使用，不可删改 -->
+    <p class="text-[15px] leading-loose mt-8 t2">
+      根据 TA 的文字、故事、照片等<br/>资料构建纪念性 AI。<br/>
+      <span class="text-[17px] display" style="color:var(--text)">它不是 TA 本人，<br/>也不能真正代表 TA。</span>
+    </p>
+
+    <div class="card w-full mt-8 p-5 text-left space-y-3.5">
+      <div class="flex items-center gap-3 text-[14px]">
+        <span class="w-8 h-8 rounded-full flex items-center justify-center text-xs shrink-0" style="background:rgba(255,122,47,.14);color:var(--ember-soft)"><i class="fa-solid fa-book-open"></i></span>
+        帮你回忆 TA
+      </div>
+      <div class="flex items-center gap-3 text-[14px]">
+        <span class="w-8 h-8 rounded-full flex items-center justify-center text-xs shrink-0" style="background:rgba(255,122,47,.14);color:var(--ember-soft)"><i class="fa-solid fa-ear-listen"></i></span>
+        听你说说话
+      </div>
+      <div class="flex items-center gap-3 text-[14px]">
+        <span class="w-8 h-8 rounded-full flex items-center justify-center text-xs shrink-0" style="background:rgba(255,122,47,.14);color:var(--ember-soft)"><i class="fa-solid fa-lightbulb"></i></span>
+        根据已有记忆尝试回应
+      </div>
+    </div>
+
+    <div class="mt-auto w-full pt-8">
+      <button class="btn-primary">开始和 TA 说说话</button>
+      <p class="t3 text-[11px] mt-3">点击即表示你已了解上述边界</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

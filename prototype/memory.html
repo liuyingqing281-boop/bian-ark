@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>彼岸 · TA 的记忆档案</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<link rel="stylesheet" href="shared/ui.css"/>
+</head>
+<body>
+<div class="screen">
+  <div class="statusbar">
+    <span>21:47</span>
+    <div class="icons"><i class="fa-solid fa-signal"></i><i class="fa-solid fa-wifi"></i><i class="fa-solid fa-battery-three-quarters"></i></div>
+  </div>
+  <div class="navbar">
+    <button class="nav-btn"><i class="fa-solid fa-chevron-left"></i></button>
+    <span class="title">TA 的记忆档案</span>
+    <span class="w-10"></span>
+  </div>
+
+  <div class="scroll pad pt-1 pb-28">
+    <p class="t2 text-[13px]">已建立 <span style="color:var(--ember-soft)" class="display">32</span> 条记忆</p>
+
+    <section class="mt-5">
+      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-user text-[13px]" style="color:var(--ember-soft)"></i>TA 是怎样的人</h2>
+      <div class="card mt-2 px-4 py-3.5 text-[14px]">温和、幽默、喜欢喝茶</div>
+    </section>
+
+    <section class="mt-6">
+      <h2 class="text-[15px] flex items-center gap-2 display" style="color:var(--ember-soft)"><i class="fa-solid fa-heart text-[13px]"></i>我和 TA<span class="text-[10px] px-2 py-0.5 rounded-full" style="background:rgba(255,122,47,.14)">关系记忆</span></h2>
+      <div class="card mt-2 overflow-hidden">
+        <img src="assets/sea.png" class="w-full h-28 object-cover opacity-90" alt="青岛看海"/>
+        <p class="px-4 py-3 text-[14px]">我们第一次一起旅行，是去了青岛看海。</p>
+      </div>
+    </section>
+
+    <section class="mt-6">
+      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-mug-hot text-[13px]" style="color:var(--ember-soft)"></i>TA 喜欢什么</h2>
+      <div class="card mt-2 divide-y divide-white/5">
+        <p class="px-4 py-3.5 text-[14px]">京剧、茶、钓鱼</p>
+        <p class="px-4 py-3.5 text-[14px]">年轻时经常带我去河边钓鱼，一坐就是一下午。</p>
+      </div>
+    </section>
+
+    <section class="mt-6">
+      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-quote-left text-[13px]" style="color:var(--ember-soft)"></i>TA 怎么说话</h2>
+      <div class="card mt-2 px-4 py-3.5 text-[14px] display">“慢慢来，不着急。”</div>
+    </section>
+
+    <section class="mt-6">
+      <h2 class="text-[15px] flex items-center gap-2"><i class="fa-solid fa-file-lines text-[13px]" style="color:var(--ember-soft)"></i>基础资料</h2>
+      <div class="card mt-2 px-4 py-3.5 text-[14px] t2">姓名：林守拙 / 1940 年生 / 退休教师</div>
+    </section>
+  </div>
+
+  <!-- 底部固定主按钮 -->
+  <div class="absolute inset-x-0 bottom-0 pad pb-7 pt-10" style="background:linear-gradient(to top, var(--bg) 55%, transparent)">
+    <button class="btn-primary"><i class="fa-solid fa-plus"></i>添加记忆</button>
+  </div>
+</div>
+</body>
+</html>

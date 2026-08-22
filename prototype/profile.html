@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>彼岸 · 我的</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<link rel="stylesheet" href="shared/ui.css"/>
+</head>
+<body>
+<div class="screen">
+  <div class="statusbar">
+    <span>21:47</span>
+    <div class="icons"><i class="fa-solid fa-signal"></i><i class="fa-solid fa-wifi"></i><i class="fa-solid fa-battery-three-quarters"></i></div>
+  </div>
+  <div class="navbar">
+    <span class="w-10"></span>
+    <span class="title">我的</span>
+    <button class="nav-btn"><i class="fa-solid fa-gear"></i></button>
+  </div>
+
+  <div class="scroll pad pt-4 pb-8">
+    <!-- 用户卡片 -->
+    <div class="card p-5 flex items-center gap-4">
+      <div class="w-14 h-14 rounded-full flex items-center justify-center display text-xl"
+           style="background:linear-gradient(135deg,#ff8a3d,#b43a0e);box-shadow:0 0 24px rgba(244,93,18,.4)">林</div>
+      <div class="flex-1">
+        <p class="text-[16px]">林**</p>
+        <p class="t3 text-[12px] mt-0.5">已守护 1 座纪念馆 · 128 天</p>
+      </div>
+      <i class="fa-solid fa-chevron-right t3 text-xs"></i>
+    </div>
+
+    <!-- 我的纪念 -->
+    <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">我的纪念</h2>
+    <div class="card divide-y divide-white/5">
+      <button class="w-full flex items-center gap-4 px-5 py-4">
+        <img src="assets/portrait.png" class="w-11 h-11 rounded-full object-cover" alt=""/>
+        <div class="flex-1 text-left">
+          <p class="text-[15px]">林守拙的纪念馆</p>
+          <p class="t3 text-[12px]">馆主 · 32 条记忆 · 灯还亮着</p>
+        </div>
+        <span class="text-[10px] px-2 py-1 rounded-full" style="background:rgba(255,122,47,.14);color:var(--ember-soft)">馆主</span>
+      </button>
+      <button class="w-full flex items-center gap-4 px-5 py-4">
+        <div class="w-11 h-11 rounded-full card flex items-center justify-center t3"><i class="fa-solid fa-user"></i></div>
+        <div class="flex-1 text-left">
+          <p class="text-[15px]">陈奶奶的纪念馆</p>
+          <p class="t3 text-[12px]">协作人 · 可编辑记忆档案</p>
+        </div>
+        <span class="text-[10px] px-2 py-1 rounded-full" style="background:rgba(255,255,255,.06);color:var(--text-2)">协作</span>
+      </button>
+    </div>
+
+    <!-- 功能列表 -->
+    <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">服务</h2>
+    <div class="card divide-y divide-white/5">
+      <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]">
+        <i class="fa-solid fa-receipt w-5 text-center" style="color:var(--ember-soft)"></i><span class="flex-1 text-left">订单记录</span>
+        <span class="t3 text-[11px]">一口价流水</span><i class="fa-solid fa-chevron-right t3 text-xs"></i>
+      </button>
+      <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]">
+        <i class="fa-solid fa-user-group w-5 text-center" style="color:var(--ember-soft)"></i><span class="flex-1 text-left">亲友共同纪念</span>
+        <i class="fa-solid fa-chevron-right t3 text-xs"></i>
+      </button>
+      <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]">
+        <i class="fa-solid fa-bell w-5 text-center" style="color:var(--ember-soft)"></i><span class="flex-1 text-left">通知</span>
+        <i class="fa-solid fa-chevron-right t3 text-xs"></i>
+      </button>
+      <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]">
+        <i class="fa-solid fa-shield-halved w-5 text-center" style="color:var(--ember-soft)"></i><span class="flex-1 text-left">隐私</span>
+        <i class="fa-solid fa-chevron-right t3 text-xs"></i>
+      </button>
+      <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]">
+        <i class="fa-solid fa-circle-question w-5 text-center" style="color:var(--ember-soft)"></i><span class="flex-1 text-left">帮助与反馈</span>
+        <i class="fa-solid fa-chevron-right t3 text-xs"></i>
+      </button>
+    </div>
+
+    <p class="t3 text-[11px] text-center mt-8">彼岸 · 想念从未离开</p>
+  </div>
+
+  <nav class="tabbar">
+    <div class="tab"><i class="fa-solid fa-place-of-worship"></i><span>纪念馆</span></div>
+    <div class="tab"><i class="fa-solid fa-compass"></i><span>发现</span></div>
+    <div class="tab active"><i class="fa-solid fa-user"></i><span>我的</span></div>
+  </nav>
+</div>
+</body>
+</html>
