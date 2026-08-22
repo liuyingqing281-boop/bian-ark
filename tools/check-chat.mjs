@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import Database from "better-sqlite3";
 
 const BASE = "http://localhost:7300";
@@ -11,7 +11,7 @@ const child = spawn("npx", ["next", "dev", "-p", "7300"], { shell: true, env: { 
 let log = "";
 child.stdout.on("data", d => log += d);
 child.stderr.on("data", d => log += d);
-const stop = () => { try { child.kill("SIGTERM"); } catch {} };
+const stop = () => { try { execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" }); } catch {} };
 try {
   let ready = false;
   for (let i = 0; i < 75; i++) {
@@ -33,3 +33,4 @@ try {
   if (d.status !== 200) throw new Error(`游客调用失败: ${d.status}`);
   console.log("PASS chat evidence / ask-memory / moderation / guest");
 } finally { stop(); db.close(); }
+process.exit(0);
