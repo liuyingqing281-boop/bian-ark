@@ -220,7 +220,7 @@ export function MemorialSettings({
           {inGarden ? gardenLabels.remove : gardenLabels.place}
         </label>
       )}
-      <a href={`/${lang}/memorial/${memorial.id}`} className="text-amber-500 hover:text-amber-400 transition">
+      <a href={`/${lang}/hall/${memorial.id}`} className="text-amber-500 hover:text-amber-400 transition">
         {labels.view} →
       </a>
     </div>

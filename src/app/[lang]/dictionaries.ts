@@ -12,7 +12,7 @@ const zh = {
   },
   nav: {
     brand: "彼岸",
-    garden: "墓园",
+    garden: "发现",
     login: "登录",
     gardenPublic: "公共墓园",
     me: "我的",
@@ -350,7 +350,7 @@ const en = {
   },
   nav: {
     brand: "The Other Shore",
-    garden: "Garden",
+    garden: "Discover",
     login: "Sign in",
     gardenPublic: "Public Garden",
     me: "My Space",
