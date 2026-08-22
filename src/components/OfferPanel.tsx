@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Image from "next/image";
 import ItemAsset from "./ItemAsset";
 
@@ -163,6 +163,10 @@ export default function OfferPanel({
     setGenerating(false);
     if (res.ok) {
       setCandidates(data.candidates || []);
+    } else if (data.error === "quota_exceeded") {
+      setError(labels.err_quota_exceeded || labels.failed);
+    } else if (data.error === "content_blocked") {
+      setError(labels.err_content_blocked || labels.failed);
     } else {
       setError(data.error || labels.failed);
     }
