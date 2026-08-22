@@ -73,8 +73,10 @@ async function chatArk(system: string, user: string, opts: ChatOptions): Promise
   return out.trim();
 }
 
-function mockChat(_system: string, user: string): string {
+function mockChat(system: string, user: string): string {
   // 确定性模拟：以【模拟扩写】开头，E2E 以此断言；不 sleep（测试要快）
   const seed = crypto.createHash("md5").update(user).digest("hex").slice(0, 4);
-  return `【模拟扩写】${user}，写实摄影风格，柔光，深色背景，居中构图（种子 ${seed}）`;
+  const id = system.match(/\[memory_id=([^\]]+)\]/)?.[1] || null;
+  const ask = /哪种颜色|什么颜色|不知道|没有记录/.test(user) || !id;
+  return JSON.stringify({ text: ask ? "我还没有找到关于这件事的具体记录。你愿意补充一段关于 TA 的记忆吗？" : `根据记录，关于「${user}」可以这样理解（基于 TA 的资料推测）。`, evidence_memory_id: ask ? null : id, ask_memory: ask, followup_question: ask ? "你愿意补充一段关于 TA 的记忆吗？" : null });
 }
