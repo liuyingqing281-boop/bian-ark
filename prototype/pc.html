@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>彼岸 · PC 端纪念馆</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<link rel="stylesheet" href="shared/ui.css"/>
+<style>
+  /* PC 端专属：宽屏氛围与布局细节 */
+  .pc-bg {
+    background:
+      radial-gradient(900px 420px at 78% -10%, rgba(255, 106, 32, 0.20), transparent 60%),
+      radial-gradient(700px 500px at -10% 110%, rgba(180, 58, 14, 0.16), transparent 65%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  .side-link {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-radius: 14px;
+    color: var(--text-2); font-size: 14px; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .side-link i { width: 18px; text-align: center; }
+  .side-link.active {
+    color: var(--ember-soft);
+    background: rgba(255, 122, 47, 0.10);
+    border-color: rgba(255, 179, 92, 0.28);
+  }
+  .side-link:hover:not(.active) { background: rgba(255,255,255,0.04); }
+  .scroll-thin::-webkit-scrollbar { width: 6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
+</style>
+</head>
+<body class="pc-bg">
+
+<div class="flex min-h-screen">
+
+  <!-- ============ 左侧导航 ============ -->
+  <aside class="w-60 shrink-0 flex flex-col border-r border-white/5 px-4 py-6 sticky top-0 h-screen">
+    <div class="flex items-center gap-3 px-2">
+      <div class="w-10 h-10 rounded-2xl flex items-center justify-center display text-lg"
+           style="background:linear-gradient(135deg,#ff8a3d,#b43a0e);box-shadow:0 0 24px rgba(244,93,18,.45)">彼</div>
+      <div>
+        <p class="display text-lg tracking-[0.25em]">彼岸</p>
+        <p class="t3 text-[10px] tracking-widest">想念从未离开</p>
+      </div>
+    </div>
+
+    <nav class="mt-8 space-y-1.5 flex-1">
+      <div class="side-link active"><i class="fa-solid fa-place-of-worship"></i>纪念馆</div>
+      <div class="side-link"><i class="fa-solid fa-comment-dots"></i>想念</div>
+      <div class="side-link"><i class="fa-solid fa-fire"></i>祭奠</div>
+      <div class="side-link"><i class="fa-solid fa-book-open"></i>记忆档案</div>
+      <div class="side-link"><i class="fa-solid fa-user-group"></i>亲友共同纪念</div>
+      <div class="side-link" style="opacity:.45"><i class="fa-solid fa-compass"></i>发现<span class="text-[10px] px-1.5 py-0.5 rounded-full border border-white/15 ml-auto">后续</span></div>
+    </nav>
+
+    <div class="card p-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-full flex items-center justify-center display"
+           style="background:linear-gradient(135deg,#ff8a3d,#b43a0e)">林</div>
+      <div class="flex-1 min-w-0">
+        <p class="text-[13px]">林**</p>
+        <p class="t3 text-[10px]">守护 128 天</p>
+      </div>
+      <i class="fa-solid fa-gear t3 text-xs"></i>
+    </div>
+  </aside>
+
+  <!-- ============ 中央：纪念馆 ============ -->
+  <main class="flex-1 min-w-0 px-10 py-8 scroll-thin overflow-y-auto h-screen">
+
+    <!-- Hero 条 -->
+    <section class="card relative overflow-hidden">
+      <img src="assets/hero.png" class="absolute inset-0 w-full h-full object-cover opacity-60" alt=""/>
+      <div class="absolute inset-0" style="background:linear-gradient(to right, rgba(7,3,2,.85), rgba(7,3,2,.35) 60%, transparent)"></div>
+      <div class="relative flex items-center gap-7 p-8">
+        <img src="assets/portrait.png" alt="TA 的照片" class="w-28 h-28 rounded-full object-cover"
+             style="box-shadow:0 0 44px rgba(255,122,47,.55),0 0 100px rgba(244,93,18,.3)"/>
+        <div class="flex-1">
+          <h1 class="display text-4xl tracking-[0.2em]">林守拙</h1>
+          <p class="t3 text-sm mt-1 tracking-[0.35em]">1940 — 2023</p>
+          <p class="t2 text-[13px] mt-3">“想念从未离开”</p>
+          <p class="t3 text-[11px] mt-2 flex items-center gap-2"><span class="flame" style="width:8px;height:12px"></span>你点的灯还亮着 · 已持续 3 小时</p>
+        </div>
+        <div class="flex flex-col gap-3 w-52">
+          <button class="btn-primary"><i class="fa-solid fa-comment-dots"></i>和 TA 说说话</button>
+          <div class="grid grid-cols-3 gap-2">
+            <button class="btn-ghost !h-11 text-[12px]"><i class="fa-solid fa-share-nodes"></i></button>
+            <button class="btn-ghost !h-11 text-[12px]"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn-ghost !h-11 text-[12px]"><i class="fa-solid fa-user-group"></i></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 锚点 Tab -->
+    <div class="flex gap-8 mt-8 border-b border-white/8 sticky top-0 z-10" style="background:rgba(7,3,2,.82);backdrop-filter:blur(14px)">
+      <button class="pb-3 text-[15px] relative" style="color:var(--ember-soft)">记忆<span class="absolute inset-x-0 -bottom-px h-0.5 rounded" style="background:var(--ember)"></span></button>
+      <button class="pb-3 text-[15px] t2">想念</button>
+      <button class="pb-3 text-[15px] t2">祭奠</button>
+    </div>
+
+    <!-- 双列内容 -->
+    <div class="grid grid-cols-5 gap-6 mt-6 pb-10">
+
+      <div class="col-span-3 space-y-6">
+        <!-- TA 的人生 -->
+        <section class="card p-6">
+          <div class="flex items-center justify-between">
+            <h2 class="display text-xl tracking-wider">TA 的人生</h2>
+            <button class="chip text-xs"><i class="fa-solid fa-plus mr-1"></i>添加</button>
+          </div>
+          <div class="mt-5 space-y-0 relative">
+            <div class="absolute left-[52px] top-2 bottom-2 w-px" style="background:linear-gradient(to bottom, rgba(255,122,47,.5), rgba(255,255,255,.06))"></div>
+            <div class="flex items-center gap-5 py-2.5"><span class="display text-[15px] w-10 text-right" style="color:var(--ember-soft)">1940</span><span class="w-2 h-2 rounded-full relative z-10" style="background:var(--ember)"></span><span class="text-[14px]">出生</span></div>
+            <div class="flex items-center gap-5 py-2.5"><span class="display text-[15px] w-10 text-right" style="color:var(--ember-soft)">1965</span><span class="w-2 h-2 rounded-full relative z-10" style="background:var(--ember)"></span><span class="text-[14px]">结婚</span></div>
+            <div class="flex items-center gap-5 py-2.5"><span class="display text-[15px] w-10 text-right" style="color:var(--ember-soft)">1970</span><span class="w-2 h-2 rounded-full relative z-10" style="background:var(--ember)"></span><span class="text-[14px]">长子出生</span></div>
+            <div class="flex items-center gap-5 py-2.5"><span class="display text-[15px] w-10 text-right" style="color:var(--ember-soft)">1998</span><span class="w-2 h-2 rounded-full relative z-10" style="background:var(--ember)"></span><span class="text-[14px]">退休</span></div>
+          </div>
+          <div class="mt-4 rounded-2xl overflow-hidden relative">
+            <img src="assets/sea.png" class="w-full h-36 object-cover opacity-90" alt="青岛看海"/>
+            <p class="absolute bottom-0 inset-x-0 px-5 py-3 text-[12px] t2" style="background:linear-gradient(to top, rgba(7,3,2,.85), transparent)">1978 · 第一次一起旅行，去青岛看海</p>
+          </div>
+        </section>
+
+        <!-- 祭奠 -->
+        <section class="card p-6">
+          <div class="flex items-center justify-between">
+            <h2 class="display text-xl tracking-wider">今天想为 TA 做什么？</h2>
+            <span class="t3 text-[11px]">全部一口价 · 无充值 · 无打榜</span>
+          </div>
+          <!-- 供桌 -->
+          <div class="mt-4 rounded-2xl p-5 relative overflow-hidden" style="background:rgba(255,255,255,.03);border:1px solid var(--card-border)">
+            <div class="absolute inset-0 opacity-40" style="background:radial-gradient(70% 70% at 50% 0%, rgba(255,122,47,.35), transparent 70%)"></div>
+            <div class="relative flex items-end justify-center gap-8">
+              <img src="assets/flower.png" class="w-14 h-14 rounded-xl object-cover opacity-80" alt=""/>
+              <div class="flex flex-col items-center"><span class="flame"></span><img src="assets/candle.png" class="w-16 h-16 rounded-xl object-cover mt-1" alt=""/></div>
+              <img src="assets/incense.png" class="w-14 h-14 rounded-xl object-cover opacity-80" alt=""/>
+            </div>
+          </div>
+          <div class="grid grid-cols-6 gap-3 mt-4">
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="assets/flower.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">献花</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="assets/candle.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">点灯</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ok)">免费</span><img src="assets/incense.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">清香</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span><img src="assets/fruit.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">水果</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥6</span><img src="assets/tea.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">敬茶</span></button>
+            <button class="card p-3 flex flex-col items-center gap-2 relative"><span class="absolute top-2 right-2 text-[10px]" style="color:var(--ember-soft)">¥19</span><img src="assets/gift.png" class="w-11 h-11 rounded-xl object-cover" alt=""/><span class="text-[12px]">纪念物</span></button>
+          </div>
+          <button class="card w-full mt-4 px-5 py-3.5 flex items-center justify-between" style="opacity:.85">
+            <span class="text-[13px] t2"><i class="fa-solid fa-wand-magic-sparkles mr-2" style="color:var(--ember-soft)"></i>为 TA 准备特别的礼物</span>
+            <span class="t3 text-[11px]">AI 生成 · 实验</span>
+          </button>
+        </section>
+      </div>
+
+      <!-- 右列：想念 + 纪念流 -->
+      <div class="col-span-2 space-y-6">
+        <section class="card p-6">
+          <h2 class="display text-xl tracking-wider">留下你的话</h2>
+          <textarea rows="4" class="w-full mt-4 bg-transparent outline-none resize-none text-[14px] placeholder:text-[rgba(255,246,236,.35)] rounded-2xl p-4"
+            style="background:rgba(255,255,255,.04);border:1px solid var(--card-border);color:var(--text)"
+            placeholder="写下想对 TA 说的话……">爷爷，我今天工作特别累。</textarea>
+          <div class="flex items-center justify-between mt-2">
+            <div class="flex gap-2">
+              <button class="chip !py-1.5 text-xs">悼文</button>
+              <button class="chip !py-1.5 text-xs"><i class="fa-solid fa-lock text-[9px] mr-1"></i>悄悄话</button>
+              <button class="chip active !py-1.5 text-xs">留言</button>
+            </div>
+            <span class="t3 text-[11px]">8/500</span>
+          </div>
+          <button class="btn-primary mt-4 !h-11 text-[14px]">提 交</button>
+        </section>
+
+        <section class="card p-6">
+          <div class="flex items-center justify-between">
+            <h2 class="display text-xl tracking-wider">最近的纪念</h2>
+            <button class="t3 text-[11px]">查看全部</button>
+          </div>
+          <div class="mt-3 divide-y divide-white/5">
+            <div class="flex items-center gap-3 py-3"><span class="w-8 h-8 rounded-full flex items-center justify-center text-xs" style="background:rgba(255,122,47,.14);color:var(--ember-soft)"><i class="fa-solid fa-seedling"></i></span><span class="flex-1 text-[13px]">献花 · 李**</span><span class="t3 text-[11px]">2 小时前</span></div>
+            <div class="flex items-center gap-3 py-3"><span class="w-8 h-8 rounded-full flex items-center justify-center text-xs" style="background:rgba(255,122,47,.14);color:var(--ember-soft)"><i class="fa-solid fa-comment"></i></span><span class="flex-1 text-[13px]">留言 · 用户A</span><span class="t3 text-[11px]">昨天</span></div>
+            <div class="flex items-center gap-3 py-3"><span class="w-8 h-8 rounded-full flex items-center justify-center text-xs" style="background:rgba(255,122,47,.14);color:var(--ember-soft)"><i class="fa-solid fa-fire"></i></span><span class="flex-1 text-[13px]">点灯 · 王**</span><span class="t3 text-[11px]">3 天前</span></div>
+            <div class="flex items-center gap-3 py-3"><span class="w-8 h-8 rounded-full flex items-center justify-center text-xs" style="background:rgba(255,122,47,.14);color:var(--ember-soft)"><i class="fa-solid fa-lock"></i></span><span class="flex-1 text-[13px]">悄悄话 · 我</span><span class="t3 text-[11px]">3 天前</span></div>
+          </div>
+        </section>
+
+        <!-- 记忆档案摘要 -->
+        <section class="card p-6">
+          <div class="flex items-center justify-between">
+            <h2 class="display text-xl tracking-wider">记忆档案</h2>
+            <span class="t3 text-[11px]">已建立 <span class="display" style="color:var(--ember-soft)">32</span> 条</span>
+          </div>
+          <div class="mt-4 space-y-2.5 text-[13px]">
+            <p class="flex gap-2.5"><i class="fa-solid fa-user text-[11px] mt-1.5" style="color:var(--ember-soft)"></i><span class="t2">温和、幽默、喜欢喝茶</span></p>
+            <p class="flex gap-2.5"><i class="fa-solid fa-heart text-[11px] mt-1.5" style="color:var(--ember-soft)"></i><span class="t2">我们第一次一起旅行，是去了青岛看海。</span></p>
+            <p class="flex gap-2.5"><i class="fa-solid fa-quote-left text-[11px] mt-1.5" style="color:var(--ember-soft)"></i><span class="t2 display">“慢慢来，不着急。”</span></p>
+          </div>
+          <button class="btn-ghost w-full mt-4 !h-11 text-[13px]"><i class="fa-solid fa-plus text-[11px]"></i>添加记忆</button>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ 右侧：和 TA 说说话 ============ -->
+  <aside class="w-[380px] shrink-0 border-l border-white/5 flex flex-col h-screen sticky top-0">
+    <div class="flex items-center gap-3 px-5 py-4 border-b border-white/5">
+      <img src="assets/portrait.png" class="w-9 h-9 rounded-full object-cover" alt="TA"/>
+      <div class="flex-1">
+        <p class="display text-[15px] tracking-wider">和爷爷说说话</p>
+        <p class="t3 text-[10px]">纪念性 AI · 不是 TA 本人</p>
+      </div>
+      <button class="nav-btn !w-9 !h-9 text-xs"><i class="fa-solid fa-ellipsis"></i></button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto scroll-thin px-4 py-4">
+      <div class="divider my-2">今天</div>
+      <div class="bubble-me mb-4 text-[14px]">爷爷，我今天工作特别累。</div>
+      <div class="mb-4">
+        <div class="bubble-ta text-[14px]">如果是以前，爷爷大概会先问你有没有好好吃饭。</div>
+        <button class="text-[11px] mt-1.5 underline underline-offset-4" style="color:var(--ember-soft)">查看这句话的依据</button>
+        <p class="tag-inferred mt-1">基于 TA 的资料推测</p>
+      </div>
+      <div class="bubble-me mb-4 text-[14px]">他以前最喜欢什么？</div>
+      <div class="mb-4">
+        <div class="bubble-ta text-[14px]">爷爷大概会笑一笑，说：“钓鱼啊，急不得，慢慢来。”</div>
+        <button class="text-[11px] mt-1.5 underline underline-offset-4" style="color:var(--ember-soft)">查看这句话的依据</button>
+        <p class="tag-inferred mt-1">基于 TA 的资料推测</p>
+      </div>
+      <div class="bubble-ta text-[14px] flex items-center gap-1.5 w-fit">
+        <span class="typing-dot"></span><span class="typing-dot" style="animation-delay:.18s"></span><span class="typing-dot" style="animation-delay:.36s"></span>
+        <span class="text-[11px] t3 ml-1">正在想你问的话…</span>
+      </div>
+    </div>
+
+    <div class="px-4 pb-2 flex gap-2 overflow-x-auto" style="scrollbar-width:none">
+      <button class="chip !py-1.5 text-[11px]">“我想听听 TA 的故事。”</button>
+      <button class="chip !py-1.5 text-[11px]">“我今天有点想 TA。”</button>
+    </div>
+    <div class="p-4 pt-2">
+      <div class="inputbar">
+        <input placeholder="想对 TA 说……" class="text-[14px]"/>
+        <button class="icon-btn" style="opacity:.4" title="语音（准备中）"><i class="fa-solid fa-microphone"></i></button>
+        <button class="send"><i class="fa-solid fa-arrow-up"></i></button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+</body>
+</html>
