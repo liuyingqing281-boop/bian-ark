@@ -280,16 +280,24 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 ```
 已实现（F6 OrderView 适配，倒序上限 200）；退款单 `status=refunded` 显性展示（待确认⑦）。
 
-#### 屏11 其余按键接口（2026-08-23 补齐，详见《11》R5）
+#### 屏11 其余按键接口（2026-08-23 全部落地，详见《11》R5）
 
 | 接口 | 状态 | 说明 |
 |---|---|---|
-| `GET /api/me/notifications`、`POST /api/me/notifications/read` | 🟡 新开 | 通知中心：审核结论/协作动态/系统；倒序 50 条 + 未读数 |
-| `POST /api/feedback` | 🟡 新开 | 帮助与反馈：`{ content ≤500, contact? }` → 201；过审核 + 60s 限频 |
-| `GET/PATCH /api/me/settings` | 🟡 新开 | 通知/隐私开关，存 `users.settings` JSON（迁移 M6） |
-| `DELETE /api/memorials/[id]` | 🟡 新开 | 仅馆主；软删（M7 `deleted_at`）→ 204；30 天找回窗 |
+| `GET /api/me/notifications`、`POST /api/me/notifications/read` | ✅ 已实现 | 通知中心：审核结论/协作动态/系统；倒序 50 条 + 未读数；写入点已接协作组加入/退出（`lib/notify.ts insertNotification`，尊重用户开关） |
+| `POST /api/feedback` | ✅ 已实现 | 帮助与反馈：`{ content ≤500, contact? }` → 201；过审核 + 60s 限频（429） |
+| `GET/PATCH /api/me/settings` | ✅ 已实现 | 通知/隐私开关（notifyReview/notifyCollab/privateDefault），存 `users.settings` JSON（迁移 M6），读取与默认值合并 |
+| `DELETE /api/memorials/[id]` | ✅ 已实现 | 仅馆主；现实现为硬删（事务级联 + 审计日志 + 上传文件清理）；M7 `deleted_at` 软删列已预留，找回窗待离线任务 |
 | `GET/POST /api/me/data` | ✅ | 隐私：全量数据导出 / 注销申请（落 `data_requests`） |
 | `POST /api/auth/logout` | ✅ | 设置 → 退出登录 |
+
+屏11 前端：6 个子视图（orders/groups/notifications/privacy/feedback/settings）全部接入真实接口（2026-08-23 回归 14 项通过，`tools/test-r4-profile.cjs`）。
+
+#### 屏05/06 AI 生成祭品（2026-08-23 前端三步流落地）
+
+礼物页由演示态改为真实链路：心意输入 →「帮我写」`POST /api/items/prompt`（火山方舟 LLM 扩写，provider=ark）→ `POST /api/items/generate`（火山 seedream 生图 ×4，幂等键防重复扣额度）→ 选图 → `POST /api/items/claim`（review_status=pending，审核通过后上供桌）。回归脚本 `tools/test-r6-mobile-email-gift.cjs`。
+
+登录屏邮箱通道：验证码链路已验证可用（request-code email → devCode 回填 → verify 自动建号，`@bian.dev` 测试域跳过真实 SMTP）。
 
 ---
 

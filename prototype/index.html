@@ -80,6 +80,20 @@
   }
   .ov-card.ov-up { animation: ovCardUp .25s ease-out; }
   @keyframes ovCardUp { from { transform: translateY(calc(-50% + 32px)); opacity: 0; } to { transform: translateY(-50%); opacity: 1; } }
+
+  /* ---------- 移动端真机：占满整屏，只留应用界面 ---------- */
+  @media (max-width: 480px) {
+    body { padding: 0 !important; min-height: 100dvh; }
+    header, footer { display: none !important; }
+    main { display: block; }
+    .phone {
+      width: 100vw; padding: 0; border-radius: 0; background: none; box-shadow: none;
+    }
+    .phone .punch { display: none; }
+    .phone .screen-wrap {
+      width: 100vw; height: 100dvh; border-radius: 0;
+    }
+  }
 </style>
 </head>
 <body class="px-8 py-10">
