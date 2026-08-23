@@ -1,10 +1,11 @@
-﻿import type { Metadata, Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import "../globals.css";
 import { defaultLocale, getDictionary, hasLocale, locales } from "./dictionaries";
 import { getSessionUser } from "../../lib/auth";
 import NavBar from "../../components/NavBar";
 import ThemeBackground from "../../components/ThemeBackground";
+import PcShell from "../../components/pc/PcShell";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -49,9 +50,10 @@ export default async function RootLayout({
           {lang === "zh" ? "跳转到主要内容" : "Skip to main content"}
         </a>
         <ThemeBackground labels={dict.themes} />
-        <header className="sticky top-0 z-50 border-b border-stone-800/80 bg-stone-950/75 backdrop-blur-xl">
+        <header className="pc-topbar sticky top-0 z-50 border-b border-stone-800/80 bg-stone-950/75 backdrop-blur-xl">
           <NavBar lang={lang} user={!!user} t={dict.nav} />
         </header>
+        <PcShell lang={lang} user={!!user} />
         <main id="main-content" className="min-h-[calc(100vh-4rem)]">{children}</main>
         <footer className="border-t border-stone-800 py-8 text-center text-stone-600 text-xs space-y-2" role="contentinfo">
           <p>{dict.footer}</p>

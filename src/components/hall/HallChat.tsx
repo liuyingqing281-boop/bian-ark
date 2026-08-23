@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MemoryDrawer, { Section } from "./MemoryDrawer";
 
 // 「和 TA 说说话」聊天面板：支持 evidence 引用 + askMemory 补充记忆闭环
@@ -55,17 +55,59 @@ export default function HallChat({
   memorialId,
   memorialName,
   avatarUrl,
+  skipIntro = false,
 }: {
   memorialId: string;
   memorialName: string;
   avatarUrl: string;
+  /** PC 对话侧板等已由外层完成身份说明时置 true，跳过内置声明卡 */
+  skipIntro?: boolean;
 }) {
-  const [accepted, setAccepted] = useState(false);
+  const [accepted, setAccepted] = useState(skipIntro);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [mockIdx, setMockIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // 历史水合（M4）：接受身份说明后拉取最近对话；hasMore 时顶部「加载更早」
+  const [histCursor, setHistCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [histLoading, setHistLoading] = useState(false);
+  const histLoadedRef = useRef(false);
+
+  const loadHistory = async (before?: string) => {
+    if (histLoading) return;
+    setHistLoading(true);
+    try {
+      const qs = new URLSearchParams({ memorial_id: memorialId, limit: "50" });
+      if (before) qs.set("before", before);
+      const res = await fetch(`/api/hall/chat/history?${qs}`);
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      const items: Array<{ role: string; content: string; createdAt: string }> = data.items || [];
+      const hist: ChatMsg[] = items.map((it) => ({
+        from: it.role === "user" ? "me" : "ta",
+        text: it.content,
+        evidence: null,
+      }));
+      setMsgs((m) => [...hist, ...m]);
+      setHasMore(!!data.hasMore);
+      setHistCursor(data.nextCursor ?? null);
+    } catch {
+      // 历史加载失败不阻断对话
+    } finally {
+      setHistLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (accepted && !histLoadedRef.current && !process.env.NEXT_PUBLIC_MOCK_API) {
+      histLoadedRef.current = true;
+      loadHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accepted]);
 
   // 证据弹层状态
   const [evidenceModal, setEvidenceModal] = useState<ChatMsg["evidence"]>(null);
@@ -97,7 +139,12 @@ export default function HallChat({
       } else {
         const res = await fetch("/api/hall/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            // 埋点平台维度（M4 #5）：≥768px 视为 PC 端
+            "x-client-platform":
+              typeof window !== "undefined" && window.innerWidth >= 768 ? "web-pc" : "web-mobile",
+          },
           body: JSON.stringify({ memorial_id: memorialId, message: text }),
         });
         const data = await res.json().catch(() => ({}));
@@ -243,6 +290,21 @@ export default function HallChat({
 
         {/* 消息列表 */}
         <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {hasMore && (
+            <button
+              type="button"
+              onClick={() => histCursor && loadHistory(histCursor)}
+              disabled={histLoading}
+              className="mx-auto block text-[12px] rounded-full px-4 py-1.5 transition active:opacity-85 disabled:opacity-50"
+              style={{
+                background: "rgba(255,255,255,.06)",
+                border: "1px solid rgba(255,255,255,.12)",
+                color: EMBER_SOFT,
+              }}
+            >
+              {histLoading ? "加载中…" : "加载更早的对话"}
+            </button>
+          )}
           <div
             className="flex items-center gap-3 text-[11px]"
             style={{ color: "rgba(255,246,236,.38)" }}

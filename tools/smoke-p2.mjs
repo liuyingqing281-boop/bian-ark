@@ -1,5 +1,5 @@
 // P2/P3 smoke test: AI offering generation + quota, custom upload, markdown bio, public garden
-// usage: node tools/smoke-p2.mjs  (expects dev server on :3002)
+// usage: node tools/smoke-p2.mjs  (expects dev server on :7300)
 import sharp from "sharp";
 import Database from "better-sqlite3";
 import { cleanupResources, createResourceRegistry, registerUpload } from "./smoke/cleanup.mjs";

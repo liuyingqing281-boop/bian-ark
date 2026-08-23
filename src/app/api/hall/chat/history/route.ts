@@ -26,22 +26,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const rows = getDb()
-    .prepare(
-      `SELECT role, content, evidence_memory_id, created_at
+  // 游标分页（M4）：默认返回最新 50 条（按时间升序返回）+ hasMore/nextCursor；
+  // before=<createdAt> 继续向更早翻页。limit 上限 200。
+  const limitRaw = parseInt(req.nextUrl.searchParams.get("limit") || "50", 10);
+  const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 50, 1), 200);
+  const before = req.nextUrl.searchParams.get("before");
+
+  const baseSql = `SELECT role, content, evidence_memory_id, created_at
        FROM chat_messages
-       WHERE memorial_id = ? AND user_id = ?
-       ORDER BY created_at ASC, rowid ASC
-       LIMIT 500`
-    )
-    .all(memorialId, user.id) as Array<{
+       WHERE memorial_id = ? AND user_id = ?${before ? " AND created_at < ?" : ""}
+       ORDER BY created_at DESC, rowid DESC
+       LIMIT ?`;
+  const args: unknown[] = before ? [memorialId, user.id, before, limit + 1] : [memorialId, user.id, limit + 1];
+
+  const desc = getDb().prepare(baseSql).all(...(args as string[])) as Array<{
     role: string;
     content: string;
     evidence_memory_id: string | null;
     created_at: string;
   }>;
 
-  return NextResponse.json({ items: rows.map(toChatHistoryItem) });
+  const hasMore = desc.length > limit;
+  const page = desc.slice(0, limit).reverse(); // 升序返回，直接可渲染
+  const nextCursor = hasMore ? page[0]?.created_at ?? null : null;
+
+  return NextResponse.json({
+    items: page.map(toChatHistoryItem),
+    hasMore,
+    nextCursor,
+  });
 }
 
 export async function DELETE(req: NextRequest) {

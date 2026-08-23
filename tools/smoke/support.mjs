@@ -1,7 +1,7 @@
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 
-const DEFAULT_BASE_URL = "http://localhost:3002";
+const DEFAULT_BASE_URL = "http://localhost:7300";
 
 export function createRunContext(suiteName) {
   const suite = String(suiteName || "smoke").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-");

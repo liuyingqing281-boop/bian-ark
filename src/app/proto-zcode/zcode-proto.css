@@ -1,0 +1,276 @@
+/* 彼岸 · ZCode 版原型样式（与 kimi 版 prototype.css 完全隔离）
+   视觉规范：§1.3 —— 黛蓝灰 #3E4C59 / 宣纸白 #F7F5F0 / 暖灰 #8A8578 / 烛火橙 #D98E4A
+   折光渐变（fold-gradient）以低饱和暖色呈现，作为首页沉浸区光效 */
+
+.zp-root {
+  --ink: #3e4c59;
+  --bg: #f7f5f0;
+  --warm: #8a8578;
+  --flame: #d98e4a;
+  --ok: #5b7f5c;
+  --warn: #a85448;
+  --t1: #2b2b2b;
+  --t2: #6e6a61;
+  --t3: #a39e93;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #e9e6df;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+.zp-phone {
+  width: 375px;
+  min-height: 760px;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.zp-serif {
+  font-family: "Songti SC", "Noto Serif SC", SimSun, serif;
+}
+
+/* ── 折光渐变 hero（柔和光幕，低饱和，≥8s 慢速流动） ── */
+.zp-fold {
+  position: relative;
+  background: var(--ink);
+  overflow: hidden;
+  padding: 56px 20px 28px;
+  text-align: center;
+  color: #fff;
+}
+.zp-fold::before,
+.zp-fold::after {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(
+    115deg,
+    rgba(217, 142, 74, 0) 0%,
+    rgba(217, 142, 74, 0.22) 28%,
+    rgba(90, 105, 122, 0.10) 46%,
+    rgba(245, 236, 220, 0.16) 62%,
+    rgba(217, 142, 74, 0) 100%
+  );
+  animation: zp-fold-drift 12s ease-in-out infinite alternate;
+}
+.zp-fold::after {
+  background: linear-gradient(
+    65deg,
+    rgba(91, 127, 92, 0) 30%,
+    rgba(168, 132, 96, 0.14) 55%,
+    rgba(217, 142, 74, 0.20) 72%,
+    rgba(217, 142, 74, 0) 100%
+  );
+  animation-duration: 16s;
+  animation-direction: alternate-reverse;
+}
+@keyframes zp-fold-drift {
+  from { transform: translate3d(-4%, -2%, 0) rotate(-2deg); }
+  to { transform: translate3d(4%, 3%, 0) rotate(2deg); }
+}
+.zp-fold > * { position: relative; z-index: 1; }
+
+.zp-avatar {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, #e8e0d0, #cfd4d8);
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  margin: 0 auto 12px;
+}
+
+.zp-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 76px;
+}
+
+.zp-tabs {
+  position: sticky;
+  top: 0;
+  display: flex;
+  background: rgba(247, 245, 240, 0.96);
+  border-bottom: 1px solid #e8e4dc;
+  z-index: 5;
+}
+.zp-tab {
+  flex: 1;
+  height: 48px;
+  font-size: 16px;
+  color: var(--t2);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.zp-tab.zp-on {
+  color: var(--t1);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--flame);
+}
+
+.zp-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  margin: 16px;
+}
+
+.zp-h2 {
+  font-size: 17px;
+  color: var(--t1);
+  margin: 0 0 12px;
+}
+
+.zp-btn {
+  width: 100%;
+  height: 52px;
+  border-radius: 26px;
+  border: none;
+  font-size: 17px;
+  cursor: pointer;
+  transition: opacity 0.2s ease-out;
+}
+.zp-btn:active { opacity: 0.85; }
+.zp-btn-primary { background: var(--flame); color: #fff; }
+.zp-btn-outline { background: #fff; color: var(--ink); border: 1px solid var(--ink); }
+.zp-btn[disabled] {
+  background: #d8d4cc;
+  color: #fff;
+  cursor: not-allowed;
+}
+
+.zp-nav {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.97);
+  border-top: 1px solid #e8e4dc;
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 10;
+}
+.zp-nav button {
+  flex: 1;
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--t3);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.zp-nav .zp-on { color: var(--ink); font-weight: 600; }
+.zp-nav-emoji { font-size: 22px; line-height: 1; }
+
+.zp-toast {
+  position: absolute;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(43, 43, 43, 0.88);
+  color: #fff;
+  font-size: 14px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  z-index: 30;
+  animation: zp-up 0.2s ease-out;
+}
+@keyframes zp-up { from { bottom: 68px; opacity: 0; } }
+
+.zp-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+.zp-dialog {
+  width: calc(100% - 64px);
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px 20px;
+  text-align: center;
+}
+.zp-dialog .zp-danger { color: var(--warn); }
+
+.zp-chip {
+  background: #fff;
+  border: 1px solid var(--warm);
+  border-radius: 99px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: var(--t2);
+  cursor: pointer;
+}
+
+.zp-bubble {
+  max-width: 78%;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 16px;
+  line-height: 1.6;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.zp-bubble-me { background: var(--ink); color: #fff; align-self: flex-end; }
+.zp-bubble-ta { background: #fff; color: var(--t1); align-self: flex-start; border-top-left-radius: 4px; }
+
+.zp-dots span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--t3);
+  margin: 0 2px;
+  animation: zp-breath 1.2s ease-in-out infinite;
+}
+.zp-dots span:nth-child(2) { animation-delay: 0.2s; }
+.zp-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes zp-breath { 50% { opacity: 0.3; } }
+
+.zp-flame {
+  display: inline-block;
+  animation: zp-flicker 1.2s ease-out forwards;
+}
+@keyframes zp-flicker {
+  0% { transform: scale(1.6); filter: brightness(1.4); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.zp-skel {
+  background: linear-gradient(90deg, #e8e4dc, #f0ede6, #e8e4dc);
+  background-size: 200% 100%;
+  animation: zp-skel 1.6s ease-in-out infinite;
+  border-radius: 8px;
+}
+@keyframes zp-skel { from { background-position: 0 0; } to { background-position: -200% 0; } }
+
+.zp-empty { text-align: center; padding: 24px 0; color: var(--t3); font-size: 14px; }
+.zp-empty-icon { font-size: 28px; display: block; margin-bottom: 8px; }
+
+.zp-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0ede6;
+  font-size: 16px;
+  color: var(--t1);
+}
+
+.zp-timeline-year { color: var(--flame); font-size: 14px; width: 48px; flex: none; }

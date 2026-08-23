@@ -36,7 +36,7 @@ export default async function GiftPage({
         fontFamily: "'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif",
       }}
     >
-      <div className="mx-auto max-w-lg px-5 py-10">
+      <div className="mx-auto max-w-lg md:max-w-[640px] px-5 py-10">
         <a href={`/${lang}/hall/${id}`} className="text-[13px]" style={{ color: "rgba(255,246,236,.45)" }}>← 返回纪念馆</a>
         <h1 className="mt-4 text-2xl tracking-[0.15em]" style={{ fontFamily: "'Noto Serif SC','Songti SC',serif" }}>
           为 TA 准备一份礼物

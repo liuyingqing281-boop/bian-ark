@@ -1,7 +1,7 @@
 // 临时启动 next dev 验证 /prototype 可访问，验证后立即关闭（含进程树）
 import { spawn, execSync } from "node:child_process";
 
-const PORT = 3002;
+const PORT = 7300;
 const child = spawn("npx", ["next", "dev", "-p", String(PORT)], {
   cwd: process.cwd(),
   stdio: ["ignore", "pipe", "pipe"],

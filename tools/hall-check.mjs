@@ -1,7 +1,8 @@
 // 总回归：hall 页 8 项 + feed 混合流 + 免费供奉 + mock 订单付费供奉
 import { spawn, execSync } from "node:child_process";
-import Database from "better-sqlite3";
+import fs from "node:fs";
 import path from "node:path";
+import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 
 const BASE = "http://localhost:7300";
@@ -11,25 +12,43 @@ const DB_PATH = path.resolve("data", "bian.db");
 // ---- 预置回归数据：public 留言 + 悼文 + 付费祭品 + 已支付订单 ----
 const PREMIUM_ITEM = "smoke_premium_candle";
 const PAID_ORDER = `smoke-order-${randomUUID()}`;
+const seededMessageIds = [];
+const seedDb = new Database(DB_PATH);
 {
-  const db = new Database(DB_PATH);
-  db.prepare(
+  seedDb.prepare(
     "INSERT OR REPLACE INTO items (id, name, category, icon, price_cents, is_premium) VALUES (?, '长明灯', 'light', '🏮', 1800, 1)"
   ).run(PREMIUM_ITEM);
-  db.prepare(
-    "INSERT INTO messages (id, memorial_id, user_id, msg_type, content, review_status) VALUES (?, ?, '', 'public', '总回归留言：一直想念您', 'approved')"
-  ).run(randomUUID(), MEMORIAL);
-  db.prepare(
-    "INSERT INTO messages (id, memorial_id, user_id, msg_type, content, review_status) VALUES (?, ?, '', 'eulogy', '总回归悼文：音容宛在', 'approved')"
-  ).run(randomUUID(), MEMORIAL);
-  db.prepare(
-    "INSERT INTO messages (id, memorial_id, user_id, msg_type, content, review_status) VALUES (?, ?, '', 'private', '回归负例悄悄话不应出现在feed', 'approved')"
-  ).run(randomUUID(), MEMORIAL);
-  db.prepare(
+  for (const [type, content] of [
+    ["public", "总回归留言：一直想念您"],
+    ["eulogy", "总回归悼文：音容宛在"],
+    ["private", "回归负例悄悄话不应出现在feed"],
+  ]) {
+    const id = randomUUID();
+    seededMessageIds.push(id);
+    seedDb.prepare(
+      "INSERT INTO messages (id, memorial_id, user_id, msg_type, content, review_status) VALUES (?, ?, '', ?, ?, 'approved')"
+    ).run(id, MEMORIAL, type, content);
+  }
+  seedDb.prepare(
     "INSERT INTO orders (id, user_id, kind, status, amount_cents, currency) VALUES (?, '', 'tribute', 'paid', 1800, 'cny')"
   ).run(PAID_ORDER);
-  db.close();
 }
+// 直插数据兜底清理：无论脚本正常结束还是中途抛错都不留污染。
+// 复用预置阶段的连接（进程退出阶段新开连接在 Windows 上会 disk I/O error）
+const cleanupSeeded = () => {
+  try {
+    const ph = seededMessageIds.map(() => "?").join(",");
+    seedDb.prepare(`DELETE FROM messages WHERE id IN (${ph})`).run(...seededMessageIds);
+    seedDb.prepare("DELETE FROM tributes WHERE item_id = ?").run(PREMIUM_ITEM);
+    seedDb.prepare("DELETE FROM items WHERE id = ?").run(PREMIUM_ITEM);
+    seedDb.prepare("DELETE FROM orders WHERE id = ?").run(PAID_ORDER);
+  } catch (err) {
+    console.error("cleanup failed:", err.message);
+  } finally {
+    try { seedDb.close(); } catch {}
+  }
+};
+process.on("exit", cleanupSeeded);
 
 const child = spawn("npx", ["next", "dev", "-p", "7300"], { shell: true, stdio: ["ignore", "pipe", "pipe"] });
 let log = "";
@@ -58,10 +77,15 @@ if (!ready) {
   // ===== A. hall 页（8 项） =====
   const page = await fetch(`${BASE}/zh/hall/${MEMORIAL}`);
   const html = await page.text();
-  check("A1 GET /zh/hall/:id 200", page.status === 200);
+  check("A1 GET /zh/hall/:id 200 且页面完整渲染", page.status === 200 && !html.includes("couldn’t load"));
   check("A2 页面含真实纪念馆名", html.includes("王老先生"));
   check("A3 页面含暗红熔岩底色", html.includes("#070302") || html.includes("rgba(255,106,32"));
-  check("A4 页面含对话面板与身份说明", html.includes("和 TA 说说话") && html.includes("它不是 TA 本人"));
+  // A4 与 check-pages 的客户端渲染检查方式一致（同 K1/G1）：
+  // HallChat 为 client 组件，SSR HTML 只验挂载标记；身份说明文案在组件源码中静态验证
+  const chatMounted = html.includes("HallChat") || html.includes("和 TA 说说话");
+  const chatSource = fs.readFileSync(path.resolve(process.cwd(), "src", "components", "hall", "HallChat.tsx"), "utf8");
+  const chatCopyOk = chatSource.includes("和 TA 说说话") && chatSource.includes("它不是 TA 本人");
+  check("A4 对话面板与身份说明（client 渲染）", chatMounted && chatCopyOk);
 
   const chatRes = await fetch(`${BASE}/api/hall/chat`, {
     method: "POST",

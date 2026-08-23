@@ -1,7 +1,7 @@
 // 移动端布局审计：量化检测每页的可用性问题
 import { chromium } from "@playwright/test";
 
-const BASE = process.env.BASE_URL || "http://localhost:3002";
+const BASE = process.env.BASE_URL || "http://localhost:7300";
 const MID = process.argv[2];
 
 const browser = await chromium.launch();

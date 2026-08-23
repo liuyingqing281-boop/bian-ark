@@ -21,13 +21,13 @@ export function isMessageType(value: unknown): value is MessageType {
   return typeof value === "string" && (MESSAGE_TYPES as readonly string[]).includes(value);
 }
 
-// 服务端强制可见性：private 仅作者本人可见；其余登录/游客按馆可见性由路由层把关
+// 服务端强制可见性：private 仅作者本人可见（作者必须非空，防直插空作者行泄露）；其余按馆可见性由路由层把关
 export function listVisibleMessages(memorialId: string, viewerUserId: string | null): MessageRow[] {
   const rows = getDb()
     .prepare(
       `SELECT * FROM messages
        WHERE memorial_id = ? AND review_status != 'rejected'
-         AND (msg_type != 'private' OR user_id = ?)
+         AND (msg_type != 'private' OR (user_id != '' AND user_id = ?))
        ORDER BY created_at DESC, id DESC`
     )
     .all(memorialId, viewerUserId || "") as MessageRow[];

@@ -8,7 +8,7 @@ fs.mkdirSync("E:/彼岸/docs/shots", { recursive: true });
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
-await page.goto("http://localhost:3002/zh/garden", { waitUntil: "domcontentloaded", timeout: 90000 });
+await page.goto("http://localhost:7300/zh/garden", { waitUntil: "domcontentloaded", timeout: 90000 });
 await page.waitForTimeout(2500);
 await page.screenshot({ path: "E:/彼岸/docs/shots/garden-2d.png" });
 console.log("2D saved");

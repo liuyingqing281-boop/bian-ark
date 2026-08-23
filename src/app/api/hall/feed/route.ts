@@ -99,5 +99,14 @@ export async function GET(req: NextRequest) {
 
   items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
-  return NextResponse.json({ items: items.slice(0, 50) });
+  // 游标分页（M4）：cursor = 上一页最后一条 createdAt；默认 limit 50 保持原行为
+  const limitRaw = parseInt(req.nextUrl.searchParams.get("limit") || "50", 10);
+  const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 50, 1), 100);
+  const cursor = req.nextUrl.searchParams.get("cursor");
+
+  const filtered = cursor ? items.filter((it) => it.createdAt < cursor) : items;
+  const pageItems = filtered.slice(0, limit);
+  const nextCursor = filtered.length > limit ? pageItems[pageItems.length - 1]?.createdAt ?? null : null;
+
+  return NextResponse.json({ items: pageItems, nextCursor });
 }

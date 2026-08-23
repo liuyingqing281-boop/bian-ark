@@ -2,7 +2,7 @@
 import { chromium } from "@playwright/test";
 import fs from "node:fs";
 
-const BASE = process.env.BASE_URL || "http://localhost:3002";
+const BASE = process.env.BASE_URL || "http://localhost:7300";
 const OUT = "docs/shots/mobile-audit";
 fs.mkdirSync(OUT, { recursive: true });
 

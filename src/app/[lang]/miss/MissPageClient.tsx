@@ -108,7 +108,7 @@ export default function MissPage({
       </div>
 
       {/* Hero */}
-      <div className="flex flex-col items-center text-center pt-6 px-5">
+      <div className="flex flex-col items-center text-center pt-6 px-5 md:mx-auto md:w-full md:max-w-[760px]">
         <h2 className="text-2xl tracking-wider" style={{ fontFamily: "'Noto Serif SC','Songti SC',serif" }}>
           今天想和 TA 说些什么？
         </h2>
@@ -150,7 +150,7 @@ export default function MissPage({
       </div>
 
       {/* 留言区 */}
-      <div className="mt-8 px-5 pb-6">
+      <div className="mt-8 px-5 pb-6 md:mx-auto md:w-full md:max-w-[760px]">
         <h3 className="text-lg tracking-wider mb-3" style={{ fontFamily: "'Noto Serif SC','Songti SC',serif" }}>
           留下你的话
         </h3>
@@ -166,7 +166,7 @@ export default function MissPage({
       </div>
 
       {/* 我留下的 */}
-      <div className="px-5 pb-8">
+      <div className="px-5 pb-8 md:mx-auto md:w-full md:max-w-[760px]">
         <h3 className="text-lg tracking-wider mb-3" style={{ fontFamily: "'Noto Serif SC','Songti SC',serif" }}>
           你留下的
         </h3>

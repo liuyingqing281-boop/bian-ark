@@ -1,4 +1,4 @@
-const baseUrl = process.env.BASE_URL || "http://localhost:3002";
+const baseUrl = process.env.BASE_URL || "http://localhost:7300";
 const checks = ["/api/health", "/zh", "/zh/garden", "/zh/membership"];
 let failed = 0;
 for (const pathname of checks) {

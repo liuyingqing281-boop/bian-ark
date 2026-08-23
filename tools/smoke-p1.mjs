@@ -1,5 +1,5 @@
 // P1 smoke test: auth, memorials, visibility, groups, media gallery, tribute
-// usage: node tools/smoke-p1.mjs  (expects dev server on :3002)
+// usage: node tools/smoke-p1.mjs  (expects dev server on :7300)
 import sharp from "sharp";
 import Database from "better-sqlite3";
 import { cleanupResources, createResourceRegistry, registerUpload } from "./smoke/cleanup.mjs";

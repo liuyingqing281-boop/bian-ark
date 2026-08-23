@@ -284,3 +284,133 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 ::selection { background: rgba(217,119,6,0.3); color: #fcd34d; }
+
+/* ================= PC 壳层（M1，2026-08-23） =================
+   依据 docs/web/01-PC前端设计文档.md §三；色值一律引用既有 CSS 变量（熔火主题），
+   本段只定义布局：左导航 / 限宽容器 / 12 列网格 / 吸顶锚点 Tab / 对话侧板与竖条。
+   断点：≥1440 双列 8+4；768–1440 单列；≤1024 导航收 64px；<768 不出现 PC 壳。 */
+
+/* ---- 左导航 224px（≤1024px 收 64px 图标栏） ---- */
+.pc-sidenav {
+  position: fixed; left: 0; top: 0; bottom: 0; width: 224px; z-index: 60;
+  display: none; flex-direction: column; padding: 24px 16px;
+  background: rgba(12, 10, 9, 0.6); backdrop-filter: blur(14px);
+  border-right: 1px solid rgba(68, 64, 60, 0.5);
+}
+.pc-sidenav .side-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: 14px;
+  color: var(--text-secondary); font-size: 15px; cursor: pointer;
+  border: 1px solid transparent; text-decoration: none;
+  transition: background var(--motion-fast) ease-out;
+}
+.pc-sidenav .side-link:hover:not(.active) { background: rgba(255, 255, 255, 0.04); }
+.pc-sidenav .side-link.active {
+  color: var(--color-amber-300);
+  background: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.35);
+}
+.pc-sidenav .side-icon { width: 18px; text-align: center; flex-shrink: 0; }
+
+/* ---- 主区让位与限宽容器 ---- */
+.pc-container { max-width: 1120px; margin: 0 auto; padding: 32px 40px 64px; }
+
+/* ---- 12 列网格：≥1440px 内容 8 + 辅助栏 4 ---- */
+.pc-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+@media (min-width: 1440px) {
+  .pc-grid { grid-template-columns: repeat(12, 1fr); }
+  .pc-grid .pc-col-main { grid-column: span 8; }
+  .pc-grid .pc-col-rail { grid-column: span 4; }
+}
+
+/* ---- 吸顶锚点 Tab（PC） ---- */
+.pc-anchor-tabs {
+  position: sticky; top: 0; z-index: 40;
+  display: flex;
+  background: rgba(12, 10, 9, 0.85); backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(68, 64, 60, 0.5);
+}
+.pc-anchor-tab {
+  padding: 14px 0; margin-right: 32px; font-size: 15px; position: relative;
+  color: var(--text-secondary); background: none; border: none; cursor: pointer;
+}
+.pc-anchor-tab.active { color: var(--color-amber-300); font-weight: 600; }
+.pc-anchor-tab.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  background: var(--accent-memorial); border-radius: 2px;
+}
+
+/* ---- 对话侧板：覆盖式 360px，收起为右缘 56px 竖条（M1 占位，M2 接 HallChat） ---- */
+.pc-chat-panel {
+  position: fixed; right: 0; top: 0; height: 100vh; width: 360px; z-index: 70;
+  display: flex; flex-direction: column;
+  background: rgba(12, 10, 9, 0.92); backdrop-filter: blur(18px);
+  border-left: 1px solid rgba(68, 64, 60, 0.6);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
+  transition: transform var(--motion-base) ease-out;
+}
+.pc-chat-panel.collapsed { transform: translateX(360px); }
+.pc-chat-strip {
+  position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+  width: 56px; padding: 18px 0; z-index: 65;
+  background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle); border-right: none;
+  border-radius: 14px 0 0 14px;
+  display: none; flex-direction: column; align-items: center; gap: 10px;
+  cursor: pointer; transition: background var(--motion-fast) ease-out;
+}
+.pc-chat-strip:hover { background: rgba(217, 119, 6, 0.12); }
+.pc-chat-strip .vert {
+  writing-mode: vertical-rl; font-size: 13px; letter-spacing: 3px;
+  color: var(--color-amber-300);
+}
+
+/* ---- 身份说明弹层：480px 居中，遮罩不可点关闭，无 ×（文案逐字，不可删改） ---- */
+.pc-intro-mask {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+}
+.pc-intro-dialog {
+  width: 480px; max-width: calc(100vw - 64px);
+  background: var(--color-stone-900); border: 1px solid var(--border-subtle);
+  border-radius: 26px; padding: 36px 36px 28px;
+}
+
+/* ---- ≥768px：启用 PC 壳（隐藏顶部 NavBar，主区/页脚让位左导航） ----
+   纯媒体查询驱动，不依赖 JS 水合，SSR 即正确定位。 */
+@media (min-width: 768px) {
+  .pc-topbar { display: none; }
+  #main-content,
+  footer[role="contentinfo"] { margin-left: 224px; }
+  .pc-sidenav { display: flex; }
+  .pc-chat-strip { display: flex; }
+}
+
+/* ---- ≤1024px：导航收 64px 图标栏（走查项 C02） ---- */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .pc-sidenav { width: 64px; padding: 20px 8px; align-items: center; }
+  .pc-sidenav .brand-text,
+  .pc-sidenav .nav-label,
+  .pc-sidenav .nav-badge,
+  .pc-sidenav .user-card-text,
+  .pc-sidenav .user-card-gear { display: none; }
+  .pc-sidenav .side-link { justify-content: center; gap: 0; padding: 12px 0; }
+  .pc-sidenav .side-icon { width: auto; }
+  .pc-sidenav .user-card {
+    padding: 6px; border: none; background: transparent;
+    box-shadow: none; backdrop-filter: none;
+  }
+  #main-content,
+  footer[role="contentinfo"] { margin-left: 64px; }
+  .pc-container { padding: 24px 24px 56px; }
+}
+
+/* ---- M3：hall 页 PC 布局——inline 对话卡由右侧板承接，内容收敛单列居中 ---- */
+@media (min-width: 768px) {
+  .hall-inline-chat { display: none; }
+  .hall-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 880px;
+  }
+}

@@ -61,6 +61,9 @@ export default function FeedList({ memorialId, lang, showEmpty = true, emptyActi
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // 游标分页（M4）：nextCursor 存在时可「加载更多」
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     const fetch_ = async () => {
@@ -68,7 +71,7 @@ export default function FeedList({ memorialId, lang, showEmpty = true, emptyActi
       setError(false);
       try {
         const useMock = typeof window !== "undefined" && !!process.env.NEXT_PUBLIC_MOCK_API;
-        let data: { items?: FeedItem[] } = {};
+        let data: { items?: FeedItem[]; nextCursor?: string | null } = {};
         if (useMock) {
           data = { items: MOCK_FEED };
         } else {
@@ -77,6 +80,7 @@ export default function FeedList({ memorialId, lang, showEmpty = true, emptyActi
           else setError(true);
         }
         setItems(data.items ?? []);
+        setNextCursor(data.nextCursor ?? null);
       } catch {
         setError(true);
       }
@@ -84,6 +88,24 @@ export default function FeedList({ memorialId, lang, showEmpty = true, emptyActi
     };
     fetch_();
   }, [memorialId]);
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/hall/feed?memorial_id=${memorialId}&cursor=${encodeURIComponent(nextCursor)}`
+      );
+      if (res.ok) {
+        const data: { items?: FeedItem[]; nextCursor?: string | null } = await res.json();
+        setItems((prev) => [...prev, ...(data.items ?? [])]);
+        setNextCursor(data.nextCursor ?? null);
+      }
+    } catch {
+      // 加载更多失败保留现状
+    }
+    setLoadingMore(false);
+  };
 
   if (loading) {
     return (
@@ -158,6 +180,20 @@ export default function FeedList({ memorialId, lang, showEmpty = true, emptyActi
           </span>
         </div>
       ))}
+      {nextCursor && (
+        <button
+          type="button"
+          onClick={loadMore}
+          disabled={loadingMore}
+          className="w-full py-3 text-[13px] transition active:opacity-85 disabled:opacity-50"
+          style={{
+            borderTop: "1px solid rgba(255,255,255,.06)",
+            color: "#ffb35c",
+          }}
+        >
+          {loadingMore ? "加载中…" : "加载更多"}
+        </button>
+      )}
     </div>
   );
 }

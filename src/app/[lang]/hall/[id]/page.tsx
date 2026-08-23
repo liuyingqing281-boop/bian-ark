@@ -3,6 +3,8 @@ import { getSessionUser } from "../../../../lib/auth";
 import { canViewMemorial, ownsMemorial } from "../../../../lib/permissions";
 import { trackEvent } from "../../../../lib/events";
 import HallChat from "../../../../components/hall/HallChat";
+import PcChatButton from "../../../../components/pc/PcChatButton";
+import RegisterPcChat from "../../../../components/pc/RegisterPcChat";
 import HallOffer, { OfferItem } from "../../../../components/hall/HallOffer";
 import FeedList from "../../../../components/hall/FeedList";
 import Link from "next/link";
@@ -57,7 +59,7 @@ export default async function HallPage({
     .slice(0, 6)
     .map((it) => ({ id: it.id, label: it.name, icon: it.icon, imageUrl: it.image_url }));
 
-  const candleLit = db
+  const candleLit = !!db
     .prepare("SELECT 1 FROM tributes WHERE memorial_id = ? AND is_burning = 1 LIMIT 1")
     .get(id);
 
@@ -79,7 +81,7 @@ export default async function HallPage({
         className="sticky top-0 z-30"
         style={{ background: "rgba(7,3,2,.88)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,.07)" }}
       >
-        <nav className="flex max-w-lg mx-auto">
+        <nav className="flex max-w-lg md:max-w-[880px] mx-auto">
           {([
             { key: "memorial", icon: "🏛️", label: "纪念馆" },
             { key: "memory",   icon: "📖", label: "记忆" },
@@ -97,7 +99,7 @@ export default async function HallPage({
         </nav>
       </div>
 
-      <div className="mx-auto max-w-6xl px-5 lg:px-8 py-8 lg:py-12 grid gap-10 lg:grid-cols-[1fr_380px]">
+      <div className="hall-grid mx-auto max-w-6xl px-5 lg:px-8 py-8 lg:py-12 grid gap-10 lg:grid-cols-[1fr_380px]">
 
         {/* ============ 左：纪念馆主体（按 Tab 分区） ============ */}
         <div className="min-w-0">
@@ -307,6 +309,7 @@ export default async function HallPage({
                 >
                   🕯️ 去祭奠 TA
                 </a>
+                <PcChatButton />
               </div>
             </div>
           </section>
@@ -330,10 +333,13 @@ export default async function HallPage({
         </div>
 
         {/* ============ 右：和 TA 说说话（Sticky） ============ */}
-        <aside className="lg:sticky lg:top-20 lg:h-[calc(100vh-5rem)]">
+        <aside className="hall-inline-chat lg:sticky lg:top-20 lg:h-[calc(100vh-5rem)]">
           <HallChat memorialId={id} memorialName={memorial.name} avatarUrl={memorial.avatar_url || ""} />
         </aside>
       </div>
+
+      {/* 注册为 PC 对话侧板的对话对象（M2，移动端无影响） */}
+      <RegisterPcChat memorialId={id} memorialName={memorial.name} avatarUrl={memorial.avatar_url || ""} />
     </div>
   );
 }

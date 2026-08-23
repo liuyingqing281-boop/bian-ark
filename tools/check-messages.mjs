@@ -6,11 +6,19 @@ import Database from "better-sqlite3";
 const BASE = "http://localhost:7300";
 const dbPath = process.env.SMOKE_DB_PATH || path.resolve(process.cwd(), "data", "bian.db");
 
+// 全局 fetch 超时兜底：并发冒烟/僵尸端口时避免无超时 fetch 永久挂起
+const rawFetch = globalThis.fetch;
+globalThis.fetch = (url, opts = {}) => rawFetch(url, { ...opts, signal: opts.signal || AbortSignal.timeout(30_000) });
+
 const child = await (async () => {
-  try {
-    const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(2000) });
-    if (r.ok) return null;
-  } catch {}
+  // 重试探测：dev 服务器重编译期间首探可能 >2s，避免误判后重复起服撞端口
+  for (let i = 0; i < 5; i++) {
+    try {
+      const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
+      if (r.ok) return null;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 2000));
+  }
   const c = spawn("npx", ["next", "dev", "-p", "7300"], { shell: true, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   c.stdout.on("data", (d) => (log += d));

@@ -79,7 +79,7 @@ export default function MemoryPageClient({
         <div className="w-10" />
       </div>
 
-      <div className="px-5 pt-4 pb-28">
+      <div className="px-5 pt-4 pb-28 md:mx-auto md:w-full md:max-w-[760px]">
         {/* 统计 */}
         {loading ? (
           <p className="text-[13px]" style={{ color: "rgba(255,246,236,.5)" }}>加载中…</p>
@@ -157,7 +157,7 @@ export default function MemoryPageClient({
       >
         <button
           onClick={() => openDrawer("personality")}
-          className="w-full h-14 rounded-full text-[16px] font-semibold tracking-widest text-white transition-all active:opacity-85"
+          className="w-full h-14 rounded-full text-[16px] font-semibold tracking-widest text-white transition-all active:opacity-85 md:max-w-[760px] md:mx-auto md:block"
           style={{
             background: "linear-gradient(135deg,#ff8a3d 0%,#f45d12 55%,#d9480f 100%)",
             boxShadow: "0 8px 28px rgba(244,93,18,.45)",
