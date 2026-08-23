@@ -1,12 +1,43 @@
-<!-- V4 记忆档案页 -->
+<!-- V4 记忆页（W2：角色信息可编辑 + 记忆分区作为 AI 说话参考） -->
 <div class="navbar">
   <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
-  <span class="title">TA 的记忆档案</span>
-  <span class="w-10"></span>
+  <span class="title">TA 的角色信息</span>
+  <button class="nav-btn" id="mem-edit" style="display:none"><i class="fa-solid fa-pen"></i></button>
 </div>
 
-<div class="scroll pad pt-1 pb-28">
-  <p class="t2 text-[13px]">已建立 <span style="color:var(--ember-soft)" class="display" id="mem-total">…</span> 条记忆</p>
+<div class="scroll pad pt-3 pb-28">
+  <!-- 角色信息卡 -->
+  <div class="card p-5" id="mem-role-view">
+    <div class="flex items-center gap-4">
+      <img id="mem-avatar" src="assets/portrait.png" class="w-14 h-14 rounded-full object-cover" alt=""/>
+      <div class="flex-1 min-w-0">
+        <p class="display text-lg tracking-wider" id="mem-role-name">…</p>
+        <p class="t3 text-[12px] mt-0.5" id="mem-role-years"></p>
+      </div>
+    </div>
+    <p class="t2 text-[13px] mt-3" id="mem-role-epitaph"></p>
+    <p class="t3 text-[13px] mt-2 leading-relaxed" id="mem-role-bio"></p>
+  </div>
+
+  <!-- 编辑态（馆主/协作人） -->
+  <div class="card p-5 space-y-3" id="mem-role-edit" style="display:none">
+    <label class="block text-[12px] t3">姓名<input id="me-f-name" maxlength="80" class="mt-1 w-full bg-transparent outline-none text-[15px] border-b border-white/10 pb-1" style="color:var(--text)"/></label>
+    <label class="block text-[12px] t3">称谓（如：爷爷/外婆）<input id="me-f-appellation" maxlength="20" class="mt-1 w-full bg-transparent outline-none text-[15px] border-b border-white/10 pb-1" style="color:var(--text)"/></label>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block text-[12px] t3">出生日期<input id="me-f-birth" maxlength="20" placeholder="1950-03-01" class="mt-1 w-full bg-transparent outline-none text-[15px] border-b border-white/10 pb-1" style="color:var(--text)"/></label>
+      <label class="block text-[12px] t3">离世日期<input id="me-f-death" maxlength="20" placeholder="2024-01-15" class="mt-1 w-full bg-transparent outline-none text-[15px] border-b border-white/10 pb-1" style="color:var(--text)"/></label>
+    </div>
+    <label class="block text-[12px] t3">墓志铭 / 一句话<textarea id="me-f-epitaph" rows="2" maxlength="300" class="mt-1 w-full bg-transparent outline-none resize-none text-[15px] border-b border-white/10 pb-1" style="color:var(--text)"></textarea></label>
+    <label class="block text-[12px] t3">生平简介<textarea id="me-f-bio" rows="4" maxlength="10000" class="mt-1 w-full bg-transparent outline-none resize-none text-[15px] border-b border-white/10 pb-1" style="color:var(--text)"></textarea></label>
+    <div class="grid grid-cols-2 gap-3 pt-1">
+      <button class="btn-ghost" id="me-f-cancel">取消</button>
+      <button class="btn-primary" style="height:48px" id="me-f-save">保存</button>
+    </div>
+  </div>
+
+  <p class="t3 text-[11px] mt-3 text-center">这些资料会作为想念时 AI 回应的参考</p>
+
+  <p class="t2 text-[13px] mt-6">已建立 <span style="color:var(--ember-soft)" class="display" id="mem-total">…</span> 条记忆</p>
   <div id="mem-sections"></div>
 </div>
 

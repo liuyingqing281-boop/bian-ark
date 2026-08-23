@@ -14,7 +14,6 @@ window.BianViews.home = {
     $("#tab-memory").onclick = () => $("#sec-memory").scrollIntoView({ behavior: "smooth" });
     $("#tab-miss").onclick = () => ctx.go("miss");
     $("#tab-offer").onclick = () => ctx.go("offering");
-    $("#v1-goto-offer").onclick = () => ctx.go("offering");
     $("#v1-goto-memory").onclick = () => ctx.go("memory");
     // ⋯ 菜单：创建新纪念馆（R1）+ 其余占位项
     $("#v1-more").onclick = () => {
@@ -80,25 +79,5 @@ window.BianViews.home = {
         : `<p class="px-4 py-6 text-center t3 text-[13px]">成为第一个纪念 TA 的人</p>`;
     }
     await renderFeed();
-
-    // F6 免费三项：真实供奉 → 刷新纪念流
-    const itemsRes = await A.getItems(id);
-    const items = Array.isArray(itemsRes.data?.items) ? itemsRes.data.items : [];
-    const free = items.filter((x) => !(x.priceCents ?? x.price_cents)).slice(0, 3);
-    const names = ["献花", "点灯", "清香"];
-    root.querySelectorAll("#offer-grid > button").forEach((btn) => {
-      btn.onclick = async () => {
-        const i = Number(btn.dataset.i);
-        const item = free[i];
-        if (!item) return A.toast("祭品目录加载中，请稍后再试");
-        const r = await A.tribute(item.id);
-        if (r.ok) {
-          A.toast(`已为 TA ${item.name || names[i]}`);
-          if ((item.name || names[i]).includes("灯")) $("#candle-line").style.display = "flex";
-          renderFeed();
-        } else if (r.status === 401) A.toast("登录后才能供奉，请先到「我的」登录");
-        else A.toast("没有供奉成功，请再试一次");
-      };
-    });
   },
 };

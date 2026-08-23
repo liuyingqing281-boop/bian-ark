@@ -18,6 +18,10 @@ export function proxy(request: NextRequest) {
   if (pathname === "/concept" || pathname.startsWith("/concept/")) {
     return NextResponse.next();
   }
+  // 产品 Showreel：沉浸式独立路由，跳过多语言重定向
+  if (pathname === "/showreel" || pathname.startsWith("/showreel/")) {
+    return NextResponse.next();
+  }
   if (pathname === "/") {
     // 根路径统一进概念页（WebGL 落地页），由页内 CTA 引导进入 /zh
     return NextResponse.redirect(new URL("/concept", request.url));

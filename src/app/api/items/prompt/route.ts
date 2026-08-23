@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     if (!outputCheck.pass) return NextResponse.json({ error: "content_blocked" }, { status: 400 });
 
     trackEvent("prompt_generated", { scene: "offering", provider, durationMs, ok: true }, user.id);
-    return NextResponse.json({ ok: true, prompt: text, provider });
+    return NextResponse.json({ ok: true, prompt: text, provider, remaining: Math.max(0, DAILY_LIMIT - counted) });
   } catch (err) {
     const message = err instanceof Error ? err.message : "llm_failed";
     trackEvent("prompt_generated", { scene: "offering", ok: false, error: message }, user.id);

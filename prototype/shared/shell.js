@@ -65,6 +65,13 @@
   });
   document.getElementById("ov-ev-close").addEventListener("click", () => R.closeOverlay());
 
+  /* F5 模仿模式边界确认（W3）：「我明白了」= 确认并广播，「先不了」= 关闭 */
+  document.getElementById("ov-roleplay-ok").addEventListener("click", () => {
+    R.closeOverlay();
+    document.dispatchEvent(new CustomEvent("bian:roleplay-confirmed"));
+  });
+  document.getElementById("ov-roleplay-cancel").addEventListener("click", () => R.closeOverlay());
+
   /* 登录态分流：有馆（创建/协作）→ 直达自己的馆；无馆 → 空态引导页（R1）。登录成功后 auth 视图也走这里 */
   async function enterApp() {
     const mm = await A.getMeMemorials();

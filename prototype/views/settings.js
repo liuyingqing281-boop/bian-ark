@@ -12,6 +12,7 @@ window.BianViews.settings = {
       $("#set-notify-review").checked = s.data.notifyReview !== false;
       $("#set-notify-collab").checked = s.data.notifyCollab !== false;
       $("#set-private-default").checked = s.data.privateDefault === true;
+      $("#set-chat-memory").checked = s.data.chatMemory !== false;
     }
     const bind = (sel, key) => {
       $(sel).addEventListener("change", async (e) => {
@@ -22,6 +23,7 @@ window.BianViews.settings = {
     bind("#set-notify-review", "notifyReview");
     bind("#set-notify-collab", "notifyCollab");
     bind("#set-private-default", "privateDefault");
+    bind("#set-chat-memory", "chatMemory");
 
     // 当前馆信息 + 删除（仅馆主可见可点）
     const id = ctx.id || A.memorialId();

@@ -239,22 +239,34 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 
 ---
 
-### 3.8 AI 生成纪念物（F6 GiftJobView，P1 实验）
+### 3.8 AI 生成纪念物（F6 GiftJobView，2026-08-23 W5/W6 落地真实链路）
 
-#### `POST /api/items/prompt` ✅（每日限量）
-`{ "memorialId", "wish": "想送 TA 一套特别的茶具" }` → `200 { "prompt": "粗陶质地、暖柚木托盘……" }`；超量 `429 quota_exceeded`（前端「明天再来」）。
+#### `POST /api/items/prompt` ✅（每日限量 10 次）
+`{ "idea": "想送 TA 一套特别的茶具" }` → `200 { "ok": true, "prompt": "粗陶质地……", "provider": "ark", "remaining": 7 }`（remaining=W5 新增）；超量 `429 quota_exceeded`。
 
-#### `POST /api/items/generate` ✅（幂等）
-`{ "memorialId", "prompt", "idempotencyKey", "orderId" }` → `202 { "jobId" }`。
-生成中可离开，完成后站内通知；轮询：
-#### `GET /api/items/generate?jobId=` ✅
+#### `POST /api/items/generate` ✅（W6：异步任务 + 幂等）
+`{ "prompt", "idempotency_key" }` → `200 { "jobId", "status": "processing", "completed": 0, "total": 4, "provider": "ark" }`。
+后台逐张生成（火山 seedream），每完成一张 `completed+1`；同幂等键重放直接返任务现状。
+
+#### `GET /api/items/generate?jobId=` ✅（W6：真实进度轮询）
 ```json
-{ "jobId", "status": "running", "imageUrl": null, "promptUsed": "粗陶质地……" }
+{ "jobId", "status": "processing|done|failed", "completed": 2, "total": 4,
+  "candidates": ["/uploads/items/…"], "error": null, "provider": "ark" }
 ```
-失败 → 自动退费 + `status=failed`（前端「没有准备好，已退款」）。
+仅任务属主可读；前端 1.5s 轮询渲染百分比进度条；失败 `status=failed` + 已完成张数保留。
 
 #### `POST /api/items/claim` ✅
-`{ "jobId", "memorialId" }` → 收藏到纪念馆；审核通过前仅本人可见（前端无需处理，列表接口已过滤）。
+`{ "url", "prompt", "name" }` → 收藏为 custom 祭品（`review_status=pending`，审核通过后上供桌）。
+
+#### 想念对话双模式（W3，2026-08-23）
+`POST /api/hall/chat` 请求新增可选 `"mode": "companion | roleplay"`（缺省 companion 向后兼容）：
+- `companion` 第三方纪念性助手（现状）；`roleplay` 模仿模式，AI 以角色第一人称回应，**仅登录用户**（访客 401 `roleplay_requires_login`）
+- 响应回显 `"mode"`；消息落库带 `mode` 列（迁移 019）；埋点 `hall_chat_reply` 加 mode 维度
+- 模仿模式提示词：同一资料集 + 语气/性格分区强化第一人称 + 坦白条款（被问身份必须承认 AI）
+
+#### 聊天沉淀为记忆（W4，2026-08-23）
+- 对话时注入本馆本人最近 20 条 `chat_messages` 作为「近期对话」上下文
+- 每轮后 LLM 异步从**用户消息**抽取关于 TA 的新事实 → `memories(section='chat', source='chat')`；设置页开关 `chatMemory`（默认开）；前端记忆页显示「💬 聊天中记起」分区
 
 ---
 

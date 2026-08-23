@@ -1,4 +1,4 @@
-/* V4 记忆档案页 */
+/* V4 记忆页（W2：角色信息可编辑 + 记忆分区作为 AI 说话参考） */
 window.BianViews = window.BianViews || {};
 window.BianViews.memory = {
   tab: null,
@@ -7,11 +7,71 @@ window.BianViews.memory = {
     const $ = (s) => root.querySelector(s);
     $("#mem-add").onclick = () => ctx.openOverlay("memadd", {});
 
+    /* ---- 角色信息卡（W2）---- */
+    let role = null;
+    const esc0 = (s) => String(s == null ? "" : s);
+    function paintRole() {
+      if (!role) return;
+      $("#mem-role-name").textContent = role.name + (role.appellation ? `（${role.appellation}）` : "");
+      $("#mem-role-years").textContent = [role.birthDate, role.deathDate].filter(Boolean).join(" — ");
+      $("#mem-role-epitaph").textContent = role.epitaph ? `“${role.epitaph}”` : "";
+      $("#mem-role-bio").textContent = role.biography || "还没有写生平简介";
+      if (role.avatarUrl) $("#mem-avatar").src = role.avatarUrl;
+    }
+    const mr = await A.getMemorial(id);
+    if (mr.ok && mr.data) {
+      role = mr.data;
+      paintRole();
+      if (role.viewerRole === "owner" || role.viewerRole === "collaborator") {
+        $("#mem-edit").style.display = "block";
+      }
+    }
+    $("#mem-edit").onclick = () => {
+      if (!role) return;
+      $("#me-f-name").value = esc0(role.name);
+      $("#me-f-appellation").value = esc0(role.appellation);
+      $("#me-f-birth").value = esc0(role.birthDate);
+      $("#me-f-death").value = esc0(role.deathDate);
+      $("#me-f-epitaph").value = esc0(role.epitaph);
+      $("#me-f-bio").value = esc0(role.biography);
+      $("#mem-role-view").style.display = "none";
+      $("#mem-role-edit").style.display = "block";
+    };
+    $("#me-f-cancel").onclick = () => {
+      $("#mem-role-edit").style.display = "none";
+      $("#mem-role-view").style.display = "block";
+    };
+    $("#me-f-save").onclick = async () => {
+      const btn = $("#me-f-save");
+      btn.disabled = true;
+      const r = await A.patch(`/api/memorials/${id}`, {
+        name: $("#me-f-name").value.trim(),
+        appellation: $("#me-f-appellation").value.trim(),
+        birth_date: $("#me-f-birth").value.trim(),
+        death_date: $("#me-f-death").value.trim(),
+        epitaph: $("#me-f-epitaph").value.trim(),
+        biography: $("#me-f-bio").value.trim(),
+      });
+      btn.disabled = false;
+      if (r.ok) {
+        A.toast("已保存");
+        const fresh = await A.getMemorial(id);
+        if (fresh.ok && fresh.data) { role = fresh.data; paintRole(); }
+        $("#mem-role-edit").style.display = "none";
+        $("#mem-role-view").style.display = "block";
+      } else if (r.status === 403) A.toast("只有馆主和协作人可以编辑");
+      else if (r.status === 400 && r.data?.error === "content_blocked") A.toast("内容未通过审核，请调整后再保存");
+      else if (r.status === 400 && r.data?.error === "name_required") A.toast("姓名不能为空");
+      else A.toast("保存失败，请再试一次");
+    };
+
+    /* ---- 记忆分区 ---- */
     const SECTIONS = [
       { key: "personality", icon: "fa-user", name: "TA 是怎样的人", hint: "还不知道怎么描述 TA？" },
       { key: "relation", icon: "fa-heart", name: "我和 TA", hint: "你们的故事值得被记住", star: true },
       { key: "likes", icon: "fa-mug-hot", name: "TA 喜欢什么", hint: "TA 平时喜欢做什么？" },
       { key: "speech", icon: "fa-quote-left", name: "TA 怎么说话", hint: "TA 常挂在嘴边的话是？" },
+      { key: "chat", icon: "fa-comment-dots", name: "聊天中记起", hint: "聊天时提到的事会记在这里" },
       { key: "profile", icon: "fa-file-lines", name: "基础资料", hint: "引导填写 TA 的基础资料" },
     ];
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

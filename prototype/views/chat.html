@@ -5,6 +5,15 @@
   <button class="nav-btn" id="chat-more"><i class="fa-solid fa-ellipsis"></i></button>
 </div>
 
+<!-- W3 模式切换：第三方（默认）/ 模仿 TA（仅登录，首次必经边界确认） -->
+<div class="pad pt-2">
+  <div class="card flex p-1 gap-1" id="chat-mode-bar">
+    <button class="flex-1 h-9 rounded-full text-[13px]" data-mode="companion" id="mode-companion">AI 助手</button>
+    <button class="flex-1 h-9 rounded-full text-[13px]" data-mode="roleplay" id="mode-roleplay">模仿 TA</button>
+  </div>
+  <p class="text-center text-[10px] mt-1.5" id="chat-mode-note" style="color:rgba(255,246,236,.45);display:none">AI 模仿 · 非本人</p>
+</div>
+
 <div class="scroll pad pt-2 pb-3" id="chat-scroll">
   <div class="divider my-3">今天</div>
   <div id="chat-msgs"></div>

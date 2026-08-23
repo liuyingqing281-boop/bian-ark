@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>彼岸 · 概念页</title>
+<meta name="description" content="思念有处安放 —— 彼岸视觉概念稿" />
+<style>
+  :root {
+    --ink: #10141c;
+    --gold: #d8a95c;
+    --text: #e8e2d6;
+    --muted: rgba(232, 226, 214, 0.55);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* WebGL 画布；不可用时露出的静态渐变即降级方案 */
+  #stage {
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(120% 90% at 30% 20%, rgba(216, 169, 92, 0.28), transparent 55%),
+      radial-gradient(100% 80% at 75% 80%, rgba(178, 60, 48, 0.20), transparent 60%),
+      radial-gradient(140% 120% at 50% 50%, #1a2233 0%, #10141c 70%);
+  }
+  #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .content {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    text-align: center;
+    padding: 0 24px;
+  }
+  h1 {
+    font-family: "Songti SC", "Noto Serif SC", "SimSun", serif;
+    font-weight: 600;
+    font-size: clamp(72px, 14vw, 160px);
+    letter-spacing: 0.22em;
+    margin-right: -0.22em; /* 抵消末字间距，保持视觉居中 */
+    text-shadow: 0 2px 40px rgba(0, 0, 0, 0.45);
+  }
+  .tagline {
+    font-size: clamp(16px, 2.4vw, 22px);
+    letter-spacing: 0.5em;
+    margin-right: -0.5em;
+    color: var(--muted);
+  }
+  .cta {
+    margin-top: 20px;
+    display: inline-block;
+    padding: 14px 52px;
+    border: 1px solid rgba(216, 169, 92, 0.65);
+    border-radius: 999px;
+    color: var(--gold);
+    font-size: 16px;
+    letter-spacing: 0.3em;
+    margin-right: -0.3em;
+    text-decoration: none;
+    backdrop-filter: blur(6px);
+    background: rgba(16, 20, 28, 0.25);
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+  .cta:hover {
+    background: rgba(216, 169, 92, 0.14);
+    box-shadow: 0 0 32px rgba(216, 169, 92, 0.25);
+  }
+
+  .corner {
+    position: fixed;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    color: rgba(232, 226, 214, 0.38);
+    user-select: none;
+  }
+  .corner.tl { top: 24px; left: 28px; }
+  .corner.br { bottom: 24px; right: 28px; }
+  #paletteBtn {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 1px solid rgba(232, 226, 214, 0.22);
+    border-radius: 999px;
+    padding: 7px 18px;
+    cursor: pointer;
+    transition: border-color 0.3s ease, color 0.3s ease;
+  }
+  #paletteBtn:hover { border-color: rgba(216, 169, 92, 0.6); color: var(--gold); }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="gl"></canvas></div>
+
+<main class="content">
+  <h1>彼岸</h1>
+  <p class="tagline">思念有处安放</p>
+  <a class="cta" href="https://bianmuyuan.cn" target="_blank" rel="noopener">进入彼岸</a>
+</main>
+
+<div class="corner tl">概念稿 · 视觉探索 · 与现有站点无关</div>
+<div class="corner br"><button id="paletteBtn" type="button">换个意境</button></div>
+
+<script>
+"use strict";
+// ============ 色板（curated）============
+// 每组：底色 + 两层流动光 + 微光点缀，均为 rgb(0-1)
+const PALETTES = [
+  { name: "烛夜", base: [0.063, 0.078, 0.110], a: [0.847, 0.663, 0.361], b: [0.698, 0.235, 0.188], c: [0.980, 0.878, 0.722] }, // 黛青 + 烛金 + 朱砂
+  { name: "黄昏", base: [0.118, 0.078, 0.078], a: [0.937, 0.541, 0.290], b: [0.706, 0.322, 0.478], c: [1.000, 0.839, 0.639] }, // 暮色橙紫
+  { name: "晨雾", base: [0.086, 0.110, 0.125], a: [0.573, 0.729, 0.780], b: [0.808, 0.878, 0.843], c: [0.925, 0.937, 0.890] },  // 青灰薄雾
+  { name: "星夜", base: [0.047, 0.055, 0.098], a: [0.400, 0.510, 0.830], b: [0.660, 0.480, 0.780], c: [0.880, 0.910, 1.000] }, // 深空蓝紫
+];
+let paletteIndex = 0;
+
+// ============ WebGL 折叠光绸着色器 ============
+const canvas = document.getElementById("gl");
+const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
+if (!gl) { canvas.remove(); } // 无 WebGL：保留 CSS 静态渐变降级
+else {
+  const VERT = `
+    attribute vec2 p;
+    void main() { gl_Position = vec4(p, 0.0, 1.0); }
+  `;
+  // 片元着色器：fbm 域扭曲 + 正弦折叠，模拟 Raycast 壁纸式"柔光折叠层"
+  const FRAG = `
+    precision highp float;
+    uniform vec2 uRes;
+    uniform float uTime;
+    uniform vec2 uMouse;   // 归一化 -1..1，光幕视差
+    uniform vec3 uBase, uA, uB, uC;
+    uniform float uMix;    // 色板切换过渡 0..1
+
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    }
+    float noise(vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x),
+                 mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+    }
+    float fbm(vec2 p) {
+      float v = 0.0, a = 0.5;
+      for (int i = 0; i < 5; i++) {
+        v += a * noise(p);
+        p = p * 2.03 + vec2(13.7, 7.1);
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / min(uRes.x, uRes.y);
+
+      // 鼠标视差：整体光幕轻微平移
+      uv += uMouse * 0.08;
+
+      // 域扭曲：两层不同速度的 fbm 相互扭曲，形成缓慢流动的"光绸"
+      float t = uTime * 0.03;
+      vec2 q = vec2(fbm(uv * 1.4 + t), fbm(uv * 1.4 - t * 0.7 + 4.7));
+      vec2 r = vec2(fbm(uv * 1.8 + 2.2 * q + vec2(1.7, 9.2) + t * 0.5),
+                    fbm(uv * 1.8 + 2.2 * q + vec2(8.3, 2.8) - t * 0.4));
+      float f = fbm(uv * 1.6 + 2.5 * r);
+
+      // 折叠：正弦剪切让色彩呈现"叠起的绸面"层次
+      float fold = sin((uv.x * 1.8 + f * 3.2 + t) * 3.14159) * 0.5 + 0.5;
+      float fold2 = sin((uv.y * 1.2 - f * 2.4 - t * 0.6) * 2.4) * 0.5 + 0.5;
+
+      // 混色：底色上叠两层流动光 + 微光高光
+      vec3 col = uBase;
+      col = mix(col, uA, smoothstep(0.25, 0.85, f * fold * 1.15) * 0.62);
+      col = mix(col, uB, smoothstep(0.35, 0.95, fold2 * (1.0 - f) * 1.2) * 0.45);
+      col += uC * pow(max(fold * f - 0.55, 0.0), 2.2) * 0.5;
+
+      // 轻微暗角，聚焦中央
+      float vig = 1.0 - 0.45 * dot(uv, uv);
+      col *= vig;
+
+      // 细腻颗粒，避免色带
+      float grain = (hash(gl_FragCoord.xy + fract(uTime)) - 0.5) * 0.035;
+      col += grain;
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.error(gl.getShaderInfoLog(s));
+      return null;
+    }
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const locP = gl.getAttribLocation(prog, "p");
+  gl.enableVertexAttribArray(locP);
+  gl.vertexAttribPointer(locP, 2, gl.FLOAT, false, 0, 0);
+
+  const U = {
+    res: gl.getUniformLocation(prog, "uRes"),
+    time: gl.getUniformLocation(prog, "uTime"),
+    mouse: gl.getUniformLocation(prog, "uMouse"),
+    base: gl.getUniformLocation(prog, "uBase"),
+    a: gl.getUniformLocation(prog, "uA"),
+    b: gl.getUniformLocation(prog, "uB"),
+    c: gl.getUniformLocation(prog, "uC"),
+  };
+
+  // 尺寸（限 devicePixelRatio ≤ 2，兼顾性能）
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(canvas.clientWidth * dpr);
+    canvas.height = Math.round(canvas.clientHeight * dpr);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // 鼠标视差（缓动跟随）
+  let mx = 0, my = 0, tx = 0, ty = 0;
+  window.addEventListener("pointermove", (e) => {
+    tx = (e.clientX / window.innerWidth) * 2 - 1;
+    ty = -((e.clientY / window.innerHeight) * 2 - 1);
+  });
+
+  // 色板切换：JS 侧逐帧插值过渡
+  let cur = { base: PALETTES[0].base, a: PALETTES[0].a, b: PALETTES[0].b, c: PALETTES[0].c };
+  let from = null, to = null, mixT = 1;
+  document.getElementById("paletteBtn").addEventListener("click", () => {
+    const next = PALETTES[(paletteIndex + 1) % PALETTES.length];
+    paletteIndex = (paletteIndex + 1) % PALETTES.length;
+    from = { base: [...cur.base], a: [...cur.a], b: [...cur.b], c: [...cur.c] };
+    to = next;
+    mixT = 0;
+  });
+
+  const lerp3 = (x, y, k) => [x[0] + (y[0] - x[0]) * k, x[1] + (y[1] - x[1]) * k, x[2] + (y[2] - x[2]) * k];
+
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const start = performance.now();
+  const SPEED = reduced ? 0.15 : 1; // 减少动效：光流近乎静止
+
+  function frame(now) {
+    const t = (now - start) / 1000 * SPEED;
+
+    if (mixT < 1 && from && to) {
+      mixT = Math.min(1, mixT + 0.02);
+      const k = mixT * mixT * (3 - 2 * mixT);
+      cur = { base: lerp3(from.base, to.base, k), a: lerp3(from.a, to.a, k), b: lerp3(from.b, to.b, k), c: lerp3(from.c, to.c, k) };
+    }
+
+    mx += (tx - mx) * 0.04;
+    my += (ty - my) * 0.04;
+
+    gl.uniform2f(U.res, canvas.width, canvas.height);
+    gl.uniform1f(U.time, t);
+    gl.uniform2f(U.mouse, mx, my);
+    gl.uniform3fv(U.base, cur.base);
+    gl.uniform3fv(U.a, cur.a);
+    gl.uniform3fv(U.b, cur.b);
+    gl.uniform3fv(U.c, cur.c);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@ import { getSessionUser } from "../../../../lib/auth";
 import { getDb } from "../../../../lib/db";
 
 // GET/PATCH /api/me/settings —— 用户设置（users.settings JSON 串，读取时与默认值合并）
-const DEFAULTS = { notifyReview: true, notifyCollab: true, privateDefault: false };
+const DEFAULTS = { notifyReview: true, notifyCollab: true, privateDefault: false, chatMemory: true };
 const KEYS = Object.keys(DEFAULTS) as Array<keyof typeof DEFAULTS>;
 
 function readSettings(db: ReturnType<typeof getDb>, userId: string) {

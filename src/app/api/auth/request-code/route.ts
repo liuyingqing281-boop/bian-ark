@@ -20,6 +20,10 @@ export async function POST(req: NextRequest) {
   if (channel === "email" && !EMAIL_RE.test(target)) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
+  // W1：生产环境未配置 SMTP 时明确报错（前端提示改用手机号），不静默吞掉
+  if (channel === "email" && process.env.NODE_ENV === "production" && !process.env.SMTP_URL) {
+    return NextResponse.json({ error: "email_not_configured" }, { status: 503 });
+  }
   if (channel === "sms" && !PHONE_RE.test(target)) {
     return NextResponse.json({ error: "invalid_phone" }, { status: 400 });
   }

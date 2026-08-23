@@ -52,6 +52,7 @@ window.BianViews.auth = {
       } else {
         send.disabled = false;
         if (r.status === 429) A.toast("太频繁了，歇一会儿再试");
+        else if (r.status === 503 && r.data?.error === "email_not_configured") A.toast("邮件服务未配置，请先用手机号");
         else A.toast("没有发送成功，请再试一次");
       }
     };

@@ -102,7 +102,7 @@
     postMemory: (section, content, source) =>
       post(`/api/memories`, { memorialId: memorialId(), section, content, source }),
     deleteMemory: (id) => del(`/api/memories/${id}`),
-    chat: (message) => post(`/api/hall/chat`, { memorialId: memorialId(), message }),
+    chat: (message, mode) => post(`/api/hall/chat`, { memorialId: memorialId(), message, mode }),
     getChatHistory: () => get(`/api/hall/chat/history?memorialId=${memorialId()}`),
     clearChatHistory: () => del(`/api/hall/chat/history?memorialId=${memorialId()}`),
     getMe: () => get(`/api/me`),

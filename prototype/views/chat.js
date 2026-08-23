@@ -16,6 +16,42 @@ window.BianViews.chat = {
     const m = await A.getMemorial(id);
     const appellation = (m.ok && m.data?.appellation) || "TA";
     $("#chat-title").textContent = `和${appellation}说说话`;
+    const isGuest = !m.ok || (m.data?.viewerRole || "guest") === "guest";
+
+    /* ---- W3 双模式切换（每馆记住；新馆默认第三方；模仿仅登录用户）---- */
+    const MODE_KEY = "bian_chat_mode_" + id;
+    const RP_OK_KEY = "bian_roleplay_ok_" + id;
+    let mode = localStorage.getItem(MODE_KEY) === "roleplay" && !isGuest ? "roleplay" : "companion";
+
+    function paintMode() {
+      root.querySelectorAll("#chat-mode-bar button").forEach((b) => {
+        const on = b.dataset.mode === mode;
+        b.style.background = on ? "rgba(255,122,47,.18)" : "transparent";
+        b.style.color = on ? "var(--ember-soft)" : "rgba(255,246,236,.55)";
+      });
+      $("#chat-mode-note").style.display = mode === "roleplay" ? "block" : "none";
+    }
+    function applyMode(next) {
+      mode = next;
+      localStorage.setItem(MODE_KEY, next);
+      paintMode();
+      if (next === "roleplay") A.toast("已切换到模仿模式：" + `现在起 AI 会以${appellation}的语气回应`);
+    }
+    $("#mode-companion").onclick = () => mode !== "companion" && applyMode("companion");
+    $("#mode-roleplay").onclick = () => {
+      if (mode === "roleplay") return;
+      if (isGuest) return A.toast("登录后才能用模仿模式，请先到「我的」登录");
+      if (localStorage.getItem(RP_OK_KEY)) return applyMode("roleplay");
+      // 首次：边界确认浮层
+      const onOk = () => {
+        document.removeEventListener("bian:roleplay-confirmed", onOk);
+        localStorage.setItem(RP_OK_KEY, "1");
+        applyMode("roleplay");
+      };
+      document.addEventListener("bian:roleplay-confirmed", onOk);
+      ctx.openOverlay("roleplay", {});
+    };
+    paintMode();
 
     // ⋯ 菜单：清空对话（二次确认）
     $("#chat-more").onclick = async () => {
@@ -33,11 +69,13 @@ window.BianViews.chat = {
       msgs.insertAdjacentHTML("beforeend", `<div class="bubble-me mb-4">${esc(text)}</div>`);
       scrollEnd();
     }
-    function addTa(text, evidence, inferred, askMemory, followup) {
+    function addTa(text, evidence, inferred, askMemory, followup, msgMode) {
       const ev = evidence
         ? `<button class="text-[12px] mt-1.5 underline underline-offset-4 ev-link" style="color:var(--ember-soft)"
              data-quote="${esc(evidence.quote)}" data-date="${esc(A.fmtDate(evidence.createdAt || evidence.created_at))}">查看这句话的依据</button>` : "";
-      const tag = inferred ? `<p class="tag-inferred mt-1">基于 TA 的资料推测</p>` : "";
+      const tag = msgMode === "roleplay"
+        ? `<p class="tag-inferred mt-1">AI 模仿 · 非本人</p>`
+        : inferred ? `<p class="tag-inferred mt-1">基于 TA 的资料推测</p>` : "";
       const ask = askMemory
         ? `${followup ? `<p class="text-[13px] t2 mt-2">${esc(followup)}</p>` : ""}
            <button class="chip mt-2 ask-memory">添加一段关于 TA 的记忆</button>` : "";
@@ -76,10 +114,13 @@ window.BianViews.chat = {
       input.value = "";
       typing.style.display = "block";
       scrollEnd();
-      const r = await A.chat(content);
+      const r = await A.chat(content, mode);
       typing.style.display = "none";
       if (r.ok && r.data) {
-        addTa(r.data.text, r.data.evidence || null, r.data.inferred !== false, r.data.askMemory, r.data.followupQuestion);
+        addTa(r.data.text, r.data.evidence || null, r.data.inferred !== false, r.data.askMemory, r.data.followupQuestion, r.data.mode || mode);
+      } else if (r.status === 401 && r.data?.error === "roleplay_requires_login") {
+        applyMode("companion");
+        A.toast("登录后才能用模仿模式，已切回 AI 助手");
       } else if (r.status === 422) {
         addTa("这个话题我们轻轻带过。", null, false, false, null);
       } else {
