@@ -24,6 +24,7 @@ window.BianViews.home = {
         "background:#1c0d08;border:1px solid var(--card-border);box-shadow:0 16px 40px rgba(0,0,0,.55)";
       menu.innerHTML = [
         ["create", "＋ 创建新纪念馆"],
+        ["hall", "长明灯阵（合馆视图）"],
         ["share", "分享纪念馆"],
         ["edit", "编辑资料（馆主）"],
         ["collab", "协作管理（馆主）"],
@@ -33,6 +34,7 @@ window.BianViews.home = {
         const k = e.target.closest("button")?.dataset.k;
         menu.remove();
         if (k === "create") return ctx.go("wizard");
+        if (k === "hall") return ctx.go("hall");
         if (k) A.toast(`「${e.target.textContent.trim()}」即将上线`);
       };
       root.appendChild(menu);

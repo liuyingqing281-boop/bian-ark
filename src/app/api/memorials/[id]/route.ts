@@ -14,13 +14,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const memorial = db
     .prepare(
       `SELECT id, user_id, visibility, name, appellation, birth_date, death_date, epitaph, biography,
-              avatar_url, cover_url, type, created_at
+              avatar_url, cover_url, type, created_at, hall_id
        FROM memorials WHERE id = ? AND is_published = 1`
     )
     .get(id) as
     | (MemorialAccessRow & {
         name: string; appellation: string; birth_date: string; death_date: string;
-        epitaph: string; biography: string; avatar_url: string; cover_url: string; type: string;
+        epitaph: string; biography: string; avatar_url: string; cover_url: string; type: string; hall_id: string;
       })
     | undefined;
 
@@ -68,6 +68,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     coverUrl: memorial.cover_url,
     type: memorial.type,
     visibility: memorial.visibility || "public",
+    hallId: memorial.hall_id || "",
     viewerRole,
     candleLit,
     candleLitHours,

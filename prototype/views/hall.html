@@ -1,0 +1,18 @@
+<!-- V-HALL 长明灯阵（docs/13：馆内多人合馆） -->
+<div class="navbar">
+  <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
+  <span class="title" id="hall-name">纪念馆</span>
+  <button class="nav-btn" id="hall-arrange" style="display:none" title="布阵"><i class="fa-solid fa-arrows-up-down-left-right"></i></button>
+</div>
+
+<!-- 场景层：夜空灯阵 -->
+<div class="relative" id="hall-scene" style="height:46%;min-height:320px;overflow:hidden;
+  background:radial-gradient(120% 80% at 50% 0%, rgba(255,122,47,.16), transparent 55%),
+             radial-gradient(80% 60% at 50% 110%, rgba(180,58,14,.18), transparent 60%), #070302">
+  <p class="t3 text-[11px] text-center pt-3" id="hall-motto"></p>
+  <p class="t3 text-[10px] text-center absolute top-9 inset-x-0" id="hall-arrange-hint" style="display:none;color:var(--ember-soft)">布阵模式：拖动灯位，松手自动保存</p>
+  <!-- 灯位由 JS 注入 -->
+</div>
+
+<!-- 抽屉层 -->
+<div class="flex-1 overflow-hidden flex flex-col" id="hall-drawer"></div>
