@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "../../../../lib/db";
 import { getSessionUser } from "../../../../lib/auth";
 import { trackEvent } from "../../../../lib/events";
+import { insertNotification } from "../../../../lib/notify";
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -11,8 +12,8 @@ export async function POST(req: NextRequest) {
   if (!inviteCode) return NextResponse.json({ error: "invalid_invite" }, { status: 400 });
 
   const db = getDb();
-  const group = db.prepare("SELECT id, name FROM groups WHERE invite_code = ?").get(inviteCode) as
-    | { id: string; name: string }
+  const group = db.prepare("SELECT id, name, owner_user_id FROM groups WHERE invite_code = ?").get(inviteCode) as
+    | { id: string; name: string; owner_user_id: string }
     | undefined;
   if (!group) return NextResponse.json({ error: "invalid_invite" }, { status: 404 });
 
@@ -21,6 +22,10 @@ export async function POST(req: NextRequest) {
     .run(group.id, user.id);
   if (joined.changes > 0) {
     trackEvent("group_joined", { group_id: group.id }, user.id);
+    const displayName = (user.name || user.phone || user.email || "一位亲友").trim();
+    insertNotification(group.owner_user_id, "collab", `${displayName} 加入了「${group.name}」`, {
+      link: "/proto/index.html",
+    });
   }
   return NextResponse.json({ ok: true, group_id: group.id, name: group.name });
 }

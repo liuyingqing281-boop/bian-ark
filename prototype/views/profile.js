@@ -7,8 +7,11 @@ window.BianViews.profile = {
     const $ = (s) => root.querySelector(s);
     const REL_META = { created: ["馆主", "background:rgba(255,122,47,.14);color:var(--ember-soft)"], owner: ["馆主", "background:rgba(255,122,47,.14);color:var(--ember-soft)"], collaborating: ["协作", "background:rgba(255,255,255,.06);color:var(--text-2)"], collaborator: ["协作", "background:rgba(255,255,255,.06);color:var(--text-2)"], tributed: ["纪念过", "background:rgba(255,255,255,.06);color:var(--text-2)"], visited: ["纪念过", "background:rgba(255,255,255,.06);color:var(--text-2)"] };
 
-    $("#v7-gear").onclick = () => A.toast("设置：通知 / 隐私 / 注销");
-    root.querySelectorAll("[data-demo]").forEach((b) => (b.onclick = () => A.toast(`「${b.dataset.demo}」演示占位`)));
+    $("#v7-gear").onclick = () => ctx.go("settings");
+    $("#me-groups").onclick = () => ctx.go("groups");
+    $("#me-notif").onclick = () => ctx.go("notifications");
+    $("#me-privacy").onclick = () => ctx.go("privacy");
+    $("#me-feedback").onclick = () => ctx.go("feedback");
 
     const me = await A.getMe();
     if (!me.ok) {
@@ -60,9 +63,10 @@ window.BianViews.profile = {
     const od = await A.getMeOrders();
     const orders = Array.isArray(od.data?.items) ? od.data.items : [];
     $("#me-orders-sub").textContent = orders.length ? `共 ${orders.length} 笔` : "暂无订单";
-    $("#me-orders").onclick = () => {
-      const STATUS = { paid: "已支付", refunded: "已退款", pending: "待支付", failed: "未完成" };
-      A.toast(orders.length ? `最近一笔：${orders[0].itemName} · ${A.yuan(orders[0].amountCents)} · ${STATUS[orders[0].status] || orders[0].status}` : "暂无订单");
-    };
+    $("#me-orders").onclick = () => ctx.go("orders");
+
+    // 通知未读红点
+    const nt = await A.getNotifications();
+    if (nt.ok && nt.data?.unread > 0) $("#me-notif-dot").style.display = "block";
   },
 };

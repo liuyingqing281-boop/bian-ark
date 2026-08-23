@@ -1,0 +1,27 @@
+<!-- V-PRIVACY 隐私（R5）：数据导出 + 注销申请 -->
+<div class="navbar">
+  <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
+  <span class="title">隐私</span>
+  <span class="w-10"></span>
+</div>
+<div class="scroll pad pt-4 pb-8">
+  <div class="card divide-y divide-white/5">
+    <a class="w-full flex items-center gap-3 px-5 py-4 text-[14px]" href="/api/me/data" download>
+      <i class="fa-solid fa-download w-5 text-center" style="color:var(--ember-soft)"></i>
+      <span class="flex-1 text-left">导出我的数据</span>
+      <span class="t3 text-[11px]">JSON</span>
+      <i class="fa-solid fa-chevron-right t3 text-xs"></i>
+    </a>
+    <button class="w-full flex items-center gap-3 px-5 py-4 text-[14px]" id="privacy-export-req">
+      <i class="fa-solid fa-box-archive w-5 text-center" style="color:var(--ember-soft)"></i>
+      <span class="flex-1 text-left">申请完整数据副本</span>
+      <i class="fa-solid fa-chevron-right t3 text-xs"></i>
+    </button>
+  </div>
+
+  <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">账号注销</h2>
+  <div class="card p-5">
+    <p class="t2 text-[13px] leading-relaxed">注销后账号将不可恢复，你创建的纪念馆会按规则处理。提交后我们会在 7 天内处理并通过站内通知告知结果。</p>
+    <button class="btn-ghost mt-4 w-full" style="border-color:rgba(232,106,106,.5);color:#e86a6a" id="privacy-delete-req">申请注销账号</button>
+  </div>
+</div>

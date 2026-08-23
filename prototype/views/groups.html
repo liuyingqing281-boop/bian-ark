@@ -1,0 +1,26 @@
+<!-- V-GROUPS 亲友共同纪念（R5） -->
+<div class="navbar">
+  <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
+  <span class="title">亲友共同纪念</span>
+  <span class="w-10"></span>
+</div>
+<div class="scroll pad pt-4 pb-8">
+  <div class="card divide-y divide-white/5" id="groups-list">
+    <p class="px-5 py-4 t3 text-[13px]">加载中……</p>
+  </div>
+
+  <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">加入亲友的协作组</h2>
+  <div class="card p-4 flex items-center gap-2">
+    <input id="groups-join-code" type="text" maxlength="16" placeholder="输入邀请码"
+      class="flex-1 bg-transparent outline-none text-[15px]" style="color:var(--text);min-width:0"/>
+    <button class="btn-primary" style="height:40px;width:auto;padding:0 18px;font-size:13px" id="groups-join-btn">加入</button>
+  </div>
+
+  <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">新建协作组</h2>
+  <div class="card p-4 flex items-center gap-2">
+    <input id="groups-create-name" type="text" maxlength="40" placeholder="协作组名称，如「张家亲友」"
+      class="flex-1 bg-transparent outline-none text-[15px]" style="color:var(--text);min-width:0"/>
+    <button class="btn-primary" style="height:40px;width:auto;padding:0 18px;font-size:13px" id="groups-create-btn">创建</button>
+  </div>
+  <p class="t3 text-[11px] text-center mt-6">把邀请码发给亲友，就能一起守护同一座纪念馆</p>
+</div>

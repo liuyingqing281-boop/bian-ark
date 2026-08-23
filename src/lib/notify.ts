@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import { v4 as uuid } from "uuid";
+import { getDb } from "./db";
 
 export type CodeChannel = "email" | "sms";
 
@@ -58,4 +60,34 @@ export async function sendLoginCode(
     return { delivered: false, devCode: code };
   }
   return { delivered: false };
+}
+
+/* ---------- 通知中心（《11-建馆向导与我的板块方案》R5 / M4） ----------
+ * 读取侧：GET /api/me/notifications；写入点：审核结论、协作组动态等。 */
+
+export type NotificationKind = "review" | "collab" | "system";
+
+/** 用户关闭了对应开关（users.settings.notifyReview/notifyCollab）时不写入 */
+export function insertNotification(
+  userId: string,
+  kind: NotificationKind,
+  title: string,
+  opts: { body?: string; link?: string } = {}
+): void {
+  if (!userId || !title) return;
+  const db = getDb();
+  const row = db.prepare("SELECT settings FROM users WHERE id = ?").get(userId) as
+    | { settings: string }
+    | undefined;
+  if (!row) return;
+  try {
+    const settings = JSON.parse(row.settings || "{}");
+    if (kind === "review" && settings.notifyReview === false) return;
+    if (kind === "collab" && settings.notifyCollab === false) return;
+  } catch {
+    /* settings 非 JSON 时按默认（全开）处理 */
+  }
+  db.prepare(
+    "INSERT INTO notifications (id, user_id, kind, title, body, link) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(uuid(), userId, kind, title.slice(0, 120), (opts.body || "").slice(0, 500), (opts.link || "").slice(0, 300));
 }

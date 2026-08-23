@@ -1,0 +1,36 @@
+<!-- V-SETTINGS 设置（R5） -->
+<div class="navbar">
+  <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
+  <span class="title">设置</span>
+  <span class="w-10"></span>
+</div>
+<div class="scroll pad pt-4 pb-8">
+  <h2 class="t3 text-[11px] tracking-[0.2em] mb-3">通知</h2>
+  <div class="card divide-y divide-white/5">
+    <label class="flex items-center gap-3 px-5 py-4 text-[14px]">
+      <span class="flex-1">审核结果通知</span>
+      <input type="checkbox" id="set-notify-review" class="w-5 h-5 accent-[#ff7a2f]"/>
+    </label>
+    <label class="flex items-center gap-3 px-5 py-4 text-[14px]">
+      <span class="flex-1">协作动态通知</span>
+      <input type="checkbox" id="set-notify-collab" class="w-5 h-5 accent-[#ff7a2f]"/>
+    </label>
+  </div>
+
+  <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">隐私</h2>
+  <div class="card divide-y divide-white/5">
+    <label class="flex items-center gap-3 px-5 py-4 text-[14px]">
+      <span class="flex-1">新建纪念馆默认私密</span>
+      <input type="checkbox" id="set-private-default" class="w-5 h-5 accent-[#ff7a2f]"/>
+    </label>
+  </div>
+
+  <h2 class="t3 text-[11px] tracking-[0.2em] mt-7 mb-3">当前纪念馆</h2>
+  <div class="card p-5" id="set-memorial-box">
+    <p class="t2 text-[13px]" id="set-memorial-name">——</p>
+    <button class="btn-ghost mt-4 w-full" style="border-color:rgba(232,106,106,.5);color:#e86a6a" id="set-del-memorial">删除这座纪念馆</button>
+  </div>
+
+  <button class="btn-ghost mt-8 w-full" id="set-logout">退出登录</button>
+  <p class="t3 text-[11px] text-center mt-6">彼岸 · 想念从未离开</p>
+</div>

@@ -23,7 +23,7 @@
   const get = (url) => req("GET", url);
   const post = (url, body) => req("POST", url, body);
   const del = (url) => req("DELETE", url);
-  const patch = (url, body) => req("PATCH", url, body);
+  const patchReq = (url, body) => req("PATCH", url, body);
 
   /* UTC 串 → 相对时间（「2 小时前 / 昨天 / 3 天前」） */
   function relTime(iso) {
@@ -87,7 +87,7 @@
     get,
     post,
     del,
-    patch,
+    patch: patchReq,
     /* 领域封装 */
     getMemorial: (id) => get(`/api/memorials/${id || memorialId()}`),
     getTimeline: (id) => get(`/api/timeline?memorialId=${id || memorialId()}`),
@@ -108,6 +108,17 @@
     getMe: () => get(`/api/me`),
     getMeMemorials: () => get(`/api/me/memorials`),
     getMeOrders: () => get(`/api/me/orders`),
+    /* 「我的」板块（R5）：通知 / 反馈 / 设置 / 协作组 / 隐私 */
+    getNotifications: () => get(`/api/me/notifications`),
+    markNotificationsRead: (ids) => post(`/api/me/notifications/read`, { ids: ids || [] }),
+    postFeedback: (content, contact) => post(`/api/feedback`, { content, contact }),
+    getSettings: () => get(`/api/me/settings`),
+    patchSettings: (patch) => patchReq(`/api/me/settings`, patch),
+    createGroup: (name) => post(`/api/groups`, { name }),
+    joinGroup: (inviteCode) => post(`/api/groups/join`, { invite_code: inviteCode }),
+    leaveGroup: (id) => post(`/api/groups/${id}/leave`, {}),
+    requestData: (kind) => post(`/api/me/data`, { kind }),
+    deleteMemorial: (id) => del(`/api/memorials/${id}`),
     /* 认证（屏01 登录注册屏）：登录即注册 */
     requestCode: (channel, target) => post(`/api/auth/request-code`, { channel, target }),
     verifyCode: (channel, target, code) => post(`/api/auth/verify`, { channel, target, code }),
