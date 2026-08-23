@@ -7,7 +7,7 @@ module.exports = {
       name: "bian",
       cwd: "/var/www/bian",
       script: "npm",
-      args: "run start -- -p 3002",
+      args: "run start -- -p 3003",
       env: {
         NODE_ENV: "production",
       },

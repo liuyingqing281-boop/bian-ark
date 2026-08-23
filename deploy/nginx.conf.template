@@ -17,7 +17,7 @@ server {
     # 静态资源（Next 构建产物与用户上传）直接由 nginx 服务可选；
     # 简化起见全部回源 Next，上量后再拆分。
     location / {
-        proxy_pass http://127.0.0.1:3002;
+        proxy_pass http://127.0.0.1:3003;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -30,7 +30,7 @@ server {
 
     # Next.js 图片优化服务的内部响应头
     location /_next/image {
-        proxy_pass http://127.0.0.1:3002;
+        proxy_pass http://127.0.0.1:3003;
         proxy_cache_valid 200 30d;
         add_header Cache-Control "public, max-age=2592000, immutable";
     }
