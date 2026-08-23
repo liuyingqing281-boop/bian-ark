@@ -22,9 +22,11 @@
 | 08 | 祭奠页 | 免费三项直接供奉；付费三项弹确认；供桌灯态 | `GET /api/items`、`POST /api/tribute` | F6 |
 | 09 | 一口价确认弹窗 | 白名单元素展示；【供奉】→下单支付；【取消】 | `POST /api/stripe`、webhook、`POST /api/tribute`(orderId) | F6 |
 | 10 | AI 生成纪念物 | 三步流；帮我写（限量）；帮我准备（幂等）；收藏/分享/再来一件；失败退费 | `POST /api/items/prompt`、`POST /api/items/generate`、`GET /api/items/generate?jobId=`、`POST /api/items/claim` | F6 GiftJobView |
-| 11 | 我的页 | 用户卡片；我的纪念；订单流水；设置 | `GET /api/me`、`GET /api/me/memorials`、`GET /api/me/orders`🟡 | F1/F6 |
+| 11 | 我的页 | 用户卡片；我的纪念；服务（年卡）；订单流水；亲友共同纪念；通知；隐私；帮助与反馈；设置 | `GET /api/me`、`GET /api/me/memorials`、`GET /api/me/orders`✅、`GET/POST /api/me/notifications`🟡、`POST /api/feedback`🟡、`GET/PATCH /api/me/settings`🟡、`GET/POST /api/me/data`✅、`POST /api/auth/logout`✅、`DELETE /api/memorials/[id]`🟡 | F1/F6 |
 
-亲友共同纪念走 `groups` 族（§3.10）；发现页走 `garden` 族（§3.11）。
+亲友共同纪念走 `groups` 族（§3.10）；发现页 = 公共墓园，走 `GET /api/garden`（§3.11）；建馆向导编排见 §3.12。
+
+> 2026-08-23 扩展（《11-建馆向导与我的板块方案》R1–R5）：屏02 首页新增空态引导页与「创建新纪念馆」入口；屏06 记忆档案空态可写；底部「发现」落实为公共墓园视图；屏11 按键全部补齐后端。
 
 ---
 
@@ -271,12 +273,23 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 ```
 创建/协作/供奉过聚合，去重，倒序。
 
-#### `GET /api/me/orders` 🟡 待开
+#### `GET /api/me/orders` ✅
 ```json
 { "items": [{ "id", "itemName": "敬一杯茶", "amountCents": 600, "currency": "cny",
              "status": "paid", "createdAt": "…" }] }
 ```
-> 待确认⑦：退款单显性展示（`status=refunded` 单独样式）。
+已实现（F6 OrderView 适配，倒序上限 200）；退款单 `status=refunded` 显性展示（待确认⑦）。
+
+#### 屏11 其余按键接口（2026-08-23 补齐，详见《11》R5）
+
+| 接口 | 状态 | 说明 |
+|---|---|---|
+| `GET /api/me/notifications`、`POST /api/me/notifications/read` | 🟡 新开 | 通知中心：审核结论/协作动态/系统；倒序 50 条 + 未读数 |
+| `POST /api/feedback` | 🟡 新开 | 帮助与反馈：`{ content ≤500, contact? }` → 201；过审核 + 60s 限频 |
+| `GET/PATCH /api/me/settings` | 🟡 新开 | 通知/隐私开关，存 `users.settings` JSON（迁移 M6） |
+| `DELETE /api/memorials/[id]` | 🟡 新开 | 仅馆主；软删（M7 `deleted_at`）→ 204；30 天找回窗 |
+| `GET/POST /api/me/data` | ✅ | 隐私：全量数据导出 / 注销申请（落 `data_requests`） |
+| `POST /api/auth/logout` | ✅ | 设置 → 退出登录 |
 
 ---
 
@@ -295,7 +308,23 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 
 ### 3.11 其余已实现接口（不动）
 
-`auth/*`、`media`/`upload`、`garden`（发现页）、`digitalhumans/*`（暂缓）、`admin`、`moderation/appeals`、`health`。
+`auth/*`、`media`/`upload`、`garden`（发现页 = 公共墓园，`GET /api/garden?q=` ✅ + `PATCH /api/memorials/[id]/garden` ✅ 馆主加入/移出）、`digitalhumans/*`（暂缓）、`admin`、`moderation/appeals`、`health`。
+
+---
+
+### 3.12 建馆向导编排（2026-08-23，R1/R2）
+
+不新开聚合接口，前端三步编排既有接口：
+
+| 步骤 | 调用 | 说明 |
+|---|---|---|
+| 1 TA 是谁 | `POST /api/media`（选照片）| 得 `mediaId/url` 暂存 |
+| 3 生成 | `POST /api/memorials` 🟡 | 请求体新增 `appellation`（称谓 ≤10 字）+ `avatarUrl`；默认 `visibility=private`、`is_published=1`；响应 `201 { "id" }` |
+| 3 生成 | `POST /api/memories` × N ✅ | 向导第 2 步暂存的每条记忆一次调用，`source="manual"`（馆主建馆即有权限）；部分失败不阻断，toast 报「N 条已保存，M 条稍后可补」 |
+| 失败补偿 | `DELETE /api/memorials/[id]` 🟡 | 复用 R5 软删接口；正常向导流程不调用 |
+
+空态判定：`GET /api/me/memorials` 的 `items` 为空 → 前端落「空态引导页」（无角色，主 CTA 进向导）；判定全在后端，前端不自建规则。
+埋点新增：`wizard_step`（1/2/3）、`wizard_completed`（memorialId、memoryCount）。
 
 ---
 
