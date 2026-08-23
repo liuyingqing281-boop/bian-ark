@@ -14,7 +14,7 @@ import {
 } from "../../../lib/memories";
 
 export async function GET(req: NextRequest) {
-  const memorialId = req.nextUrl.searchParams.get("memorial_id");
+  const memorialId = req.nextUrl.searchParams.get("memorial_id") || req.nextUrl.searchParams.get("memorialId");
   if (!memorialId) return NextResponse.json({ error: "missing memorial_id" }, { status: 400 });
 
   const memorial = getMemorialForAccess(memorialId);
@@ -47,14 +47,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { memorial_id?: string; section?: string; content?: string; source?: string };
+  let body: { memorial_id?: string; memorialId?: string; section?: string; content?: string; source?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const memorialId = body.memorial_id;
+  const memorialId = body.memorial_id || body.memorialId;
   const content = (body.content || "").trim();
   if (!memorialId) return NextResponse.json({ error: "missing memorial_id" }, { status: 400 });
   if (!isMemorySection(body.section)) return NextResponse.json({ error: "invalid_section" }, { status: 400 });

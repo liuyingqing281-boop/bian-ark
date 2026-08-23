@@ -1,0 +1,117 @@
+<!-- V-WIZARD 建馆向导（R1/R2：3 步，单视图分步） -->
+<div class="navbar">
+  <button class="nav-btn nav-back"><i class="fa-solid fa-chevron-left"></i></button>
+  <span class="title">为 TA 建一座纪念馆</span>
+  <span class="w-10"></span>
+</div>
+
+<div class="scroll">
+  <!-- 步骤指示 -->
+  <div class="pad flex items-center gap-2 pt-2" id="wz-dots">
+    <span class="wz-dot flex-1" data-s="1" style="height:3px;border-radius:2px;background:var(--ember-soft)"></span>
+    <span class="wz-dot flex-1" data-s="2" style="height:3px;border-radius:2px;background:rgba(255,246,236,.15)"></span>
+    <span class="wz-dot flex-1" data-s="3" style="height:3px;border-radius:2px;background:rgba(255,246,236,.15)"></span>
+  </div>
+
+  <!-- 第 1 步：TA 是谁 -->
+  <section class="pad" id="wz-step1">
+    <h2 class="display text-[19px] mt-4" style="letter-spacing:.08em">TA 是谁</h2>
+
+    <div class="flex items-center gap-4 mt-5">
+      <button id="wz-avatar-btn" class="shrink-0 w-20 h-20 rounded-full flex items-center justify-center text-2xl"
+        style="background:rgba(255,122,47,.10);border:1px dashed rgba(255,179,92,.4);color:var(--ember-soft);overflow:hidden">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+      <p class="t3 text-[12px]" style="line-height:1.8">选一张 TA 的照片<br/>（可稍后补充）</p>
+      <input type="file" id="wz-avatar-file" accept="image/*" style="display:none"/>
+    </div>
+
+    <div class="card mt-6 p-5 space-y-1">
+      <input id="wz-name" type="text" maxlength="60" placeholder="名字（必填）"
+        class="w-full bg-transparent outline-none text-[16px] py-3"
+        style="color:var(--text);border-bottom:1px solid var(--card-border)"/>
+      <input id="wz-appellation" type="text" maxlength="10" placeholder="你怎么称呼 TA（如：爷爷 / 妈妈 / 阿黄）"
+        class="w-full bg-transparent outline-none text-[16px] py-3"
+        style="color:var(--text);border-bottom:1px solid var(--card-border)"/>
+      <div class="flex items-center gap-3 py-3" style="border-bottom:1px solid var(--card-border)">
+        <input id="wz-birth" type="text" maxlength="20" placeholder="出生 1932-03-15"
+          class="flex-1 bg-transparent outline-none text-[16px]" style="color:var(--text);min-width:0"/>
+        <span class="t3">—</span>
+        <input id="wz-death" type="text" maxlength="20" placeholder="离开 2023-11-02"
+          class="flex-1 bg-transparent outline-none text-[16px]" style="color:var(--text);min-width:0"/>
+      </div>
+      <div class="flex gap-2 pt-4" id="wz-types">
+        <button class="chip active" data-type="person">人</button>
+        <button class="chip" data-type="pet">宠物</button>
+        <button class="chip" data-type="other">其他</button>
+      </div>
+    </div>
+
+    <button class="btn-primary mt-6" id="wz-next1">下一步</button>
+  </section>
+
+  <!-- 第 2 步：TA 的故事（选填，5 分区） -->
+  <section class="pad" id="wz-step2" style="display:none">
+    <h2 class="display text-[19px] mt-4" style="letter-spacing:.08em">TA 的故事</h2>
+    <p class="t3 text-[12px] mt-2" style="line-height:1.8">写多少都行，一句话也好。之后随时可以补充。</p>
+
+    <div class="mt-4 space-y-3" id="wz-sections">
+      <div class="card p-4" data-section="personality">
+        <div class="flex items-center justify-between">
+          <span class="text-[14px]">👤 TA 是怎样的人</span>
+          <button class="wz-add btn-ghost" data-section="personality" style="height:32px;padding:0 12px;font-size:12px">+ 写一条</button>
+        </div>
+        <div class="wz-list mt-2 space-y-2"></div>
+      </div>
+      <div class="card p-4" data-section="relation">
+        <div class="flex items-center justify-between">
+          <span class="text-[14px]">❤️ 我和 TA</span>
+          <button class="wz-add btn-ghost" data-section="relation" style="height:32px;padding:0 12px;font-size:12px">+ 写一条</button>
+        </div>
+        <div class="wz-list mt-2 space-y-2"></div>
+      </div>
+      <div class="card p-4" data-section="likes">
+        <div class="flex items-center justify-between">
+          <span class="text-[14px]">🎵 TA 喜欢什么</span>
+          <button class="wz-add btn-ghost" data-section="likes" style="height:32px;padding:0 12px;font-size:12px">+ 写一条</button>
+        </div>
+        <div class="wz-list mt-2 space-y-2"></div>
+      </div>
+      <div class="card p-4" data-section="speech">
+        <div class="flex items-center justify-between">
+          <span class="text-[14px]">💬 TA 怎么说话</span>
+          <button class="wz-add btn-ghost" data-section="speech" style="height:32px;padding:0 12px;font-size:12px">+ 写一条</button>
+        </div>
+        <div class="wz-list mt-2 space-y-2"></div>
+      </div>
+      <div class="card p-4" data-section="profile">
+        <div class="flex items-center justify-between">
+          <span class="text-[14px]">📄 基础资料</span>
+          <button class="wz-add btn-ghost" data-section="profile" style="height:32px;padding:0 12px;font-size:12px">+ 写一条</button>
+        </div>
+        <div class="wz-list mt-2 space-y-2"></div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mt-6">
+      <button class="btn-ghost" id="wz-back2" style="height:52px">上一步</button>
+      <button class="btn-primary" id="wz-next2" style="height:52px">下一步</button>
+    </div>
+  </section>
+
+  <!-- 第 3 步：确认 -->
+  <section class="pad" id="wz-step3" style="display:none">
+    <h2 class="display text-[19px] mt-4" style="letter-spacing:.08em">确认一下</h2>
+    <div class="card mt-5 p-6 flex flex-col items-center text-center">
+      <img id="wz-sum-avatar" src="assets/portrait.png" alt="TA 的照片" class="w-20 h-20 rounded-full object-cover"
+        style="box-shadow:0 0 30px rgba(255,122,47,.4)"/>
+      <p class="display text-xl mt-4" id="wz-sum-name" style="letter-spacing:.1em"></p>
+      <p class="t3 text-[13px] mt-1" id="wz-sum-years"></p>
+      <p class="t2 text-[13px] mt-3" id="wz-sum-memories"></p>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mt-6 pb-8">
+      <button class="btn-ghost" id="wz-back3" style="height:52px">上一步</button>
+      <button class="btn-primary" id="wz-submit" style="height:52px">生成纪念馆</button>
+    </div>
+  </section>
+</div>

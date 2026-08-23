@@ -66,7 +66,7 @@ window.BianViews.auth = {
       const r = await A.verifyCode(channel, v, c);
       submit.disabled = false;
       submit.textContent = "进入彼岸";
-      if (r.ok) { A.toast("欢迎回来"); ctx.go("home"); }
+      if (r.ok) { A.toast("欢迎回来"); (window.BianEnterApp ? window.BianEnterApp() : ctx.go("home")); }
       else if (r.status === 400) A.toast("验证码不对，再看看");
       else if (r.status === 429) A.toast("错太多次了，15 分钟后再试");
       else A.toast("没有登录成功，请再试一次");

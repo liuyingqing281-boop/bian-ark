@@ -16,7 +16,29 @@ window.BianViews.home = {
     $("#tab-offer").onclick = () => ctx.go("offering");
     $("#v1-goto-offer").onclick = () => ctx.go("offering");
     $("#v1-goto-memory").onclick = () => ctx.go("memory");
-    $("#v1-more").onclick = () => A.toast("分享纪念馆 / 编辑资料 / 协作管理（馆主）· 举报（访客）");
+    // ⋯ 菜单：创建新纪念馆（R1）+ 其余占位项
+    $("#v1-more").onclick = () => {
+      root.querySelector("#v1-menu")?.remove();
+      const menu = document.createElement("div");
+      menu.id = "v1-menu";
+      menu.style.cssText = "position:absolute;top:56px;right:14px;z-index:35;min-width:172px;border-radius:16px;overflow:hidden;" +
+        "background:#1c0d08;border:1px solid var(--card-border);box-shadow:0 16px 40px rgba(0,0,0,.55)";
+      menu.innerHTML = [
+        ["create", "＋ 创建新纪念馆"],
+        ["share", "分享纪念馆"],
+        ["edit", "编辑资料（馆主）"],
+        ["collab", "协作管理（馆主）"],
+        ["report", "举报"],
+      ].map(([k, t]) => `<button data-k="${k}" class="w-full text-left text-[14px] px-5 py-3.5" style="color:var(--text);border-bottom:1px solid rgba(255,246,236,.06)">${t}</button>`).join("");
+      menu.onclick = (e) => {
+        const k = e.target.closest("button")?.dataset.k;
+        menu.remove();
+        if (k === "create") return ctx.go("wizard");
+        if (k) A.toast(`「${e.target.textContent.trim()}」即将上线`);
+      };
+      root.appendChild(menu);
+      setTimeout(() => document.addEventListener("click", () => menu.remove(), { once: true }), 0);
+    };
 
     // F1 纪念馆资料
     const m = await A.getMemorial(id);

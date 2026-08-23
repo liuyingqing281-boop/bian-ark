@@ -1,0 +1,23 @@
+<!-- V-EMPTY 空态引导页（R1：登录但还没有馆的用户） -->
+<div class="scroll" style="display:flex;flex-direction:column">
+  <section class="pad flex flex-col items-center text-center" style="padding-top:140px;flex:1">
+    <!-- 纸灯插画（CSS 绘制，不用外部图） -->
+    <div style="position:relative;width:120px;height:150px">
+      <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);width:2px;height:26px;background:rgba(255,246,236,.3)"></div>
+      <div style="position:absolute;left:50%;top:24px;transform:translateX(-50%);width:88px;height:104px;border-radius:44px/52px;
+                  background:radial-gradient(circle at 50% 38%, rgba(255,179,92,.28), rgba(255,122,47,.10) 55%, rgba(255,122,47,.05));
+                  border:1px solid rgba(255,179,92,.35);
+                  box-shadow:0 0 44px rgba(255,140,50,.18), inset 0 0 30px rgba(255,179,92,.12)"></div>
+      <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);width:10px;height:18px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;
+                  background:radial-gradient(circle at 50% 75%, #ffd9a0, #ff8c32 60%, rgba(255,140,50,0));
+                  filter:blur(.5px)"></div>
+    </div>
+    <p class="display mt-8 text-[19px]" style="letter-spacing:.12em">这里还空着，等一个故事</p>
+    <p class="t3 text-[13px] mt-3" style="line-height:1.9">建一座纪念馆，把 TA 的样子、<br/>你们的故事，都放在这里</p>
+
+    <button class="btn-primary mt-10" id="empty-create" style="max-width:300px">为 TA 建一座纪念馆</button>
+    <p class="mt-5">
+      <a href="javascript:void 0" id="empty-garden" class="t3 text-[13px]" style="text-decoration:none;border-bottom:1px solid rgba(255,246,236,.2);padding-bottom:2px">先去公共墓园看看</a>
+    </p>
+  </section>
+</div>

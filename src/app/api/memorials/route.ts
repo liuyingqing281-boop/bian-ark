@@ -17,14 +17,16 @@ export async function POST(req: NextRequest) {
   const db = getDb();
   const id = uuid();
   db.prepare(
-    `INSERT INTO memorials (id, name, type, birth_date, death_date, epitaph, biography, user_id, visibility, is_published)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'private', 1)`
+    `INSERT INTO memorials (id, name, type, appellation, avatar_url, birth_date, death_date, epitaph, biography, user_id, visibility, is_published)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'private', 1)`
   ).run(
     id,
     name,
     type,
-    String(body?.birth_date || "").slice(0, 20),
-    String(body?.death_date || "").slice(0, 20),
+    String(body?.appellation || "").trim().slice(0, 10),
+    String(body?.avatarUrl || body?.avatar_url || "").slice(0, 500),
+    String(body?.birthDate || body?.birth_date || "").slice(0, 20),
+    String(body?.deathDate || body?.death_date || "").slice(0, 20),
     String(body?.epitaph || "").slice(0, 200),
     String(body?.biography || "").slice(0, 10000),
     user.id

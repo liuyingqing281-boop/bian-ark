@@ -65,7 +65,23 @@
   });
   document.getElementById("ov-ev-close").addEventListener("click", () => R.closeOverlay());
 
-  /* 启动：未登录 → 屏01 登录注册屏（第一屏）；已登录 → 直达纪念馆首页 */
+  /* 登录态分流：有馆（创建/协作）→ 直达自己的馆；无馆 → 空态引导页（R1）。登录成功后 auth 视图也走这里 */
+  async function enterApp() {
+    const mm = await A.getMeMemorials();
+    const mine = (Array.isArray(mm.data?.items) ? mm.data.items : []).filter(
+      (m) => m.relation === "owner" || m.relation === "created" || m.relation === "collaborator" || m.relation === "collaborating"
+    );
+    if (mine.length) {
+      R.ctx.setId(mine[0].id || mine[0].memorialId || mine[0].memorial_id);
+      R.go("home");
+    } else {
+      R.go("empty");
+    }
+  }
+  window.BianEnterApp = enterApp;
+
+  /* 启动：未登录 → 屏01；已登录 → enterApp 分流 */
   const me = await A.getMe();
-  R.go(me.ok ? "home" : "auth");
+  if (!me.ok) return R.go("auth");
+  await enterApp();
 })();
