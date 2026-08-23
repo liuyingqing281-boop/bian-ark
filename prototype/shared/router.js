@@ -141,7 +141,10 @@
         const t = e.target.closest(".tab");
         if (!t) return;
         const tab = t.dataset.tab;
-        if (tab === "garden") return ctx.toast("「发现」为后续阶段");
+        if (tab === "garden" && current()?.name !== "garden") {
+          stack.length = 0;
+          go("garden");
+        }
         if (tab === "hall") {
           if (current()?.name !== "home") {
             stack.length = 0;

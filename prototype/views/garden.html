@@ -1,0 +1,19 @@
+<!-- V-GARDEN 发现 · 公共墓园（R3） -->
+<div class="navbar">
+  <span class="w-10"></span>
+  <span class="title">公共墓园</span>
+  <span class="w-10"></span>
+</div>
+
+<div class="scroll">
+  <div class="pad pt-3">
+    <div class="card flex items-center gap-3 px-4" style="height:46px;border-radius:999px">
+      <i class="fa-solid fa-magnifying-glass t3 text-[13px]"></i>
+      <input id="garden-q" type="text" maxlength="40" placeholder="找一找那座纪念馆"
+        class="flex-1 bg-transparent outline-none text-[15px]" style="color:var(--text);min-width:0"/>
+    </div>
+  </div>
+
+  <div class="pad grid grid-cols-2 gap-3 pb-6" id="garden-grid"></div>
+  <p class="t3 text-center text-[12px] pb-8" id="garden-hint" style="display:none"></p>
+</div>

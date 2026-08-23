@@ -5,6 +5,6 @@ window.BianViews.empty = {
   async init(root, ctx) {
     const A = window.BianApi;
     root.querySelector("#empty-create").onclick = () => ctx.go("wizard");
-    root.querySelector("#empty-garden").onclick = () => A.toast("「发现 · 公共墓园」即将上线");
+    root.querySelector("#empty-garden").onclick = () => ctx.go("garden");
   },
 };

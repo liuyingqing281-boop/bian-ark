@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
       `SELECT id, name, type, avatar_url, birth_date, death_date, epitaph, garden_section, garden_slot, created_at
        FROM memorials
        WHERE is_published = 1 AND visibility = 'public' AND in_garden = 1 AND name LIKE ?
-       ORDER BY garden_slot ASC`
+       ORDER BY garden_slot ASC
+       LIMIT 100`
     )
     .all(`%${q}%`);
   return NextResponse.json({ memorials: rows });
