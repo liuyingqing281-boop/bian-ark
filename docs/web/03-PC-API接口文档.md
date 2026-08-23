@@ -22,6 +22,8 @@
 | `/family` 亲友共同纪念 | `groups` 族（见 08 §3.10） | — |
 | `/me` 我的页 | `GET /api/me`、`GET /api/me/memorials`、`GET /api/me/orders?limit=&cursor=` ★（🟡→落地） | F1 / F6 |
 | `/discover` 发现（后续） | `garden` 族（见 08 §3.11） | — |
+| 纪念园「星海」 `/garden`（2026-08-23） | `GET /api/garden/starsea?zone=&bbox=`、`GET /api/garden?q=`、`PATCH /api/halls/[id]/garden-pos`（择位）★（🟡，08 §3.13） | F8 |
+| 馆内灯阵（多人馆 `/hall/[id]`，2026-08-23） | `GET /api/halls/[id]`、`PATCH /api/halls/[id]/layout`（摆位）、`POST /api/halls/[id]/offer-all`（合祭）★（🟡，08 §3.13）；人物详情复用既有 memorials 族 | F7 + F1–F6 |
 | 鉴权 | `POST /api/auth/request-code`、`POST /api/auth/verify`、`/api/auth/wechat/*`（PC 扫码主通道） | — |
 | 申诉 | `POST /api/moderation/appeals` | — |
 
@@ -118,7 +120,15 @@
 | 接口 | 新增响应字段 | 说明 |
 |---|---|---|
 | 分页三接口 | `nextCursor` | §二 |
+| `halls` 族 / `garden/starsea`（🟡） | 整接口新增（F7/F8） | 08 §3.13，随 M4 落地；PC 无独占字段 |
 | 其余全部 | 无 | PC 端不加任何独占字段 |
+
+### 3.5 星海/灯阵 PC 消费注意（2026-08-23）
+
+1. `GET /api/garden/starsea` 分片拉取：按当前视口 `bbox` 请求，滚动/缩放时增量补片；LOD 远端光晕只渲染 `x/y/candleLit/lampCount`。
+2. 择位 `409 position_conflict` 时用响应附带的建议空位做引导微移动画，不让用户自己猜。
+3. 合祭 `offer-all` 提交中防重复点击；成功反馈 ≤1.2s（墓园规格 §6 上限）后刷新全馆灯态。
+4. 摆位/择位拖拽仅在「布阵/择位模式」下发起 PATCH，普通浏览零写请求。
 
 ---
 
@@ -141,3 +151,4 @@
 3. orders：金额单位为分、四种状态枚举、`401` 游客。
 4. 回归 08 文档全部 ✅ 冒烟（hall/messages/memories/chat/family-gift/garden/me-memorials），PC 消费不得破坏既有断言。
 5. 红线扫描：接口与字段层面无虚拟币/充值/礼包/打榜/倒计时促销字样。
+6. §3.13 接口落地后：starsea 分片/bbox 参数、择位 409 冲突与建议空位、摆位仅馆主、合祭事务回滚，四项冒烟。

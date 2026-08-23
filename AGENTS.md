@@ -44,3 +44,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - [x] 第 2 步：MRD → `docs/02-MRD.md`（2026-08-22 完成：11 条市场需求 MR-01~11、5 类用户细分 P0–P4、竞争格局与定位空位、移交 BRD 的 6 项决策清单）
 - [x] 第 3 步：BRD → `docs/03-BRD.md`（2026-08-22 完成：免费+一口价+88 元开关式年卡模式、C 端先行路径、12 条业务需求 BR-01~12、北极星指标 WAR、2027 清明倒排里程碑；品牌建议保留"彼岸"+全称区隔，待用户拍板）
 - [x] 第 4 步：PRD → `docs/04-PRD.md`（2026-08-22 完成：12 组功能需求 FR-01~12 + 6 项 NFR + 版本规划（V1.0 MVP 至 V2.0）+ 全链路需求追踪矩阵。**四步调研链路全部完成**，可循矩阵逐条溯源至真实采集数据）
+- [x] 番外：产品 Showreel → `docs/05-Showreel导演方案.md` + `/showreel` 路由（2026-08-23 完成：30s @ 30fps 帧驱动动画，源码 `src/components/showreel/`，独立于 01–04 调研链路）
+- [x] 番外：馆内多人合馆「长明灯阵」展示方案 → `docs/13-馆内多人合馆（长明灯阵）展示方案.md`（2026-08-23 用户拍板：一馆 1~6 位逝者 = 共享场景中的 N 盏灯，场景/抽屉/馆级公共三层，复用墓园交互模型；已同步 PRD 新增 FR-02b、数据库设计新增 B17/F7/M8）
+- [x] 番外：园级「星海」方案（2026-08-23 用户拍板）——园—馆—人三级同构（灯→星群→星座）、缩放连续体、择位=关系排布、星域弱分区；全链路文档已同步：墓园规格 §8、13 号方案 §11、PRD（FR-02b/FR-07/信息架构）、09 数据库（B17 星海列/F8 GardenSeaView/M9）、web/01 §十、web/02 §八、web/03 映射表、08 §3.13 halls 族接口
+- [x] 星海实施落地（2026-08-23 完成）：migrations/021（halls 加 in_garden/garden_x/garden_y/garden_zone）、GET /api/garden/starsea（zone/bbox 分片+脱敏+短缓存）、PATCH /api/halls/[id]/garden-pos（择位/409 建议位/移出）、原型 starsea 视图+择位模式、建馆接口同步建 halls 记录并透传 visibility；14 项回归全过（tools/test-starsea.cjs）；实现差异：馆内摆位落 memorials.lamp_x/lamp_y 而非 halls.layout_json

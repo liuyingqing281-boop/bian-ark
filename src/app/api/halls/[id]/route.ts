@@ -6,6 +6,7 @@ import { trackEvent } from "../../../../lib/events";
 // 馆级聚合（docs/13）：灯阵场景 + 群像数据
 interface HallRow {
   id: string; name: string; motto: string; skin: string; visibility: string; owner_user_id: string;
+  in_garden: number; garden_x: number | null; garden_y: number | null;
 }
 interface MemberRow {
   id: string; name: string; appellation: string; birth_date: string; death_date: string;
@@ -13,7 +14,7 @@ interface MemberRow {
 }
 
 function getHall(id: string): HallRow | undefined {
-  return getDb().prepare("SELECT id, name, motto, skin, visibility, owner_user_id FROM halls WHERE id = ?").get(id) as HallRow | undefined;
+  return getDb().prepare("SELECT id, name, motto, skin, visibility, owner_user_id, in_garden, garden_x, garden_y FROM halls WHERE id = ?").get(id) as HallRow | undefined;
 }
 
 // 馆级可见性：public 皆可；private 仅馆主；group 馆内任一人物关联群的成员
@@ -64,7 +65,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const lit = new Set(litRows.map((r) => r.memorial_id));
 
   return NextResponse.json({
-    hall: { id: hall.id, name: hall.name, motto: hall.motto, skin: hall.skin, visibility: hall.visibility },
+    hall: { id: hall.id, name: hall.name, motto: hall.motto, skin: hall.skin, visibility: hall.visibility, inGarden: hall.in_garden === 1, gardenX: hall.garden_x, gardenY: hall.garden_y },
     isOwner: !!user && hall.owner_user_id === user.id,
     members: members.map((m) => ({
       id: m.id,

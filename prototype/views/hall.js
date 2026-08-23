@@ -9,9 +9,12 @@ window.BianViews.hall = {
   async init(root, ctx) {
     const A = window.BianApi;
     const $ = (s) => root.querySelector(s);
-    // hall_id 以 memorials 为准（合馆后多人物共享一馆；backfill 约定 hall_<memorialId> 仅是 N=1 特例）
-    const mm = await A.getMemorial(ctx.id || A.memorialId());
-    const hallId = (mm.ok && mm.data?.hallId) || "hall_" + (ctx.id || A.memorialId());
+    // hall_id 以 memorials 为准（合馆后多人物共享一馆）；园级星海进入时直接带 hallId
+    let hallId = ctx.params?.hallId || "";
+    if (!hallId) {
+      const mm = await A.getMemorial(ctx.id || A.memorialId());
+      hallId = (mm.ok && mm.data?.hallId) || "hall_" + (ctx.id || A.memorialId());
+    }
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const r = await A.get(`/api/halls/${hallId}`);
@@ -101,6 +104,7 @@ window.BianViews.hall = {
             </button>`).join("")}
           </div>
           <button class="btn-primary mt-4" id="hall-offer-all"><i class="fa-solid fa-fire"></i>为全家点灯</button>
+          ${isOwner && !hall.inGarden ? `<button class="btn-ghost mt-3 w-full" id="hall-place"><i class="fa-solid fa-star"></i>择位入园（在星海中为家选个位置）</button>` : ""}
           <h2 class="t3 text-[11px] tracking-[0.2em] mt-6 mb-2">全馆留言墙</h2>
           <div class="card divide-y divide-white/5">
             ${msgs.length ? msgs.map((g) => `<p class="px-4 py-3 text-[13px]"><span class="t3">致 ${esc(g.memorialName)}：</span>${esc(g.content)}</p>`).join("")
@@ -128,6 +132,7 @@ window.BianViews.hall = {
         box.querySelector("#hall-open").onclick = () => { ctx.setId(m.id); ctx.go("home"); };
       } else {
         box.querySelectorAll(".hall-focus-btn").forEach((b) => (b.onclick = () => { focused = b.dataset.mid; paintDrawer(); }));
+        box.querySelector("#hall-place")?.addEventListener("click", () => ctx.go("starsea", { placing: hallId }));
         box.querySelector("#hall-offer-all").onclick = async () => {
           const rr = await A.post(`/api/halls/${hallId}/offer-all`, {});
           if (rr.ok) {

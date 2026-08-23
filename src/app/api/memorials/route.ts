@@ -13,12 +13,13 @@ export async function POST(req: NextRequest) {
   const name = String(body?.name || "").trim().slice(0, 60);
   if (!name) return NextResponse.json({ error: "name_required" }, { status: 400 });
   const type = VALID_TYPES.has(body?.type) ? body.type : "person";
+  const visibility = body?.visibility === "public" ? "public" : "private";
 
   const db = getDb();
   const id = uuid();
   db.prepare(
     `INSERT INTO memorials (id, name, type, appellation, avatar_url, birth_date, death_date, epitaph, biography, user_id, visibility, is_published)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'private', 1)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
   ).run(
     id,
     name,
@@ -29,8 +30,13 @@ export async function POST(req: NextRequest) {
     String(body?.deathDate || body?.death_date || "").slice(0, 20),
     String(body?.epitaph || "").slice(0, 200),
     String(body?.biography || "").slice(0, 10000),
-    user.id
+    user.id,
+    visibility
   );
+  // M9：建馆即建 halls 记录（一馆一人默认），保证择位/灯阵接口可定位
+  db.prepare(
+    "INSERT INTO halls (id, name, visibility, owner_user_id) VALUES (?, ?, ?, ?)"
+  ).run("hall_" + id, name, visibility === "public" ? "public" : "private", user.id);
   db.prepare("INSERT INTO memorial_audit_logs (memorial_id, actor_user_id, action) VALUES (?, ?, 'create')").run(id, user.id);
   trackEvent("memorial_created", { memorial_id: id, type }, user.id);
   return NextResponse.json({ ok: true, id });

@@ -5,6 +5,7 @@ window.BianViews.garden = {
   async init(root, ctx) {
     const A = window.BianApi;
     const $ = (s) => root.querySelector(s);
+    $("#garden-sea").onclick = () => ctx.go("starsea");
     const grid = $("#garden-grid");
     const hint = $("#garden-hint");
     const qInput = $("#garden-q");

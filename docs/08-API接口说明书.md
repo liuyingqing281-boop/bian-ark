@@ -24,7 +24,7 @@
 | 10 | AI 生成纪念物 | 三步流；帮我写（限量）；帮我准备（幂等）；收藏/分享/再来一件；失败退费 | `POST /api/items/prompt`、`POST /api/items/generate`、`GET /api/items/generate?jobId=`、`POST /api/items/claim` | F6 GiftJobView |
 | 11 | 我的页 | 用户卡片；我的纪念；服务（年卡）；订单流水；亲友共同纪念；通知；隐私；帮助与反馈；设置 | `GET /api/me`、`GET /api/me/memorials`、`GET /api/me/orders`✅、`GET/POST /api/me/notifications`🟡、`POST /api/feedback`🟡、`GET/PATCH /api/me/settings`🟡、`GET/POST /api/me/data`✅、`POST /api/auth/logout`✅、`DELETE /api/memorials/[id]`🟡 | F1/F6 |
 
-亲友共同纪念走 `groups` 族（§3.10）；发现页 = 公共墓园，走 `GET /api/garden`（§3.11）；建馆向导编排见 §3.12。
+亲友共同纪念走 `groups` 族（§3.10）；发现页 = 公共墓园「星海」，走 `GET /api/garden`（§3.11）+ `halls` 族星海/合馆接口（§3.13）；建馆向导编排见 §3.12。
 
 > 2026-08-23 扩展（《11-建馆向导与我的板块方案》R1–R5）：屏02 首页新增空态引导页与「创建新纪念馆」入口；屏06 记忆档案空态可写；底部「发现」落实为公共墓园视图；屏11 按键全部补齐后端。
 
@@ -348,6 +348,60 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 
 ---
 
+### 3.13 星海与合馆（halls 族，2026-08-23 新增，FR-02b/墓园规格 §8）✅ 灯阵/星海已上线，合祭待开
+
+> 依据：13 号方案（灯阵）+ 墓园规格 §8（星海）+ 09 文档 B17/F7/F8/M8/M9。灯阵四接口与星海两接口已实施并过 14 项回归（tools/test-starsea.cjs）；存量单人馆为 N=1 特例，行为不变；建馆 POST /api/memorials 已同步建 halls 记录并透传 visibility。offer-all 合祭仍待开。
+
+#### `GET /api/halls/[id]` ✅（F7 HallView）
+
+馆内灯阵场景数据源：
+```json
+{
+  "id": "h_xxx", "name": "林家纪念馆", "motto": "", "skin": "lanterns",
+  "viewerRole": "owner",
+  "lamps": [
+    { "memorialId": "m_1", "nameMasked": "林**", "birthDate": "1940", "deathDate": "2023",
+      "epitaph": "想念从未离开", "avatarUrl": "…", "candleLit": true, "pos": { "x": 0.42, "y": 0.3 } }
+  ]
+}
+```
+- `lamps` 1~6 盏；`nameMasked` 按 `viewerRole` 装配（馆主原文/访客打码）。
+- 人物详情仍走既有 `GET /api/memorials/[id]` 等接口（按 `memorialId`），本接口不下发内容数据。
+- `404 not_found`：不存在/无权可见。
+
+#### `PATCH /api/halls/[id]/layout` ✅（馆内摆位）
+
+**请求**：`{ "layout": { "m_1": { "x": 0.42, "y": 0.3 } } }`（坐标 0~1）。仅馆主；实现注：摆位坐标落 `memorials.lamp_x/lamp_y` 列（按 memorialId），未用 halls.layout_json 列 → `200 { "ok": true }`。埋点 `lamp_arrange`。
+
+#### `PATCH /api/halls/[id]/garden-pos` ✅（星海择位）
+
+**请求**：`{ "x": 0.63, "y": 0.41 }`；隐式置 `in_garden=1`。仅馆主；前置校验馆可见性 public（否则 `403 forbidden`）；空位冲突检测 `409 position_conflict`（响应附建议邻近空位）。移出星海：`{ "x": null, "y": null }` → `in_garden=0`。埋点 `garden_place`。
+
+#### `GET /api/garden/starsea?zone=&bbox=` ✅（F8 GardenSeaView）
+
+星海分片数据源（LOD）：`zone=public|family|official`；`bbox=x1,y1,x2,y2` 视口分片。
+```json
+{
+  "halls": [
+    { "hallId": "h_1", "nameMasked": "林**", "x": 0.63, "y": 0.41, "zone": "public",
+      "lampCount": 2, "candleLit": true, "avatarUrl": "…",
+      "birthDate": "1940", "deathDate": "2023", "epitaph": "…", "constellationOf": null }
+  ]
+}
+```
+- 仅 `in_garden=1` 且 public 的馆；搜索仍走既有 `GET /api/garden?q=` ✅。
+- 短缓存 `private, max-age=15`；清明脉冲期可静态化快照。
+- `constellationOf`（家族星座连线）M4 祠堂上线前恒 `null`。
+
+#### `POST /api/halls/[id]/offer-all` 🟡（合祭「为全家点灯」）
+
+**请求**：`{ "itemId", "message?": "", "orderId?": null }` → 事务内对馆内每位人物各落一条 `tributes`（付费项共享同一 `orderId`，免费项共享应用层批次号）；任一失败整体回滚。
+**响应**：`201 { "batchId", "count": 2 }`。审核/限频同 `POST /api/tribute`；埋点 `offer_all`。
+
+**红线**：本节所有接口无访问量/热度/榜单字段；择位与摆位不计费、不限次；`zone=official` 仅平台后台可写。
+
+---
+
 ## 四、埋点（随接口打点）
 
 | 埋点 key | 触发 |
@@ -359,6 +413,9 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 | `tribute_created` / `tribute_paid` | 免费/付费供奉 |
 | `gift_funnel` | prompt→generate→claim→share 各步 |
 | `retention_7d/30d` | 离线任务计算 |
+| `lamp_arrange` / `lamp_focus` | 馆内摆位拖拽 / 聚焦某盏灯（§3.13） |
+| `offer_all` | 合祭「为全家点灯」（§3.13） |
+| `garden_place` | 星海择位/移出（§3.13） |
 
 ---
 
