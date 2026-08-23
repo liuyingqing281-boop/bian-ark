@@ -33,6 +33,23 @@ npm ci && npm run db:backup && npm run build && npm run db:migrate && npm run db
 pm2 restart ecosystem.config.cjs --env production && npm run release:smoke
 ```
 
+## 发布（小内存服务器推荐：本地构建产物上传，2026-08-23 起）
+
+2C2G 机器上 `next build` 易 OOM/拖垮整机。**改为本地（开发机）构建、服务器只运行不编译**：
+
+```bash
+# 本地（Windows PowerShell，E:\彼岸）：
+git worktree add --detach ../bian-build master          # 干净副本
+cd ../bian-build && npm ci --ignore-scripts && npm run build
+tar czf ../bian-release-next.tar.gz .next               # 产物包约 90MB
+scp ../bian-release-next.tar.gz root@47.238.100.165:/var/www/bian/
+
+# 服务器：
+cd /var/www/bian && bash deploy/apply-release.sh        # 备份→解包→迁移→重启→冒烟
+```
+
+注意：原生模块（better-sqlite3）仍在服务器侧 `npm ci` 安装，产物只含平台无关的 `.next`；本地装依赖用 `--ignore-scripts` 跳过原生编译即可（构建不执行它）。
+
 ## 回滚
 
 1. 停止新版本进程，保留失败版本日志和数据库备份。
