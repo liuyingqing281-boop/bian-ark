@@ -108,5 +108,9 @@
     getMe: () => get(`/api/me`),
     getMeMemorials: () => get(`/api/me/memorials`),
     getMeOrders: () => get(`/api/me/orders`),
+    /* 认证（屏01 登录注册屏）：登录即注册 */
+    requestCode: (channel, target) => post(`/api/auth/request-code`, { channel, target }),
+    verifyCode: (channel, target, code) => post(`/api/auth/verify`, { channel, target, code }),
+    logout: () => post(`/api/auth/logout`, {}),
   };
 })();

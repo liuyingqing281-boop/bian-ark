@@ -1,0 +1,45 @@
+<!-- V0 登录注册屏（屏01 · 第一屏 · 登录即注册） -->
+<div class="scroll" style="display:flex;flex-direction:column">
+  <section class="pad flex flex-col items-center text-center" style="padding-top:96px">
+    <h1 class="display" style="font-size:56px;letter-spacing:.22em;margin-right:-.22em">彼岸</h1>
+    <p class="t3 mt-3" style="letter-spacing:.4em;margin-right:-.4em">思念有处安放</p>
+  </section>
+
+  <section class="pad mt-8" style="flex:1">
+    <div class="card p-5">
+      <!-- 通道切换 -->
+      <div class="flex gap-6" id="auth-channels" style="border-bottom:1px solid var(--card-border)">
+        <button class="auth-ch active" data-ch="sms" style="padding:0 2px 12px;font-size:15px">手机号</button>
+        <button class="auth-ch" data-ch="email" style="padding:0 2px 12px;font-size:15px">邮箱</button>
+      </div>
+
+      <!-- 账号输入 -->
+      <div class="mt-4">
+        <input id="auth-target" type="text" inputmode="tel" placeholder="手机号"
+          class="w-full bg-transparent outline-none text-[16px] py-3"
+          style="color:var(--text);border-bottom:1px solid var(--card-border)"/>
+      </div>
+
+      <!-- 验证码 + 获取按钮 -->
+      <div class="flex items-center gap-3 mt-2" style="border-bottom:1px solid var(--card-border)">
+        <input id="auth-code" type="text" inputmode="numeric" maxlength="6" placeholder="6 位验证码"
+          class="flex-1 bg-transparent outline-none text-[16px] py-3"
+          style="color:var(--text);min-width:0"/>
+        <button id="auth-send" class="btn-ghost" style="height:38px;padding:0 16px;font-size:13px;white-space:nowrap">获取验证码</button>
+      </div>
+    </div>
+
+    <button class="btn-primary mt-6" id="auth-submit">进入彼岸</button>
+    <button class="btn-ghost mt-3" id="auth-wechat" style="height:48px">
+      <i class="fa-brands fa-weixin mr-2"></i>微信扫码登录
+    </button>
+    <p class="text-center mt-5">
+      <a href="javascript:void 0" id="auth-guest" class="t3 text-[13px]" style="text-decoration:none;border-bottom:1px solid rgba(255,246,236,.2);padding-bottom:2px">先看看，不登录</a>
+    </p>
+  </section>
+
+  <p class="t3 text-center text-[11px] px-8 pb-6" style="line-height:1.8">
+    登录即表示同意<a href="/zh/legal/terms" style="color:inherit;border-bottom:1px solid rgba(255,246,236,.2)">《用户协议》</a>与<a href="/zh/legal/privacy" style="color:inherit;border-bottom:1px solid rgba(255,246,236,.2)">《隐私政策》</a><br/>
+    新账号验证通过即自动创建，无需单独注册
+  </p>
+</div>

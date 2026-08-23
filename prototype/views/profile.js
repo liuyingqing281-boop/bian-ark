@@ -15,7 +15,7 @@ window.BianViews.profile = {
       $("#me-name").textContent = "未登录";
       $("#me-sub").textContent = "点击前往登录";
       $("#me-card").style.cursor = "pointer";
-      $("#me-card").onclick = () => (location.href = "/zh/login");
+      $("#me-card").onclick = () => ctx.go("auth");
       $("#me-memorials").innerHTML = `<p class="px-5 py-4 t3 text-[13px]">登录后展示你创建、协作和纪念过的纪念馆。</p>`;
       $("#me-orders-sub").textContent = "登录后可见";
       return;

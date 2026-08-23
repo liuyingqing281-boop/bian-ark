@@ -1,6 +1,6 @@
 # 彼岸 · API 接口说明书（前后端分离版）
 
-> 依据：`prototype/index.html`（单屏互动原型，10 屏 → 8 视图 + 4 浮层，见《10-单屏互动原型改造方案》）+《前端具体设计流程.md》逐屏拆解；与《09-数据库设计》配套：09 上篇定义的视图模型（F1–F6）即本文的响应体契约。
+> 依据：`prototype/index.html`（单屏互动原型，11 屏 → 9 视图 + 4 浮层，见《10-单屏互动原型改造方案》；屏01 登录注册屏见《前端具体设计流程.md》§2.0）+《前端具体设计流程.md》逐屏拆解；与《09-数据库设计》配套：09 上篇定义的视图模型（F1–F6）即本文的响应体契约。
 > 分界原则：**前端只消费视图模型（camelCase、已打码、已换算权限）**；snake_case 物理字段、SQL、表关系属于后端装配层（见 09 下篇 B0 装配表），接口文档中仅在后端实现注记中出现。
 > 现状标注：✅ 已实现并过冒烟｜🟡 部分实现/待开接口｜❌ 未做。响应示例按目标契约书写；已实现接口若当前返回 snake_case，由适配层统一转 camelCase（见 §八适配说明）。
 > 通用约定：JSON；Cookie 会话鉴权；所有用户输入过 `moderateText`；时间一律 UTC ISO 串下发（前端换算时区/相对时间）；错误统一 `{ "error": "<code>" }`。
@@ -8,20 +8,21 @@
 
 ---
 
-## 一、交互 → 接口总览（按 10 屏拆解）
+## 一、交互 → 接口总览（按 11 屏拆解）
 
 | 屏 | 页面 | 关键交互 | 依赖接口 | 视图模型 |
 |---|---|---|---|---|
-| 01 | 纪念馆首页 | TA 资料/照片；主 CTA；⋯ 菜单（分享/编辑/协作/举报）；时间线【+】；最近纪念流；免费三项供奉；灯亮状态 | `GET /api/memorials/[id]`、`GET /api/timeline`、`GET /api/hall/feed`、`GET /api/items`、`POST /api/tribute` | F1 / F2 / F3 / F6 |
-| 02 | 想念页 | 类型单选（留言/悄悄话/悼文）；500 字计数；提交；「你留下的」 | `GET/POST /api/messages` | F3 同源 |
-| 03 | 身份说明页 | 纯声明页，按钮=确认边界（前端本地态）+ 埋点 | 无数据接口 | — |
-| 04 | 对话页 | 发消息；依据链接；推测角标；快捷 chip；重试；补充记忆闭环；清空对话 | `POST /api/hall/chat`、`GET/DELETE /api/hall/chat/history`🟡、`POST /api/memories`(source=chat) | F5 / F4 |
-| 05 | 记忆档案页 | 5 分区 + 总条数；编辑；左滑删除 | `GET/POST /api/memories`、`PATCH/DELETE /api/memories/[id]` | F4 |
-| 06 | 添加记忆抽屉 | 选分区→录入→保存→toast 回跳 | `POST /api/memories` | F4 |
-| 07 | 祭奠页 | 免费三项直接供奉；付费三项弹确认；供桌灯态 | `GET /api/items`、`POST /api/tribute` | F6 |
-| 08 | 一口价确认弹窗 | 白名单元素展示；【供奉】→下单支付；【取消】 | `POST /api/stripe`、webhook、`POST /api/tribute`(orderId) | F6 |
-| 09 | AI 生成纪念物 | 三步流；帮我写（限量）；帮我准备（幂等）；收藏/分享/再来一件；失败退费 | `POST /api/items/prompt`、`POST /api/items/generate`、`GET /api/items/generate?jobId=`、`POST /api/items/claim` | F6 GiftJobView |
-| 10 | 我的页 | 用户卡片；我的纪念；订单流水；设置 | `GET /api/me`、`GET /api/me/memorials`、`GET /api/me/orders`🟡 | F1/F6 |
+| 01 | 登录注册屏（第一屏） | 通道切换（手机/邮箱）；获取验证码（60s 倒计时）；验证码校验（登录即注册）；微信扫码；「先看看」访客态 | `POST /api/auth/request-code`、`POST /api/auth/verify`、`POST /api/auth/logout`、`GET /api/auth/wechat/qrcode`🟡、回调 `GET /api/auth/wechat/callback`🟡、`GET /api/me`（启动判登录态） | —（无馆数据，§3.0） |
+| 02 | 纪念馆首页 | TA 资料/照片；主 CTA；⋯ 菜单（分享/编辑/协作/举报）；时间线【+】；最近纪念流；免费三项供奉；灯亮状态 | `GET /api/memorials/[id]`、`GET /api/timeline`、`GET /api/hall/feed`、`GET /api/items`、`POST /api/tribute` | F1 / F2 / F3 / F6 |
+| 03 | 想念页 | 类型单选（留言/悄悄话/悼文）；500 字计数；提交；「你留下的」 | `GET/POST /api/messages` | F3 同源 |
+| 04 | 身份说明页 | 纯声明页，按钮=确认边界（前端本地态）+ 埋点 | 无数据接口 | — |
+| 05 | 对话页 | 发消息；依据链接；推测角标；快捷 chip；重试；补充记忆闭环；清空对话 | `POST /api/hall/chat`、`GET/DELETE /api/hall/chat/history`🟡、`POST /api/memories`(source=chat) | F5 / F4 |
+| 06 | 记忆档案页 | 5 分区 + 总条数；编辑；左滑删除 | `GET/POST /api/memories`、`PATCH/DELETE /api/memories/[id]` | F4 |
+| 07 | 添加记忆抽屉 | 选分区→录入→保存→toast 回跳 | `POST /api/memories` | F4 |
+| 08 | 祭奠页 | 免费三项直接供奉；付费三项弹确认；供桌灯态 | `GET /api/items`、`POST /api/tribute` | F6 |
+| 09 | 一口价确认弹窗 | 白名单元素展示；【供奉】→下单支付；【取消】 | `POST /api/stripe`、webhook、`POST /api/tribute`(orderId) | F6 |
+| 10 | AI 生成纪念物 | 三步流；帮我写（限量）；帮我准备（幂等）；收藏/分享/再来一件；失败退费 | `POST /api/items/prompt`、`POST /api/items/generate`、`GET /api/items/generate?jobId=`、`POST /api/items/claim` | F6 GiftJobView |
+| 11 | 我的页 | 用户卡片；我的纪念；订单流水；设置 | `GET /api/me`、`GET /api/me/memorials`、`GET /api/me/orders`🟡 | F1/F6 |
 
 亲友共同纪念走 `groups` 族（§3.10）；发现页走 `garden` 族（§3.11）。
 
@@ -40,6 +41,35 @@
 ---
 
 ## 三、接口明细
+
+### 3.0 认证（屏01 登录注册屏，登录即注册）
+
+#### `POST /api/auth/request-code` ✅
+**请求**：`{ "channel": "sms" | "email", "target": "1xxxxxxxxxx 或邮箱" }`
+- 手机号正则 `^1\d{10}$`、邮箱标准格式，不符 `400 invalid_phone / invalid_email`。
+- 限频：同通道同目标 60s 内重发 `429 too_frequent`；同 IP 日上限（默认 100，`AUTH_IP_DAILY_LIMIT` 可配）`429 rate_limited`。
+- 验证码 6 位数字，10 分钟有效；新码生成即作废旧码。
+
+**响应 200**：`{ "ok": true, "delivered": true, "devCode?": "123456" }`
+> `devCode` 仅非生产环境且未接真实短信/邮件网关时返回，原型用它自动回填，生产绝不下发。
+
+#### `POST /api/auth/verify` ✅
+**请求**：`{ "channel", "target", "code": "6 位", "name?": "" }`
+- 全角数字自动归一；错 5 次锁 15 分钟（`429 too_many_attempts`）；过期/不符 `400 invalid_code`。
+- 校验通过 → 查 `users` 按 email/phone 找账号，**无则自动建号（登录即注册）** → 写 Cookie 会话 → 埋点 `login`。
+
+**响应 200**：`{ "ok": true }` → 前端进「纪念馆首页」。
+
+#### `POST /api/auth/logout` ✅
+销毁会话 Cookie → `200 { "ok": true }`（我的页「设置 → 退出登录」用）。
+
+#### 微信扫码 🟡
+`GET /api/auth/wechat/qrcode` → `{ "qrcodeUrl", "ticket" }` → 前端弹层展示二维码，轮询 `GET /api/auth/wechat/callback?ticket=` 换会话。依赖微信开放平台配置（`WECHAT_*` 环境变量），原型态为占位按钮。
+
+#### `GET /api/me` ✅
+启动判登录态：`200 { "user": { "id", "name", "email", "phone" } }`；未登录 `401`——原型据此决定第一屏落「登录注册屏」还是直达「纪念馆首页」。
+
+---
 
 ### 3.1 纪念馆（F1 MemorialView）
 

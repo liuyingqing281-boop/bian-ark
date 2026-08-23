@@ -1,7 +1,6 @@
 /* 壳逻辑：浮层行为 + 启动 */
-(function () {
+(async function () {
   const R = window.BianRouter, A = window.BianApi;
-
   R.mount({
     viewRoot: document.getElementById("view-root"),
     overlayRoot: document.getElementById("overlay-root"),
@@ -66,6 +65,7 @@
   });
   document.getElementById("ov-ev-close").addEventListener("click", () => R.closeOverlay());
 
-  /* 启动：默认纪念馆首页 */
-  R.go("home");
+  /* 启动：未登录 → 屏01 登录注册屏（第一屏）；已登录 → 直达纪念馆首页 */
+  const me = await A.getMe();
+  R.go(me.ok ? "home" : "auth");
 })();
