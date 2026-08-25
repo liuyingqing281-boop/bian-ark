@@ -22,10 +22,10 @@ const { chromium } = require("playwright");
 
   /* 登录（合祭需要） */
   await page.evaluate(async () => {
-    const phone = "132" + String(Math.floor(Math.random() * 1e8)).padStart(8, "0");
+    const phone = "1320000" + String(Math.floor(Math.random() * 1e4)).padStart(4, "0"); // 测试号段，跳过真实短信
     const r1 = await fetch("/api/auth/request-code", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel: "sms", target: phone }) });
     const d = await r1.json();
-    await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel: "sms", target: phone, code: d.devCode }) });
+    await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel: "sms", target: phone, code: d.devCode, intent: "register", agreed: true }) });
   });
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(1500);

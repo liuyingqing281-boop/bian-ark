@@ -12,13 +12,15 @@ export default async function LoginPage({
   searchParams,
 }: {
   params: Promise<{ lang: string }>;
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   const { lang: rawLang } = await params;
   const lang = hasLocale(rawLang) ? rawLang : defaultLocale;
   const dict = getDictionary(lang);
-  const { next } = await searchParams;
+  const { next, error } = await searchParams;
   const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "";
+  // 微信回调错误落地（docs/08 §3.0）：wechat_not_registered / wechat_already_registered
+  const wechatError = error?.startsWith("wechat_") ? error : "";
   const zh = lang !== "en";
 
   return (
@@ -49,21 +51,13 @@ export default async function LoginPage({
           box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
           text-align: left;
         }
-        .login-card-title {
-          text-align: center;
-          font-size: 15px;
-          letter-spacing: 0.2em;
-          color: #d8a95c;
-          margin-bottom: 18px;
-        }
       `}</style>
 
       <h1 className="login-title">{zh ? "彼岸" : "The Other Shore"}</h1>
       <p className="login-tagline">{zh ? "思念有处安放" : "Where memories rest"}</p>
 
       <div className="login-card">
-        <p className="login-card-title">{dict.auth.title}</p>
-        <LoginForm lang={lang} next={safeNext} labels={dict.auth} />
+        <LoginForm lang={lang} next={safeNext} labels={dict.auth} wechatError={wechatError} />
       </div>
     </ConceptStage>
   );

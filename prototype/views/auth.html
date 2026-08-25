@@ -1,15 +1,60 @@
-<!-- V0 登录注册屏（屏01 · 第一屏 · 登录即注册） -->
-<div class="scroll" style="display:flex;flex-direction:column">
+<!-- V0 登录注册屏（屏01 · 第一屏 · 登录/注册分离，2026-08-24 拍板：默认登录 tab，注册专门点击）
+     视觉：docs/前端具体设计流程.md §2.0「视觉规范」——概念光绸背景 × 深色半透明毛玻璃表单卡 -->
+<style>
+  /* 光绸背景宿主：盖住 .view 的默认暗暖渐变；无 WebGL 时仅留静态渐变降级层 */
+  .auth-silk { position: absolute; inset: 0; z-index: 0; background: #10141c; }
+  .auth-silk-fallback {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(120% 90% at 30% 20%, rgba(216, 169, 92, 0.28), transparent 55%),
+      radial-gradient(100% 80% at 75% 80%, rgba(178, 60, 48, 0.20), transparent 60%),
+      radial-gradient(140% 120% at 50% 50%, #1a2233 0%, #10141c 70%);
+  }
+  .auth-silk canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* 深色半透明毛玻璃表单卡（同 PC 登录页 .login-card），保证光绸背景上的对比度 */
+  .auth-card {
+    background: rgba(16, 20, 28, 0.55) !important;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(232, 226, 214, 0.14) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  }
+
+  /* 「换个意境」色板切换（同概念首页右下角胶囊按钮） */
+  .auth-palette-btn {
+    position: absolute; right: 16px; bottom: 88px; z-index: 2;
+    font: inherit; font-size: 12px; letter-spacing: 0.05em;
+    color: rgba(232, 226, 214, 0.6); background: none; cursor: pointer;
+    border: 1px solid rgba(232, 226, 214, 0.22); border-radius: 999px;
+    padding: 7px 18px;
+    transition: border-color 0.3s ease, color 0.3s ease;
+  }
+  .auth-palette-btn:hover { border-color: rgba(216, 169, 92, 0.6); color: #d8a95c; }
+</style>
+
+<div class="auth-silk" id="auth-silk">
+  <div class="auth-silk-fallback"></div>
+</div>
+
+<div class="scroll" style="display:flex;flex-direction:column;position:relative;z-index:1">
   <section class="pad flex flex-col items-center text-center" style="padding-top:96px">
-    <h1 class="display" style="font-size:56px;letter-spacing:.22em;margin-right:-.22em">彼岸</h1>
-    <p class="t3 mt-3" style="letter-spacing:.4em;margin-right:-.4em">思念有处安放</p>
+    <h1 class="display" style="font-size:56px;letter-spacing:.22em;margin-right:-.22em;text-shadow:0 2px 40px rgba(0,0,0,.45)">彼岸</h1>
+    <p class="mt-3" style="letter-spacing:.4em;margin-right:-.4em;color:rgba(232,226,214,.55)">思念有处安放</p>
   </section>
 
   <section class="pad mt-8" style="flex:1">
-    <div class="card p-5">
-      <!-- 通道切换 -->
-      <div class="flex gap-6" id="auth-channels" style="border-bottom:1px solid var(--card-border)">
-        <button class="auth-ch active" data-ch="sms" style="padding:0 2px 12px;font-size:15px">手机号</button>
+    <div class="card auth-card p-5">
+      <!-- 登录/注册双 tab：默认「登录」，注册专门点击 -->
+      <div class="flex gap-8" id="auth-tabs" style="border-bottom:1px solid var(--card-border)">
+        <button class="auth-tab active" data-mode="login" style="padding:0 2px 12px;font-size:16px">登录</button>
+        <button class="auth-tab" data-mode="register" style="padding:0 2px 12px;font-size:16px">注册</button>
+      </div>
+
+      <!-- 通道切换（登录/注册两 tab 同构平级） -->
+      <div class="flex gap-6 mt-4" id="auth-channels" style="border-bottom:1px solid var(--card-border)">
+        <button class="auth-ch active" data-ch="sms" style="padding:0 2px 12px;font-size:15px">手机</button>
         <button class="auth-ch" data-ch="email" style="padding:0 2px 12px;font-size:15px">邮箱</button>
       </div>
 
@@ -27,19 +72,32 @@
           style="color:var(--text);min-width:0"/>
         <button id="auth-send" class="btn-ghost" style="height:38px;padding:0 16px;font-size:13px;white-space:nowrap">获取验证码</button>
       </div>
+
+      <!-- 昵称（仅注册 tab） -->
+      <div id="auth-name-row" class="mt-2" style="display:none;border-bottom:1px solid var(--card-border)">
+        <input id="auth-name" type="text" maxlength="20" placeholder="怎么称呼你（选填）"
+          class="w-full bg-transparent outline-none text-[16px] py-3" style="color:var(--text)"/>
+      </div>
+
+      <!-- 协议勾选（仅注册 tab，必勾） -->
+      <label id="auth-agree-row" class="flex items-start gap-2 mt-4" style="display:none;cursor:pointer">
+        <input id="auth-agree" type="checkbox" style="margin-top:3px;accent-color:#d8a95c"/>
+        <span class="t3 text-[12px]" style="line-height:1.7">我已阅读并同意<a href="/zh/legal/terms" style="color:inherit;border-bottom:1px solid rgba(255,246,236,.2)">《用户协议》</a>与<a href="/zh/legal/privacy" style="color:inherit;border-bottom:1px solid rgba(255,246,236,.2)">《隐私政策》</a></span>
+      </label>
     </div>
 
     <button class="btn-primary mt-6" id="auth-submit">进入彼岸</button>
     <button class="btn-ghost mt-3" id="auth-wechat" style="height:48px">
-      <i class="fa-brands fa-weixin mr-2"></i>微信扫码登录
+      <i class="fa-brands fa-weixin mr-2"></i><span id="auth-wechat-text">微信扫码登录</span>
     </button>
     <p class="text-center mt-5">
       <a href="javascript:void 0" id="auth-guest" class="t3 text-[13px]" style="text-decoration:none;border-bottom:1px solid rgba(255,246,236,.2);padding-bottom:2px">先看看，不登录</a>
     </p>
   </section>
 
-  <p class="t3 text-center text-[11px] px-8 pb-6" style="line-height:1.8">
-    登录即表示同意<a href="/zh/legal/terms" style="color:inherit;border-bottom:1px solid rgba(255,246,236,.2)">《用户协议》</a>与<a href="/zh/legal/privacy" style="color:inherit;border-bottom:1px solid rgba(255,246,236,.2)">《隐私政策》</a><br/>
-    新账号验证通过即自动创建，无需单独注册
+  <p class="t3 text-center text-[11px] px-8 pb-6" id="auth-footer" style="line-height:1.8">
+    登录即表示同意<a href="/zh/legal/terms" style="color:inherit;border-bottom:1px solid rgba(255,246,236,.2)">《用户协议》</a>与<a href="/zh/legal/privacy" style="color:inherit;border-bottom:1px solid rgba(255,246,236,.2)">《隐私政策》</a>
   </p>
 </div>
+
+<button type="button" id="auth-palette" class="auth-palette-btn">换个意境</button>

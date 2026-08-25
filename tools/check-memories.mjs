@@ -54,7 +54,7 @@ async function login(email) {
   })).json();
   const vr = await fetch(`${BASE}/api/auth/verify`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ channel: "email", target: email, code: rc.devCode }),
+    body: JSON.stringify({ channel: "email", target: email, code: rc.devCode, intent: "register", agreed: true }),
   });
   const cookie = (vr.headers.getSetCookie?.() || []).map((c) => c.split(";")[0]).join("; ");
   return cookie;

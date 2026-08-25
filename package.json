@@ -26,6 +26,8 @@
     "postinstall": "node tools/patch-devtools-zh.cjs"
   },
   "dependencies": {
+    "@alicloud/dysmsapi20170525": "^4.6.0",
+    "@alicloud/openapi-client": "^0.4.15",
     "@stripe/stripe-js": "^9.12.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.1.2",

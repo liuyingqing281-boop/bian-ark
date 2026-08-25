@@ -24,7 +24,7 @@
 | `/discover` 发现（后续） | `garden` 族（见 08 §3.11） | — |
 | 纪念园「星海」 `/garden`（2026-08-23） | `GET /api/garden/starsea?zone=&bbox=`、`GET /api/garden?q=`、`PATCH /api/halls/[id]/garden-pos`（择位）★（🟡，08 §3.13） | F8 |
 | 馆内灯阵（多人馆 `/hall/[id]`，2026-08-23） | `GET /api/halls/[id]`、`PATCH /api/halls/[id]/layout`（摆位）、`POST /api/halls/[id]/offer-all`（合祭）★（🟡，08 §3.13）；人物详情复用既有 memorials 族 | F7 + F1–F6 |
-| 鉴权 | `POST /api/auth/request-code`、`POST /api/auth/verify`、`/api/auth/wechat/*`（PC 扫码主通道） | — |
+| 鉴权 | `POST /api/auth/request-code`、`POST /api/auth/verify`（`intent` 登录/注册分流 ✅，08 §3.0）、`POST /api/auth/wechat/qrcode`/回调（✅ 含 intent）、`POST/DELETE /api/auth/bind`（✅）；PC 消费注意见 §3.7 | — |
 | 申诉 | `POST /api/moderation/appeals` | — |
 
 ★ = PC 相关增量/待落地项，详见下两节；其余接口契约**原样引用 08 文档**，前端 PC/移动两端共用。
@@ -129,6 +129,21 @@
 2. 择位 `409 position_conflict` 时用响应附带的建议空位做引导微移动画，不让用户自己猜。
 3. 合祭 `offer-all` 提交中防重复点击；成功反馈 ≤1.2s（墓园规格 §6 上限）后刷新全馆灯态。
 4. 摆位/择位拖拽仅在「布阵/择位模式」下发起 PATCH，普通浏览零写请求。
+
+### 3.6 语音接口 PC 消费注意（2026-08-23，08 §3.14）
+
+1. `POST /api/voice/asr`：前端 AudioWorklet 直出 WAV base64（≤60s/≤3MB），SSE 流式消费 `delta` 追加到输入框光标处；`503 voice_unavailable` 降级 Web Speech API。
+2. `POST /api/voice/tts`：响应为 PCM16 流（24kHz 单声道），AudioContext 拼接边收边播；⏸ 中止即断流；`503` 降级 SpeechSynthesis。
+3. 音色视图 `voiceProfile` 由 `GET /api/memorials/[id]` 随 F1 下发（F9，不单开查询）；`clone` 未 approved 一律按默认音色请求。
+4. `POST /api/voice/preview` 试听不产生落库；B 档样本先 `POST /api/upload` 再带 `mediaId` 提交，不直传音频 base64。
+5. 埋点 `voice_input_used / voice_play / voice_profile_set / voice_clone_submit` 携带 `platform: "web-pc"`，规则同 §四-7。
+
+### 3.7 认证接口 PC 消费注意（2026-08-24，08 §3.0 登录/注册分离 ✅ 已实施）
+
+1. `POST /api/auth/verify` 与 `POST /api/auth/wechat/qrcode` 均必传 `intent: "login" | "register"`；缺省 `400 missing_intent`。PC `/login` 双 tab（默认登录，见 01 §9.4）分别以 `login` / `register` 发起。
+2. 分流错误引导：`404 account_not_found` → toast + 「去注册」切 tab；`409 already_registered` → toast + 切回登录（保留账号输入）；`400 agreement_required` → 协议勾选抖动提示。注册 `channel=sms|email` 均可（手机 / 邮箱平级，同登录）。
+3. 微信扫码为整页 OAuth 跳转（无轮询）：`qrcode` 返回 `{url, state}`，`window.location` 跳转；回调错误经 `/{lang}/login?error=wechat_not_registered｜wechat_already_registered` 落地，登录页挂载时解析 `?error=` 并自动切 tab。
+4. 绑定/解绑 `POST/DELETE /api/auth/bind`（✅ 已有）：我的页「账号与安全」消费；解绑最后一种登录方式 `409 last_login_method` 需 toast 明示。
 
 ---
 

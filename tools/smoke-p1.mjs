@@ -42,7 +42,7 @@ const rc = await ownerApi("/api/auth/request-code", { method: "POST", body: { ch
 check("request-code ok", rc.json?.ok, true);
 check("request-code devCode present", typeof rc.json?.devCode === "string" && rc.json.devCode.length === 6);
 
-const vf = await ownerApi("/api/auth/verify", { method: "POST", body: { channel: "email", target: ownerEmail, code: rc.json.devCode }, auth: false });
+const vf = await ownerApi("/api/auth/verify", { method: "POST", body: { channel: "email", target: ownerEmail, code: rc.json.devCode, intent: "register", agreed: true }, auth: false });
 check("verify ok", vf.json?.ok, true);
 check("session cookie set", ownerClient.cookieJar.has("bian_session"));
 resources.registerUser(ownerEmail, db.prepare("SELECT id FROM users WHERE email = ?").get(ownerEmail)?.id);
@@ -67,7 +67,7 @@ resources.register("groupIds", gid);
 
 // second user should not view private memorial
 const rc2 = await memberApi("/api/auth/request-code", { method: "POST", body: { channel: "email", target: memberEmail }, auth: false });
-await memberApi("/api/auth/verify", { method: "POST", body: { channel: "email", target: memberEmail, code: rc2.json.devCode }, auth: false });
+await memberApi("/api/auth/verify", { method: "POST", body: { channel: "email", target: memberEmail, code: rc2.json.devCode, intent: "register", agreed: true }, auth: false });
 resources.registerUser(memberEmail, db.prepare("SELECT id FROM users WHERE email = ?").get(memberEmail)?.id);
 const stranger = await memberApi(`/zh/memorial/${mid}`);
 check("stranger blocked from private memorial", stranger.text.includes(memorialName), false);

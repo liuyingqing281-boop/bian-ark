@@ -12,7 +12,7 @@
 
 | 屏 | 页面 | 关键交互 | 依赖接口 | 视图模型 |
 |---|---|---|---|---|
-| 01 | 登录注册屏（第一屏） | 通道切换（手机/邮箱）；获取验证码（60s 倒计时）；验证码校验（登录即注册）；微信扫码；「先看看」访客态 | `POST /api/auth/request-code`、`POST /api/auth/verify`、`POST /api/auth/logout`、`GET /api/auth/wechat/qrcode`🟡、回调 `GET /api/auth/wechat/callback`🟡、`GET /api/me`（启动判登录态） | —（无馆数据，§3.0） |
+| 01 | 登录注册屏（第一屏，2026-08-24 起：登录/注册分离，默认登录 tab）✅ 已实施 | 默认「登录」tab：手机/邮箱通道切换（平级）、获取验证码（60s 倒计时）、微信扫码登录、「先看看」访客态；「注册」tab（专门点击进入）：手机/邮箱通道切换（平级）+ 验证码 + 昵称 + 协议勾选、微信注册 | `POST /api/auth/request-code`、`POST /api/auth/verify`（intent 分流 ✅）、`POST /api/auth/logout`、`POST /api/auth/wechat/qrcode`✅、回调 `GET /api/auth/wechat/callback`✅、`POST/DELETE /api/auth/bind`✅、`GET /api/me`（启动判登录态） | —（无馆数据，§3.0） |
 | 02 | 纪念馆首页 | TA 资料/照片；主 CTA；⋯ 菜单（分享/编辑/协作/举报）；时间线【+】；最近纪念流；免费三项供奉；灯亮状态 | `GET /api/memorials/[id]`、`GET /api/timeline`、`GET /api/hall/feed`、`GET /api/items`、`POST /api/tribute` | F1 / F2 / F3 / F6 |
 | 03 | 想念页 | 类型单选（留言/悄悄话/悼文）；500 字计数；提交；「你留下的」 | `GET/POST /api/messages` | F3 同源 |
 | 04 | 身份说明页 | 纯声明页，按钮=确认边界（前端本地态）+ 埋点 | 无数据接口 | — |
@@ -32,7 +32,7 @@
 
 ## 二、鉴权与通用规则
 
-- **会话**：`POST /api/auth/request-code` → `POST /api/auth/verify` 换 Cookie 会话；微信扫码 `/api/auth/wechat/*`。未登录 = 访客态，只读公开内容。
+- **会话**：`POST /api/auth/request-code` → `POST /api/auth/verify`（`intent` 区分登录/注册，2026-08-24 拍板分离）或微信扫码 `/api/auth/wechat/*`（qrcode 同样带 `intent`）换 Cookie 会话。未登录 = 访客态，只读公开内容。
 - **角色**：`owner > collaborator > member > guest`。前端不自行推断权限，一律读视图模型中的 `viewerRole`（由后端 `lib/permissions.ts` 装配）。
 - **可见性**：服务端强制；悄悄话越权返回过滤后列表而非 403（不泄露存在性）。
 - **打码**：只在后端输出层做（`maskName`），前端直接渲染 `senderMasked`/`nameMasked`，任何接口不返回完整真实姓名。
@@ -44,29 +44,47 @@
 
 ## 三、接口明细
 
-### 3.0 认证（屏01 登录注册屏，登录即注册）
+### 3.0 认证（屏01 登录注册屏；2026-08-24 拍板：登录/注册分离）🔄
+
+> **拍板内容**：注册与登录彻底分开，废除「登录即注册」。**手机号 / 邮箱 / 微信三种方式平级**，同等地作为登录与注册通道；默认进登录，注册需专门点击切换 tab。前端默认态为登录（见《前端具体设计流程》§2.0、PC `/login` 见《web/01》§9.4）。
+> **实施状态**（2026-08-24 已落地）：request-code / verify（含 `intent` 分流）/ logout / bind / wechat qrcode+callback（含 `intent`）全部 ✅ 已实现，迁移 023（M11）已应用；旧调用缺 `intent` 一律 `400 missing_intent`，无自动建号兼容分支。冒烟 `tools/test-auth-intent.cjs` 12/12。
 
 #### `POST /api/auth/request-code` ✅
 **请求**：`{ "channel": "sms" | "email", "target": "1xxxxxxxxxx 或邮箱" }`
 - 手机号正则 `^1\d{10}$`、邮箱标准格式，不符 `400 invalid_phone / invalid_email`。
+- 手机 / 邮箱两条验证码通道**平级同规则**（限频、有效期、锁定一致，按通道独立计数）；登录、注册、绑定换验（bind）三个场景同用本接口。
 - 限频：同通道同目标 60s 内重发 `429 too_frequent`；同 IP 日上限（默认 100，`AUTH_IP_DAILY_LIMIT` 可配）`429 rate_limited`。
 - 验证码 6 位数字，10 分钟有效；新码生成即作废旧码。
+- 发码阶段**不探测账号是否存在**（不在发码时泄露注册状态）；登录/注册分流统一由 verify 按 `intent` 判定。
 
 **响应 200**：`{ "ok": true, "delivered": true, "devCode?": "123456" }`
-> `devCode` 仅非生产环境且未接真实短信/邮件网关时返回，原型用它自动回填，生产绝不下发。
+> `devCode` 仅非生产环境且未接真实短信/邮件网关时返回，原型用它自动回填，生产绝不下发。短信通道为阿里云直连（`SMS_PROVIDER=aliyun` + RAM 子账号，2026-08-24 开通）；测试号段 `1XX-0000-XXXX` 跳过真实发送（自动化测试依赖 devCode）。
 
 #### `POST /api/auth/verify` ✅
-**请求**：`{ "channel", "target", "code": "6 位", "name?": "" }`
-- 全角数字自动归一；错 5 次锁 15 分钟（`429 too_many_attempts`）；过期/不符 `400 invalid_code`。
-- 校验通过 → 查 `users` 按 email/phone 找账号，**无则自动建号（登录即注册）** → 写 Cookie 会话 → 埋点 `login`。
+**请求**：`{ "channel": "sms" | "email", "target": "", "code": "6 位", "intent": "login" | "register", "name?": "", "agreed?": false }`
+- `intent` 必填，缺省 `400 missing_intent`；全角数字自动归一；错 5 次锁 15 分钟（`429 too_many_attempts`）；过期/不符 `400 invalid_code`。
+- **核销时点**：验证码在分流校验**通过后**才核销——`account_not_found`/`already_registered`/`agreement_required` 均不消耗验证码，登录/注册 tab 互相引导切换后**同一验证码可直接复用**（前端依赖此行为）。
+- `intent=login`：按 phone（channel=sms）/ email（channel=email）查 `users`——未找到 **`404 account_not_found`**（前端提示「还未注册」并引导切注册 tab，不再自动建号）；找到 → 写 Cookie 会话 → 埋点 `login`。
+- `intent=register`：`channel=sms|email` 均可（手机 / 邮箱平级）；target（手机号/邮箱）已被注册 **`409 already_registered`**（前端提示「已注册，可直接登录」并引导切登录 tab）；`agreed` 非 `true` → `400 agreement_required`（协议勾选为注册必经）；校验通过 → 建 `users`（手机通道落 `phone`、邮箱通道落 `email`，`name` 缺省「彼岸用户」）→ 写 Cookie 会话 → 埋点 `register` + `login`。
 
-**响应 200**：`{ "ok": true }` → 前端进「纪念馆首页」。
+**响应 200**：`{ "ok": true }` → 前端进「纪念馆首页」（注册成功与登录同落点，首页空态再引导建馆）。
 
 #### `POST /api/auth/logout` ✅
 销毁会话 Cookie → `200 { "ok": true }`（我的页「设置 → 退出登录」用）。
 
-#### 微信扫码 🟡
-`GET /api/auth/wechat/qrcode` → `{ "qrcodeUrl", "ticket" }` → 前端弹层展示二维码，轮询 `GET /api/auth/wechat/callback?ticket=` 换会话。依赖微信开放平台配置（`WECHAT_*` 环境变量），原型态为占位按钮。
+#### 微信扫码（登录/注册同通道，`intent` 分流）✅
+- `POST /api/auth/wechat/qrcode`，body `{ "intent": "login" | "register" }` → `{ "url", "state" }`：`url` 为微信开放平台授权页（PC 网站应用扫码），前端整页跳转；`state` 落 `auth_oauth_states`（10 分钟有效，迁移 M11 增加 `intent` 列）。登录态发起时 `state` 携带 `user_id`，即为「绑定」流程，不受 intent 影响。未配置 `WECHAT_*` 环境变量 → `503 wechat_not_configured`。
+- `GET /api/auth/wechat/callback?state=&code=`（微信回跳，服务端处理，无前端轮询）：
+  - `state` 带发起者 `user_id` → **绑定**：openid/unionid 绑到当前账号；该微信已属其他账号则 `mergeUsers` 合并（现状 ✅）。
+  - `intent=login`：按 `wechat_unionid`/`wechat_openid` 匹配账号——未匹配**不建号**，重定向 `/{lang}/login?error=wechat_not_registered`；匹配 → 写 Cookie 会话 → 落地 `/zh/me`，埋点 `login`。
+  - `intent=register`：未匹配 → 建号（昵称/头像取微信授权资料）→ 写 Cookie 会话 → 落地 `/zh/me`，埋点 `register` + `login`；已匹配 → 重定向 `/{lang}/login?error=wechat_already_registered`。
+  - 登录页处理 `?error=wechat_*`：toast 对应文案 + 自动切 tab（未注册 → 引导切注册；已注册 → 留在登录）。
+- 环境变量：`WECHAT_APP_ID` / `WECHAT_APP_SECRET` / `WECHAT_REDIRECT_URI`（微信开放平台「网站应用」凭证）。
+
+#### `POST /api/auth/bind`、`DELETE /api/auth/bind` ✅（已实现，2026-08-24 补录文档）
+- `POST`（登录态）`{ "channel": "email" | "sms", "target": "", "code": "6 位" }`：先经 `request-code` 收码，校验通过后绑定到当前账号；目标已被其他账号占用则 `mergeUsers` 合并，冲突事务失败 `409 bind_conflict`。
+- `DELETE`（登录态）`{ "channel": "email" | "sms" | "wechat" }`：解绑对应登录方式；仅剩最后一种登录方式时 `409 last_login_method` 拒绝（防账号无门可入）。
+- 消费方：我的页「账号与安全」（08 §3.9 屏11 按键表）。
 
 #### `GET /api/me` ✅
 启动判登录态：`200 { "user": { "id", "name", "email", "phone" } }`；未登录 `401`——原型据此决定第一屏落「登录注册屏」还是直达「纪念馆首页」。
@@ -400,12 +418,54 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 
 **红线**：本节所有接口无访问量/热度/榜单字段；择位与摆位不计费、不限次；`zone=official` 仅平台后台可写。
 
+### 3.14 语音能力（voice 族，2026-08-23 新增，FR-13/14）✅ 已实现（MiMo 真 key 联调待做）
+
+> 依据：14 号语音方案 + 09 文档 B18/F9/M10。全族接口为 MiMo API 的服务端中转（`lib/voice.ts` 唯一出口），MiMo key 只在环境变量，前端永远不可见。ASR/TTS 走 `mimo-v2.5-asr` / `mimo-v2.5-tts`（均流式）；音色设计/复刻走 `voicedesign` / `voiceclone`（非流式，一次性返回）。
+>
+> **实施记录（2026-08-23）**：迁移 022 已应用；四接口 + admin 审核动作已上线；自有 SSE 合约（服务端把 MiMo SSE 转为 `{"delta"}` / `{"audio"}` 分片，与 provider 解耦）；未配置 `OPENAI_API_KEY` 时统一降级 `503 voice_unavailable`（前端回落浏览器能力）；冒烟 tools/test-voice.cjs 5/5，回归 p1/p2/p4 全过。**实现差异**：B 档样本由 `POST /api/memorials/[id]/voice` 直接收 multipart（`saveUpload` → `voice/` 子目录），落 `voice_clones.sample_url`，不走 `/api/upload` + mediaId（该接口仅图片）；preview 试听需登录。
+
+#### `POST /api/voice/asr` ✅（语音输入 → 文字）
+
+**请求**：`{ "audio": "data:audio/wav;base64,…" }`（前端 WAV 直出，≤60s / base64 ≤4M 字符）。
+**响应**：SSE 流式回识别文字（`data: {"delta":"…"}` × N，结束 `{"done":true}`）。
+- 服务端调 `mimo-v2.5-asr`（`asr_options.language=auto`）并转为自有 SSE 合约。
+- 仅登录用户；按用户+日限频（100 次，events 表计数）；识别结果**不落库**——文字上屏后走既有 chat/messages 链路（审核不旁路）。
+- 错误：`503 voice_unavailable`（前端降级 Web Speech API）；`413 audio_too_large`；`429 rate_limited`。
+
+#### `POST /api/voice/tts` ✅（朗读 → 语音流）
+
+**请求**：`{ "memorialId", "text" (≤500) }`。
+**响应**：SSE 流（`data: {"audio":"<base64 pcm16>"}`，24kHz 单声道），前端 AudioContext 边收边播。
+- 文本先过 `moderateText`（`422 content_rejected`）；音色按 F9 视图规则取：`clone` 且 approved → 复刻音色；其余 → `voice_handle`；未配置 → 系统默认温和音色（白桦）。
+- 游客可用（朗读不改状态）；登录按用户+日 200 次、游客按匿名 IP+日 30 次限频。
+- 错误：`503 voice_unavailable`（前端降级 SpeechSynthesis）；`429 rate_limited`。
+
+#### `POST /api/memorials/[id]/voice` ✅（角色音色配置，A/B 档）
+
+**A 档请求**：`{ "mode": "preset", "voice": "白桦" }` 或 `{ "mode": "design", "voiceDesc": "年迈女性，语速慢…" }`（desc ≤100 字，过 `moderateText`）→ `200 { "ok": true, "voiceProfile": {F9} }`；`{ "mode": "none" }` 清除配置。
+**B 档请求（实现差异）**：直接收 **multipart/form-data**（`file`：mp3/wav ≤10MB；`consentAccepted`: "true"）→ 样本落对象存储 `voice/` 子目录 + 落 `voice_clones`（pending）+ 进 admin 审核队列 → `202 { "cloneStatus": "pending" }`。
+- `consentAccepted` 非 true → `422 consent_required`；提交人须为 owner/collaborator（`canManageMemorial`）。
+- 审核通过（admin `review_voice_clone` 动作）→ 置 `memorials.voice_mode='clone'`、`voice_handle=voice_clones.id`，发 notifications；驳回 → `rejected` + 原因通知 + memorials 回落未配置。
+- 埋点：`voice_profile_set`（A 档）/ `voice_clone_submit`（B 档）。
+
+#### `POST /api/voice/preview` ✅（音色试听，需登录）
+
+**请求**：`{ "voice" | "voiceDesc", "line": 0|1|2 }`（固定三句试听文案之一，不接受自由文本）→ SSE 音频流（同 tts 合约）。建馆向导/设置页试听专用；未保存不产生任何落库；按用户+日 50 次限频。
+
+#### `GET /api/memorials/[id]/voice` ✅
+
+返回 `{ "voiceProfile": {F9}, "presetVoices": [...] }`；仅 owner/collaborator。
+
+**红线**：语音接口不产生公开内容（ASR 文字仍需用户确认后走既有链路）；B 档三件套（授权+人工审核+「AI 合成声音」角标）缺一不可；全族接口不下发也不接收任何 MiMo 凭证。
+
 ---
 
 ## 四、埋点（随接口打点）
 
 | 埋点 key | 触发 |
 |---|---|
+| `register` | verify `intent=register` 建号成功 / 微信注册首次授权建号（§3.0） |
+| `login` | verify `intent=login` 成功 / 微信扫码登录成功（§3.0） |
 | `hall_chat_entry` | 主 CTA / 身份说明页确认（前端上报） |
 | `hall_chat_reply` | chat 成功回复（已打） |
 | `hall_chat_first_round` | 首轮对话完成（前端上报） |
@@ -416,6 +476,9 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 | `lamp_arrange` / `lamp_focus` | 馆内摆位拖拽 / 聚焦某盏灯（§3.13） |
 | `offer_all` | 合祭「为全家点灯」（§3.13） |
 | `garden_place` | 星海择位/移出（§3.13） |
+| `voice_input_used` | 🎙 完成一次识别并上屏（§3.14） |
+| `voice_play` | 🔊 开始播放，带 voiceMode=preset/design/clone（§3.14） |
+| `voice_profile_set` / `voice_clone_submit` | A 档音色保存 / B 档复刻提交（§3.14） |
 
 ---
 
@@ -433,6 +496,8 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 | ⑧ | `appellation` 称谓列（M1 迁移） | 加列，空回落「TA」 |
 | ⑨ | 时间线配图 `mediaId` | `life_events` 加可空列 |
 | ⑩ | chat 装配超 100 条截断策略 | 分区配额截断，V1 先监控 |
+| ⑪ | B 档复刻声音样本保存期限 | 90 天，到期离线任务清理 |
+| ⑫ | MiMo 端点选择（国际/国内） | 上线前实测后切 `OPENAI_BASE_URL` |
 
 ---
 

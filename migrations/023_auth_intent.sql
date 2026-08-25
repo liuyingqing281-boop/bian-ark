@@ -1,0 +1,3 @@
+-- M11（docs/09 §B14，2026-08-24 拍板「登录/注册分离」）：
+-- 微信扫码发起意图随 OAuth state 落库，callback 按 intent 决定建号或拒绝
+-- @add-column auth_oauth_states intent TEXT DEFAULT 'login'

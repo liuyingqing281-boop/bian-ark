@@ -1,7 +1,10 @@
 /* 彼岸原型 · 真实 API 适配层（同源 /proto 托管下使用）
  * 所有页面通过 window.BianApi 访问；memorialId 由 ?id= 指定，默认公开示例馆。 */
 (function () {
-  const DEFAULT_MEMORIAL_ID = "4fc5e476-cae8-4ff7-9b3a-4a2b8693a265"; // 王老先生（public 示例馆）
+  // 默认馆按环境分流：本地开发库=王老先生；线上库=小曼（蝉，public）。URL ?id= 优先于此默认值
+  const DEFAULT_MEMORIAL_ID = ["localhost", "127.0.0.1"].includes(location.hostname)
+    ? "4fc5e476-cae8-4ff7-9b3a-4a2b8693a265"
+    : "a952c23f-28f4-4962-8007-95c4dbbc2709";
 
   function memorialId() {
     return new URLSearchParams(location.search).get("id") || DEFAULT_MEMORIAL_ID;
@@ -119,9 +122,11 @@
     leaveGroup: (id) => post(`/api/groups/${id}/leave`, {}),
     requestData: (kind) => post(`/api/me/data`, { kind }),
     deleteMemorial: (id) => del(`/api/memorials/${id}`),
-    /* 认证（屏01 登录注册屏）：登录即注册 */
+    /* 认证（屏01 登录注册屏，2026-08-24 登录/注册分离）：verify/微信扫码均带 intent */
     requestCode: (channel, target) => post(`/api/auth/request-code`, { channel, target }),
-    verifyCode: (channel, target, code) => post(`/api/auth/verify`, { channel, target, code }),
+    verifyCode: (channel, target, code, extra) =>
+      post(`/api/auth/verify`, { channel, target, code, ...(extra || {}) }),
+    wechatQrcode: (intent) => post(`/api/auth/wechat/qrcode`, { intent }),
     logout: () => post(`/api/auth/logout`, {}),
   };
 })();

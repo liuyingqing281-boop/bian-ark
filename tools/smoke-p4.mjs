@@ -38,7 +38,7 @@ try {
   // 1. login (dev code echo)
   const rc = await api("/api/auth/request-code", { method: "POST", json: { channel: "email", target: email } });
   reporter.assert(rc.status === 200 && !!rc.body.devCode, "request-code returns devCode", rc.body);
-  const vr = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: rc.body.devCode } });
+  const vr = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: rc.body.devCode, intent: "register", agreed: true } });
   reporter.assert(vr.status === 200 && client.cookieJar.has("bian_session"), "verify sets session");
   resources.registerUser(email, db.prepare("SELECT id FROM users WHERE email = ?").get(email)?.id);
 

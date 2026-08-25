@@ -16,11 +16,12 @@ const ctx = await browser.newContext({
 });
 const page = await ctx.newPage();
 
-// 登录测试号
+// 登录测试号（登录/注册分离后：先试注册，固定邮箱已存在则回落登录）
 const mail = `ui-audit@bian.dev`;
 const rc = await ctx.request.post(`${BASE}/api/auth/request-code`, { data: { channel: "email", target: mail } });
 const { devCode } = await rc.json();
-await ctx.request.post(`${BASE}/api/auth/verify`, { data: { channel: "email", target: mail, code: devCode } });
+let va = await ctx.request.post(`${BASE}/api/auth/verify`, { data: { channel: "email", target: mail, code: devCode, intent: "register", agreed: true } });
+if (va.status() === 409) va = await ctx.request.post(`${BASE}/api/auth/verify`, { data: { channel: "email", target: mail, code: devCode, intent: "login" } });
 
 // 建演示馆（公开、带生平）
 const cm = await ctx.request.post(`${BASE}/api/memorials`, {

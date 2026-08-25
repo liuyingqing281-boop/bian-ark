@@ -41,7 +41,7 @@ let eventId = null;
 
 try {
   const rc = await api("/api/auth/request-code", { method: "POST", json: { channel: "email", target: email } });
-  const vr = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: rc.body.devCode } });
+  const vr = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: rc.body.devCode, intent: "register", agreed: true } });
   check("login ok", vr.status === 200 && jar.has("bian_session"));
 
   const cm = await api("/api/memorials", { method: "POST", json: { name: `V2测试-${stamp}`, biography: "平凡而伟大的一生。" } });

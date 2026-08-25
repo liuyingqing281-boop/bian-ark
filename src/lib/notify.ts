@@ -16,6 +16,44 @@ function isTestTarget(target: string): boolean {
   return /@(.*\.)?bian\.dev$/i.test(target);
 }
 
+// 测试专用手机号段：1XX-0000-XXXX（中间四位 0000）。自动化测试统一用该段生成号码，
+// 跳过真实短信发送（devCode 仍回显），避免向陌生真实号码发码产生费用与骚扰。
+function isTestSmsTarget(target: string): boolean {
+  return /^1\d{2}0000\d{4}$/.test(target);
+}
+
+// 阿里云短信直连（2026-08-24 开通）：RAM 子账号 bian-sms，仅 AliyunDysmsFullAccess 权限
+function aliyunSmsConfigured(): boolean {
+  return (
+    process.env.SMS_PROVIDER === "aliyun" &&
+    !!(process.env.SMS_ACCESS_KEY_ID && process.env.SMS_ACCESS_KEY_SECRET && process.env.SMS_SIGN_NAME && process.env.SMS_TEMPLATE_CODE)
+  );
+}
+
+async function sendAliyunSms(phone: string, code: string): Promise<boolean> {
+  const Dysmsapi = await import("@alicloud/dysmsapi20170525");
+  const OpenApi = await import("@alicloud/openapi-client");
+  const config = new OpenApi.Config({
+    accessKeyId: process.env.SMS_ACCESS_KEY_ID,
+    accessKeySecret: process.env.SMS_ACCESS_KEY_SECRET,
+  });
+  config.endpoint = "dysmsapi.aliyuncs.com";
+  const client = new Dysmsapi.default(config);
+  const request = new Dysmsapi.SendSmsRequest({
+    phoneNumbers: phone,
+    signName: process.env.SMS_SIGN_NAME,
+    templateCode: process.env.SMS_TEMPLATE_CODE,
+    templateParam: JSON.stringify({ code }),
+  });
+  const resp = await client.sendSms(request);
+  const body = resp.body!;
+  if (body.code !== "OK") {
+    console.error("[notify] aliyun sms rejected", body.code, body.message);
+    return false;
+  }
+  return true;
+}
+
 export async function sendLoginCode(
   channel: CodeChannel,
   target: string,
@@ -40,6 +78,18 @@ export async function sendLoginCode(
       return { delivered: true, ...devEcho };
     } catch (err) {
       console.error("[notify] email send failed", err);
+    }
+  }
+  if (channel === "sms" && aliyunSmsConfigured() && !isTestSmsTarget(target)) {
+    try {
+      const ok = await sendAliyunSms(target, code);
+      if (ok) {
+        // dev/test 环境同时回显验证码（与邮件通道同规则），自动化测试仍依赖 devCode
+        const devEcho = process.env.NODE_ENV !== "production" ? { devCode: code } : {};
+        return { delivered: true, ...devEcho };
+      }
+    } catch (err) {
+      console.error("[notify] aliyun sms send failed", err);
     }
   }
   if (channel === "sms" && process.env.SMS_WEBHOOK_URL) {

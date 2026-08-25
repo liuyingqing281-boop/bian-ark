@@ -13,8 +13,13 @@ export async function POST(req: NextRequest) {
     .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
     .trim();
   const name = String(body?.name || "").trim().slice(0, 32);
+  // 2026-08-24 拍板「登录/注册分离」：intent 必填（docs/08 §3.0）
+  const intent = body?.intent === "login" || body?.intent === "register" ? body.intent : null;
   if (!channel || !target || !/^\d{6}$/.test(code)) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+  if (!intent) {
+    return NextResponse.json({ error: "missing_intent" }, { status: 400 });
   }
 
   const db = getDb();
@@ -45,23 +50,44 @@ export async function POST(req: NextRequest) {
     ).run(row.rowid);
     return NextResponse.json({ error: "invalid_code" }, { status: 400 });
   }
-  db.prepare("UPDATE login_codes SET used = 1 WHERE channel = ? AND target = ?").run(channel, target);
-
+  // 核销放在 intent 分流之后：登录/注册 tab 引导切换后，同一验证码可直接复用
   const column = channel === "email" ? "email" : "phone";
-  let user = db.prepare(`SELECT id FROM users WHERE ${column} = ?`).get(target) as
+  const user = db.prepare(`SELECT id FROM users WHERE ${column} = ?`).get(target) as
     | { id: string }
     | undefined;
+
+  // 登录：账号必须已存在，不再自动建号
+  if (intent === "login" && !user) {
+    return NextResponse.json({ error: "account_not_found" }, { status: 404 });
+  }
+  // 注册：账号必须不存在；协议勾选为必经
+  if (intent === "register") {
+    if (user) {
+      return NextResponse.json({ error: "already_registered" }, { status: 409 });
+    }
+    if (body?.agreed !== true) {
+      return NextResponse.json({ error: "agreement_required" }, { status: 400 });
+    }
+  }
+
   if (!user) {
+    db.prepare("UPDATE login_codes SET used = 1 WHERE channel = ? AND target = ?").run(channel, target);
     const id = uuid();
     db.prepare("INSERT INTO users (id, email, phone, name) VALUES (?, ?, ?, ?)").run(
       id,
       channel === "email" ? target : null,
       channel === "sms" ? target : null,
-      name || (channel === "email" ? target.split("@")[0] : `用户${target.slice(-4)}`)
+      name || "彼岸用户"
     );
-    user = { id };
+    if (intent === "register") {
+      trackEvent("register", { channel, agreed: true }, id);
+    }
+    await createSession(id);
+    trackEvent("login", { channel, intent }, id);
+    return NextResponse.json({ ok: true });
   }
+  db.prepare("UPDATE login_codes SET used = 1 WHERE channel = ? AND target = ?").run(channel, target);
   await createSession(user.id);
-  trackEvent("login", { channel }, user.id);
+  trackEvent("login", { channel, intent }, user.id);
   return NextResponse.json({ ok: true });
 }
