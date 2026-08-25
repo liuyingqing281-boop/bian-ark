@@ -23,6 +23,8 @@ npm run db:migrate
 npm run db:verify
 
 echo "=== [6/7] 重启服务 ==="
+# 先清残留进程：游离的 next-server 会占住 3002，pm2 新进程起不来（2026-08-25 线上事故）
+pkill -f "next-server" 2>/dev/null || true
 pm2 restart ecosystem.config.cjs --env production 2>/dev/null || pm2 start deploy/ecosystem.config.cjs --env production
 sleep 5
 
