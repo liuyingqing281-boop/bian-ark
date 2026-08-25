@@ -37,7 +37,7 @@ const requestCode = requireResponse("request code", rc, {
   validate: (json) => json?.ok === true && typeof json.devCode === "string",
   expected: "HTTP 200 with ok and devCode",
 });
-const verify = await api("/api/auth/verify", { method: "POST", body: { channel: "email", target: email, code: requestCode.devCode, intent: "register", agreed: true }, auth: false });
+const verify = await api("/api/auth/verify", { method: "POST", body: { channel: "email", target: email, code: requestCode.devCode, intent: "register", password: "Test1234!ok", agreed: true }, auth: false });
 requireResponse("verify login", verify, {
   validate: (json) => json?.ok === true,
   expected: "HTTP 200 with ok=true",

@@ -122,10 +122,14 @@
     leaveGroup: (id) => post(`/api/groups/${id}/leave`, {}),
     requestData: (kind) => post(`/api/me/data`, { kind }),
     deleteMemorial: (id) => del(`/api/memorials/${id}`),
-    /* 认证（屏01 登录注册屏，2026-08-24 登录/注册分离）：verify/微信扫码均带 intent */
+    /* 认证（屏01 登录注册屏，2026-08-24 登录/注册分离；2026-08-25 增账号密码登录/忘记密码） */
     requestCode: (channel, target) => post(`/api/auth/request-code`, { channel, target }),
     verifyCode: (channel, target, code, extra) =>
       post(`/api/auth/verify`, { channel, target, code, ...(extra || {}) }),
+    loginPassword: (channel, target, password) =>
+      post(`/api/auth/login-password`, { channel, target, password }),
+    resetPassword: (channel, target, code, password) =>
+      post(`/api/auth/reset-password`, { channel, target, code, password }),
     wechatQrcode: (intent) => post(`/api/auth/wechat/qrcode`, { intent }),
     logout: () => post(`/api/auth/logout`, {}),
   };

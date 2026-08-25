@@ -1,0 +1,4 @@
+-- M12（docs/09 §B12/B14，2026-08-25 拍板「账号密码登录/忘记密码」）：
+-- 注册即设密码：bcrypt 摘要，空串=未设置密码（微信注册/历史验证码账号，login-password 返回 401 password_not_set）
+-- @add-column users password_hash TEXT DEFAULT ''
+-- @add-column users password_updated_at TEXT DEFAULT ''

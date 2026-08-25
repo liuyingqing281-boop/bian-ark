@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v4 as uuid } from "uuid";
 import { getDb } from "../../../../lib/db";
-import { createSession } from "../../../../lib/auth";
 import { trackEvent } from "../../../../lib/events";
 import { hashPassword, validatePassword } from "../../../../lib/password";
 
+// 忘记密码收口（docs/08 §3.0，2026-08-25 拍板）：第一步复用 request-code 向账号发码，
+// 本接口「验码 + 重置」。核销时点沿用 verify 哲学：分流校验（账号存在/密码规则）通过才核销。
+// 成功不写会话，回登录页用新密码登录；对从未设密码的账号即为首次设置。
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const channel = body?.channel === "sms" ? "sms" : body?.channel === "email" ? "email" : null;
   const target = String(body?.target || "").trim();
-  // 全角数字（中文输入法常见）归一化为半角
+  // 全角数字归一化（与 verify 同规）
   const code = String(body?.code || "")
     .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
     .trim();
-  const name = String(body?.name || "").trim().slice(0, 32);
-  // 2026-08-24 拍板「登录/注册分离」：intent 必填（docs/08 §3.0）
-  const intent = body?.intent === "login" || body?.intent === "register" ? body.intent : null;
-  if (!channel || !target || !/^\d{6}$/.test(code)) {
+  const password = String(body?.password || "");
+  if (!channel || !target || !/^\d{6}$/.test(code) || !password) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-  }
-  if (!intent) {
-    return NextResponse.json({ error: "missing_intent" }, { status: 400 });
   }
 
   const db = getDb();
@@ -51,51 +47,24 @@ export async function POST(req: NextRequest) {
     ).run(row.rowid);
     return NextResponse.json({ error: "invalid_code" }, { status: 400 });
   }
-  // 核销放在 intent 分流之后：登录/注册 tab 引导切换后，同一验证码可直接复用
+
+  // 验码通过，先做分流校验（均不核销，修正后同码重交）
   const column = channel === "email" ? "email" : "phone";
   const user = db.prepare(`SELECT id FROM users WHERE ${column} = ?`).get(target) as
     | { id: string }
     | undefined;
-
-  // 登录：账号必须已存在，不再自动建号
-  if (intent === "login" && !user) {
+  if (!user) {
     return NextResponse.json({ error: "account_not_found" }, { status: 404 });
   }
-  // 注册：账号必须不存在；协议勾选为必经；注册即设密码（2026-08-25 拍板）
-  const password = String(body?.password || "");
-  if (intent === "register") {
-    if (user) {
-      return NextResponse.json({ error: "already_registered" }, { status: 409 });
-    }
-    if (body?.agreed !== true) {
-      return NextResponse.json({ error: "agreement_required" }, { status: 400 });
-    }
-    // weak_password 与分流错误同款：不核销验证码，前端修正密码后同码重交
-    if (!validatePassword(password)) {
-      return NextResponse.json({ error: "weak_password" }, { status: 400 });
-    }
+  if (!validatePassword(password)) {
+    return NextResponse.json({ error: "weak_password" }, { status: 400 });
   }
 
-  if (!user) {
-    db.prepare("UPDATE login_codes SET used = 1 WHERE channel = ? AND target = ?").run(channel, target);
-    const id = uuid();
-    const passwordHash = intent === "register" ? await hashPassword(password) : "";
-    db.prepare("INSERT INTO users (id, email, phone, name, password_hash, password_updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'))").run(
-      id,
-      channel === "email" ? target : null,
-      channel === "sms" ? target : null,
-      name || "彼岸用户",
-      passwordHash
-    );
-    if (intent === "register") {
-      trackEvent("register", { channel, agreed: true }, id);
-    }
-    await createSession(id);
-    trackEvent("login", { channel, intent }, id);
-    return NextResponse.json({ ok: true });
-  }
   db.prepare("UPDATE login_codes SET used = 1 WHERE channel = ? AND target = ?").run(channel, target);
-  await createSession(user.id);
-  trackEvent("login", { channel, intent }, user.id);
+  const passwordHash = await hashPassword(password);
+  db.prepare(
+    "UPDATE users SET password_hash = ?, password_updated_at = datetime('now') WHERE id = ?"
+  ).run(passwordHash, user.id);
+  trackEvent("reset_password", { channel }, user.id);
   return NextResponse.json({ ok: true });
 }

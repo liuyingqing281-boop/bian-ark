@@ -17,7 +17,7 @@ const { chromium } = require("playwright");
     const phone = "1330000" + String(Math.floor(Math.random() * 1e4)).padStart(4, "0"); // 测试号段，跳过真实短信
     const r1 = await fetch("/api/auth/request-code", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel: "sms", target: phone }) });
     const d = await r1.json();
-    await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel: "sms", target: phone, code: d.devCode, intent: "register", agreed: true }) });
+    await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel: "sms", target: phone, code: d.devCode, intent: "register", password: "Test1234!ok", agreed: true }) });
   });
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(1500);

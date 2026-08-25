@@ -12,7 +12,7 @@
 
 | 屏 | 页面 | 关键交互 | 依赖接口 | 视图模型 |
 |---|---|---|---|---|
-| 01 | 登录注册屏（第一屏，2026-08-24 起：登录/注册分离，默认登录 tab）✅ 已实施 | 默认「登录」tab：手机/邮箱通道切换（平级）、获取验证码（60s 倒计时）、微信扫码登录、「先看看」访客态；「注册」tab（专门点击进入）：手机/邮箱通道切换（平级）+ 验证码 + 昵称 + 协议勾选、微信注册 | `POST /api/auth/request-code`、`POST /api/auth/verify`（intent 分流 ✅）、`POST /api/auth/logout`、`POST /api/auth/wechat/qrcode`✅、回调 `GET /api/auth/wechat/callback`✅、`POST/DELETE /api/auth/bind`✅、`GET /api/me`（启动判登录态） | —（无馆数据，§3.0） |
+| 01 | 登录注册屏（第一屏，2026-08-24 登录/注册分离 ✅；2026-08-25 增密码登录/忘记密码 ✅ 已实施（当日落地）） | 默认「登录」tab，内含「密码 / 验证码」两种登录方式切换（密码方式=账号+密码+忘记密码入口；验证码方式=现行：手机/邮箱通道、60s 倒计时）；微信扫码登录、「先看看」访客态；「注册」tab（专门点击进入）：手机/邮箱通道 + 验证码 + **密码/确认密码两行（👁 显隐切换）** + 昵称 + 协议勾选、微信注册 | 已实施：`POST /api/auth/request-code`、`POST /api/auth/verify`（intent 分流 ✅）、`POST /api/auth/logout`、`POST /api/auth/wechat/qrcode`✅、回调 `GET /api/auth/wechat/callback`✅、`POST/DELETE /api/auth/bind`✅、`GET /api/me`（启动判登录态）；已实施（§3.0，2026-08-25 拍板并当日落地）：verify 注册带 `password` ✅、`POST /api/auth/login-password` ✅、`POST /api/auth/reset-password` ✅ | —（无馆数据，§3.0） |
 | 02 | 纪念馆首页 | TA 资料/照片；主 CTA；⋯ 菜单（分享/编辑/协作/举报）；时间线【+】；最近纪念流；免费三项供奉；灯亮状态 | `GET /api/memorials/[id]`、`GET /api/timeline`、`GET /api/hall/feed`、`GET /api/items`、`POST /api/tribute` | F1 / F2 / F3 / F6 |
 | 03 | 想念页 | 类型单选（留言/悄悄话/悼文）；500 字计数；提交；「你留下的」 | `GET/POST /api/messages` | F3 同源 |
 | 04 | 身份说明页 | 纯声明页，按钮=确认边界（前端本地态）+ 埋点 | 无数据接口 | — |
@@ -32,7 +32,7 @@
 
 ## 二、鉴权与通用规则
 
-- **会话**：`POST /api/auth/request-code` → `POST /api/auth/verify`（`intent` 区分登录/注册，2026-08-24 拍板分离）或微信扫码 `/api/auth/wechat/*`（qrcode 同样带 `intent`）换 Cookie 会话。未登录 = 访客态，只读公开内容。
+- **会话**：`POST /api/auth/request-code` → `POST /api/auth/verify`（`intent` 区分登录/注册，2026-08-24 拍板分离）、账号密码 `POST /api/auth/login-password`（2026-08-25 拍板 ✅）或微信扫码 `/api/auth/wechat/*`（qrcode 同样带 `intent`）换 Cookie 会话；忘记密码走 `POST /api/auth/reset-password`（✅，不写会话）。未登录 = 访客态，只读公开内容。
 - **角色**：`owner > collaborator > member > guest`。前端不自行推断权限，一律读视图模型中的 `viewerRole`（由后端 `lib/permissions.ts` 装配）。
 - **可见性**：服务端强制；悄悄话越权返回过滤后列表而非 403（不泄露存在性）。
 - **打码**：只在后端输出层做（`maskName`），前端直接渲染 `senderMasked`/`nameMasked`，任何接口不返回完整真实姓名。
@@ -44,15 +44,17 @@
 
 ## 三、接口明细
 
-### 3.0 认证（屏01 登录注册屏；2026-08-24 拍板：登录/注册分离）🔄
+### 3.0 认证（屏01 登录注册屏；2026-08-24 拍板：登录/注册分离 ✅；2026-08-25 拍板：账号密码登录/忘记密码 ✅ 已实施）
 
-> **拍板内容**：注册与登录彻底分开，废除「登录即注册」。**手机号 / 邮箱 / 微信三种方式平级**，同等地作为登录与注册通道；默认进登录，注册需专门点击切换 tab。前端默认态为登录（见《前端具体设计流程》§2.0、PC `/login` 见《web/01》§9.4）。
-> **实施状态**（2026-08-24 已落地）：request-code / verify（含 `intent` 分流）/ logout / bind / wechat qrcode+callback（含 `intent`）全部 ✅ 已实现，迁移 023（M11）已应用；旧调用缺 `intent` 一律 `400 missing_intent`，无自动建号兼容分支。冒烟 `tools/test-auth-intent.cjs` 12/12。
+> **拍板内容（2026-08-24）**：注册与登录彻底分开，废除「登录即注册」。**手机号 / 邮箱 / 微信三种方式平级**，同等地作为登录与注册通道；默认进登录，注册需专门点击切换 tab。前端默认态为登录（见《前端具体设计流程》§2.0、PC `/login` 见《web/01》§9.4/§9.5）。
+> **实施状态（2026-08-24 已落地）**：request-code / verify（含 `intent` 分流）/ logout / bind / wechat qrcode+callback（含 `intent`）全部 ✅ 已实现，迁移 023（M11）已应用；旧调用缺 `intent` 一律 `400 missing_intent`，无自动建号兼容分支。冒烟 `tools/test-auth-intent.cjs` 12/12。
+> **2026-08-25 增量拍板（✅ 当日已实施）**：注册即设密码——`verify(intent=register)` 增必填 `password`（前端「密码/确认密码」两行、👁 显隐切换、两次一致才可提交）；**注册后手机号/邮箱即本产品账号**，登录 tab 新增「密码 / 验证码」两种方式切换（验证码方式保留，可继续使用），密码方式直接账号+密码登录；新增「忘记密码」流（账号发码核身 → 重置新密码）。涉及新接口 `login-password` / `reset-password`、迁移 M12（`users.password_hash`，见 09 §B12/B14，✅ 迁移 024 已应用）与前端两端图纸（web/01 §9.5、前端具体设计流程 §2.0）。
+> **实施状态**（2026-08-25 已落地）：verify 注册带 `password`、login-password、reset-password、me `hasPassword` 全部 ✅；密码 bcrypt（bcryptjs，cost 10）；冒烟 `tools/test-password-auth.cjs` 16/16（含锁定/重置/未设密码直改库用例，reset 段 61s 限频等待）；回归 test-auth-intent 12/12 + smoke-auth + p1/p2/p4 全过；工具链 21 处 verify 注册调用补 `password`。**实现差异**：① 密码规则另禁空白字符；② login-password 的 `channel` 允许缺省，服务端按账号格式自动推断（前端判定 + 服务端兜底双保险）；③ 顺带修复 /api/me groups 查询既有笔误（`gm.group_id`，未提交工作区版本误写 `g.group_id` 致 500）。
 
 #### `POST /api/auth/request-code` ✅
 **请求**：`{ "channel": "sms" | "email", "target": "1xxxxxxxxxx 或邮箱" }`
 - 手机号正则 `^1\d{10}$`、邮箱标准格式，不符 `400 invalid_phone / invalid_email`。
-- 手机 / 邮箱两条验证码通道**平级同规则**（限频、有效期、锁定一致，按通道独立计数）；登录、注册、绑定换验（bind）三个场景同用本接口。
+- 手机 / 邮箱两条验证码通道**平级同规则**（限频、有效期、锁定一致，按通道独立计数）；登录、注册、绑定换验（bind）、忘记密码（reset-password）四个场景同用本接口（忘记密码发码同样不探测账号存在性）。
 - 限频：同通道同目标 60s 内重发 `429 too_frequent`；同 IP 日上限（默认 100，`AUTH_IP_DAILY_LIMIT` 可配）`429 rate_limited`。
 - 验证码 6 位数字，10 分钟有效；新码生成即作废旧码。
 - 发码阶段**不探测账号是否存在**（不在发码时泄露注册状态）；登录/注册分流统一由 verify 按 `intent` 判定。
@@ -60,14 +62,35 @@
 **响应 200**：`{ "ok": true, "delivered": true, "devCode?": "123456" }`
 > `devCode` 仅非生产环境且未接真实短信/邮件网关时返回，原型用它自动回填，生产绝不下发。短信通道为阿里云直连（`SMS_PROVIDER=aliyun` + RAM 子账号，2026-08-24 开通）；测试号段 `1XX-0000-XXXX` 跳过真实发送（自动化测试依赖 devCode）。
 
-#### `POST /api/auth/verify` ✅
-**请求**：`{ "channel": "sms" | "email", "target": "", "code": "6 位", "intent": "login" | "register", "name?": "", "agreed?": false }`
-- `intent` 必填，缺省 `400 missing_intent`；全角数字自动归一；错 5 次锁 15 分钟（`429 too_many_attempts`）；过期/不符 `400 invalid_code`。
-- **核销时点**：验证码在分流校验**通过后**才核销——`account_not_found`/`already_registered`/`agreement_required` 均不消耗验证码，登录/注册 tab 互相引导切换后**同一验证码可直接复用**（前端依赖此行为）。
+#### `POST /api/auth/verify` ✅（2026-08-25 增量参数 `password` 已实施）
+**请求**：`{ "channel": "sms" | "email", "target": "", "code": "6 位", "intent": "login" | "register", "password?": "", "name?": "", "agreed?": false }`
+- `intent` 必填，缺省 `400 missing_intent`；全角数字自动归一；错 5 次锁 15 分钟（`429 too_many_attempts`）；过期/不符 `400 invalid_code`（前端统一文案「验证码错误」）。
+- **核销时点**：验证码在分流校验**通过后**才核销——`account_not_found`/`already_registered`/`agreement_required`/`weak_password` 均不消耗验证码，登录/注册 tab 互相引导切换后**同一验证码可直接复用**（前端依赖此行为）。
 - `intent=login`：按 phone（channel=sms）/ email（channel=email）查 `users`——未找到 **`404 account_not_found`**（前端提示「还未注册」并引导切注册 tab，不再自动建号）；找到 → 写 Cookie 会话 → 埋点 `login`。
-- `intent=register`：`channel=sms|email` 均可（手机 / 邮箱平级）；target（手机号/邮箱）已被注册 **`409 already_registered`**（前端提示「已注册，可直接登录」并引导切登录 tab）；`agreed` 非 `true` → `400 agreement_required`（协议勾选为注册必经）；校验通过 → 建 `users`（手机通道落 `phone`、邮箱通道落 `email`，`name` 缺省「彼岸用户」）→ 写 Cookie 会话 → 埋点 `register` + `login`。
+- `intent=register`：`channel=sms|email` 均可（手机 / 邮箱平级）；target（手机号/邮箱）已被注册 **`409 already_registered`**（前端提示「已注册，可直接登录」并引导切登录 tab）；`agreed` 非 `true` → `400 agreement_required`（协议勾选为注册必经）；**`password` 必填**——不符密码规则 `400 weak_password`（不核销验证码，前端修正密码后同码重交）；「确认密码」两行一致性为纯前端校验，服务端只收一份 `password`。校验通过 → 建 `users`（手机通道落 `phone`、邮箱通道落 `email`，`password` 经 bcrypt 入 `password_hash`，`name` 缺省「彼岸用户」）→ 写 Cookie 会话 → 埋点 `register` + `login`。
+- **密码规则（注册与重置同规，前后端一致）**：长度 8–64；须含大写字母 / 小写字母 / 数字 / 特殊符号四类字符中的**至少 3 类**；不含空白字符。
 
-**响应 200**：`{ "ok": true }` → 前端进「纪念馆首页」（注册成功与登录同落点，首页空态再引导建馆）。
+**响应 200**：`{ "ok": true }` → 前端 toast「注册成功」（注册）后进「纪念馆首页」（注册成功与登录同落点，首页空态再引导建馆）。
+
+#### `POST /api/auth/login-password` ✅（2026-08-25 已实施）
+账号密码登录：**注册后的手机号/邮箱即本产品账号**，与验证码登录、微信扫码平级的会话通道。
+**请求**：`{ "channel": "sms" | "email", "target": "手机号或邮箱", "password": "" }`
+- `channel` 由前端按账号格式自动判定（手机号正则命中 → `sms`，否则 `email`），服务端同规则复核 `400 invalid_phone / invalid_email`。
+- 账号未注册 → `404 account_not_found`（与验证码登录同文案同引导：toast「还未注册」+「去注册 →」，体验不分差异）。
+- 账号已注册但未设置密码（微信注册账号 / 迁移 024 前的历史验证码账号，`password_hash` 为空串）→ `401 password_not_set`（前端 toast「该账号未设置密码」+ 文字链「验证码登录」/「忘记密码」，后者可为老账号首次设置密码）。
+- 密码不符 → `401 invalid_credentials`；**同账号连错 5 次锁 15 分钟** `429 too_many_attempts`（计数按 (channel,target) 应用层滑动窗口，与验证码 attempts 同款节奏，不新增表）。
+- 成功 → 写 Cookie 会话（与 verify 同路，不分流）→ 埋点 `login`。
+
+**响应 200**：`{ "ok": true }`
+
+#### `POST /api/auth/reset-password` ✅（2026-08-25 已实施；「忘记密码」）
+三步流的收口接口：第一步复用 `request-code` 向账号（手机/邮箱）发码，本接口完成「验码 + 重置」。
+**请求**：`{ "channel": "sms" | "email", "target": "", "code": "6 位", "password": "" }`
+- 验码规则同 `verify`：全角归一、10 分钟过期、错 5 次锁 15 分钟；过期/不符 `400 invalid_code`（前端文案「验证码错误」）。
+- 账号不存在 → `404 account_not_found`（不核销验证码，沿用「分流校验通过才核销」）。
+- 新密码 `password` 同注册密码规则，不符 `400 weak_password`（不核销验证码，前端修正后同码重交）；「确认新密码」为前端两行一致性校验，服务端只收一份。
+- 全部通过 → 核销验证码 → bcrypt 落 `users.password_hash` 并更新 `password_updated_at` → 埋点 `reset_password`。**不写会话**：重置成功回登录页用新密码登录（前端提示「密码已重置，请用新密码登录」并切回登录 tab·密码方式）。
+- 对「从未设置过密码」的已注册账号，本流程即为首次设置密码，行为完全一致。
 
 #### `POST /api/auth/logout` ✅
 销毁会话 Cookie → `200 { "ok": true }`（我的页「设置 → 退出登录」用）。
@@ -87,7 +110,7 @@
 - 消费方：我的页「账号与安全」（08 §3.9 屏11 按键表）。
 
 #### `GET /api/me` ✅
-启动判登录态：`200 { "user": { "id", "name", "email", "phone" } }`；未登录 `401`——原型据此决定第一屏落「登录注册屏」还是直达「纪念馆首页」。
+启动判登录态：`200 { "user": { "id", "name", "email", "phone", "hasPassword" } }`（`hasPassword: boolean` ✅：是否已设密码，「账号与安全」展示用，只增不减）；未登录 `401`——原型据此决定第一屏落「登录注册屏」还是直达「纪念馆首页」。
 
 ---
 
@@ -464,8 +487,9 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 
 | 埋点 key | 触发 |
 |---|---|
-| `register` | verify `intent=register` 建号成功 / 微信注册首次授权建号（§3.0） |
-| `login` | verify `intent=login` 成功 / 微信扫码登录成功（§3.0） |
+| `register` | verify `intent=register` 建号成功（含 `password` 设密）/ 微信注册首次授权建号（§3.0） |
+| `login` | verify `intent=login` 成功 / 密码登录 login-password 成功（§3.0）/ 微信扫码登录成功（§3.0） |
+| `reset_password` | 忘记密码重置成功（§3.0） |
 | `hall_chat_entry` | 主 CTA / 身份说明页确认（前端上报） |
 | `hall_chat_reply` | chat 成功回复（已打） |
 | `hall_chat_first_round` | 首轮对话完成（前端上报） |

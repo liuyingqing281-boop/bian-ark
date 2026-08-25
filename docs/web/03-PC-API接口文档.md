@@ -24,7 +24,7 @@
 | `/discover` 发现（后续） | `garden` 族（见 08 §3.11） | — |
 | 纪念园「星海」 `/garden`（2026-08-23） | `GET /api/garden/starsea?zone=&bbox=`、`GET /api/garden?q=`、`PATCH /api/halls/[id]/garden-pos`（择位）★（🟡，08 §3.13） | F8 |
 | 馆内灯阵（多人馆 `/hall/[id]`，2026-08-23） | `GET /api/halls/[id]`、`PATCH /api/halls/[id]/layout`（摆位）、`POST /api/halls/[id]/offer-all`（合祭）★（🟡，08 §3.13）；人物详情复用既有 memorials 族 | F7 + F1–F6 |
-| 鉴权 | `POST /api/auth/request-code`、`POST /api/auth/verify`（`intent` 登录/注册分流 ✅，08 §3.0）、`POST /api/auth/wechat/qrcode`/回调（✅ 含 intent）、`POST/DELETE /api/auth/bind`（✅）；PC 消费注意见 §3.7 | — |
+| 鉴权 | `POST /api/auth/request-code`、`POST /api/auth/verify`（`intent` 分流 ✅ + 注册 `password` ✅）、`POST /api/auth/login-password`（✅）、`POST /api/auth/reset-password`（✅，均 08 §3.0，2026-08-25 已实施）、`POST /api/auth/wechat/qrcode`/回调（✅ 含 intent）、`POST/DELETE /api/auth/bind`（✅）；PC 消费注意见 §3.7 | — |
 | 申诉 | `POST /api/moderation/appeals` | — |
 
 ★ = PC 相关增量/待落地项，详见下两节；其余接口契约**原样引用 08 文档**，前端 PC/移动两端共用。
@@ -138,12 +138,15 @@
 4. `POST /api/voice/preview` 试听不产生落库；B 档样本先 `POST /api/upload` 再带 `mediaId` 提交，不直传音频 base64。
 5. 埋点 `voice_input_used / voice_play / voice_profile_set / voice_clone_submit` 携带 `platform: "web-pc"`，规则同 §四-7。
 
-### 3.7 认证接口 PC 消费注意（2026-08-24，08 §3.0 登录/注册分离 ✅ 已实施）
+### 3.7 认证接口 PC 消费注意（2026-08-24，08 §3.0 登录/注册分离 ✅；2026-08-25 密码登录增量 ✅ 已实施）
 
 1. `POST /api/auth/verify` 与 `POST /api/auth/wechat/qrcode` 均必传 `intent: "login" | "register"`；缺省 `400 missing_intent`。PC `/login` 双 tab（默认登录，见 01 §9.4）分别以 `login` / `register` 发起。
 2. 分流错误引导：`404 account_not_found` → toast + 「去注册」切 tab；`409 already_registered` → toast + 切回登录（保留账号输入）；`400 agreement_required` → 协议勾选抖动提示。注册 `channel=sms|email` 均可（手机 / 邮箱平级，同登录）。
 3. 微信扫码为整页 OAuth 跳转（无轮询）：`qrcode` 返回 `{url, state}`，`window.location` 跳转；回调错误经 `/{lang}/login?error=wechat_not_registered｜wechat_already_registered` 落地，登录页挂载时解析 `?error=` 并自动切 tab。
 4. 绑定/解绑 `POST/DELETE /api/auth/bind`（✅ 已有）：我的页「账号与安全」消费；解绑最后一种登录方式 `409 last_login_method` 需 toast 明示。
+5. 密码登录（✅ 08 §3.0 `login-password`，已由 PC LoginForm 落地）：`{ "channel", "target", "password" }`，`channel` 由 PC 前端按账号格式自动判定（手机号正则 → `sms`，否则 `email`）；**注册后手机号/邮箱即账号**，登录 tab「密码/验证码」方式切换见 01 §9.5。错误分流：`404 account_not_found` 同款「去注册」引导；`401 password_not_set`（微信注册/历史验证码账号）toast「该账号未设置密码」+ 文字链「验证码登录」「忘记密码」；`401 invalid_credentials` 行内「账号或密码不对」；`429 too_many_attempts`（同账号错 5 次锁 15 分钟）明确提示等待时长。
+6. 注册带密码（✅）：`verify(intent=register)` 增 `password`（8–64 位、四类字符≥3 类，`400 weak_password` **不核销验证码**——PC 行内修正后同码重交）；「确认密码」两行一致性纯前端校验；注册成功 toast「注册成功」+ 自动登录（现行落点不变）。
+7. 忘记密码（✅，卡内三步浮层已落地）：入口 = 登录卡密码方式下「忘记密码？」文字链；先复用 `request-code` 发码（60s 倒计时同款），再 `POST /api/auth/reset-password {channel,target,code,password}`；`400 invalid_code` → 「验证码错误」；成功**不自动登录**，PC 落「密码已重置」完成态并【去登录】切回登录 tab·密码方式（回填账号）。对未设密码的老账号即首次设置密码，交互一致。
 
 ---
 

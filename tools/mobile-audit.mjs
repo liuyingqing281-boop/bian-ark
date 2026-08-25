@@ -20,7 +20,7 @@ const page = await ctx.newPage();
 const mail = `ui-audit@bian.dev`;
 const rc = await ctx.request.post(`${BASE}/api/auth/request-code`, { data: { channel: "email", target: mail } });
 const { devCode } = await rc.json();
-let va = await ctx.request.post(`${BASE}/api/auth/verify`, { data: { channel: "email", target: mail, code: devCode, intent: "register", agreed: true } });
+let va = await ctx.request.post(`${BASE}/api/auth/verify`, { data: { channel: "email", target: mail, code: devCode, intent: "register", password: "Test1234!ok", agreed: true } });
 if (va.status() === 409) va = await ctx.request.post(`${BASE}/api/auth/verify`, { data: { channel: "email", target: mail, code: devCode, intent: "login" } });
 
 // 建演示馆（公开、带生平）

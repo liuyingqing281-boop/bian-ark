@@ -17,5 +17,9 @@ export async function GET() {
        WHERE gm.user_id = ? ORDER BY g.created_at DESC`
     )
     .all(user.id);
-  return NextResponse.json({ user, memorials, groups });
+  // hasPassword（docs/08 §3.0）：是否已设密码，「账号与安全」展示用
+  const pwRow = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(user.id) as
+    | { password_hash: string }
+    | undefined;
+  return NextResponse.json({ user: { ...user, hasPassword: Boolean(pwRow?.password_hash) }, memorials, groups });
 }

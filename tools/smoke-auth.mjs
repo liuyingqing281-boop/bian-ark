@@ -26,11 +26,11 @@ try {
     const wrong = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: "000000", intent: "login" }, auth: false });
     check(`wrong code ${attempt} is generic`, wrong.status === 400 && wrong.json?.error === "invalid_code");
   }
-  const locked = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: requested.json.devCode, intent: "register", agreed: true }, auth: false });
+  const locked = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: requested.json.devCode, intent: "register", password: "Test1234!ok", agreed: true }, auth: false });
   check("locked code rejects correct value", locked.status === 429 && locked.json?.error === "too_many_attempts");
 
   db.prepare("UPDATE login_codes SET attempts = 0, locked_until = '' WHERE target = ?").run(email);
-  const verified = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: requested.json.devCode, intent: "register", agreed: true }, auth: false });
+  const verified = await api("/api/auth/verify", { method: "POST", json: { channel: "email", target: email, code: requested.json.devCode, intent: "register", password: "Test1234!ok", agreed: true }, auth: false });
   check("login succeeds after unlock", verified.status === 200 && client.cookieJar.has("bian_session"));
   const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
   resources.registerUser(email, user?.id);

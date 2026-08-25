@@ -39,11 +39,11 @@ async function main() {
   check("login 未注册 404 account_not_found", r.status === 404 && r.data.error === "account_not_found", `got ${r.status} ${r.data.error || ""}`);
 
   // 3. 同一验证码切注册（未勾协议）→ 400 agreement_required
-  r = await post("/api/auth/verify", { channel: "sms", target: p1, code, intent: "register", name: "测试用户" });
+  r = await post("/api/auth/verify", { channel: "sms", target: p1, code, intent: "register", password: "Test1234!ok", name: "测试用户" });
   check("register 未勾协议 400 agreement_required", r.status === 400 && r.data.error === "agreement_required", `got ${r.status} ${r.data.error || ""}`);
 
   // 4. 注册成功（同意协议）→ 200
-  r = await post("/api/auth/verify", { channel: "sms", target: p1, code, intent: "register", name: "测试用户", agreed: true });
+  r = await post("/api/auth/verify", { channel: "sms", target: p1, code, intent: "register", password: "Test1234!ok", name: "测试用户", agreed: true });
   check("register 新手机号 200", r.status === 200 && r.data.ok, `got ${r.status} ${r.data.error || ""}`);
 
   // 5. 立即重发同目标 → 429 too_frequent（60s 限频）
@@ -54,7 +54,7 @@ async function main() {
   console.log("…等待 61s 限频窗口（覆盖 409 / 登录复用）");
   await sleep(61_000);
   ({ code } = await getCode("sms", p1));
-  r = await post("/api/auth/verify", { channel: "sms", target: p1, code, intent: "register", agreed: true });
+  r = await post("/api/auth/verify", { channel: "sms", target: p1, code, intent: "register", password: "Test1234!ok", agreed: true });
   check("register 已注册 409 already_registered", r.status === 409 && r.data.error === "already_registered", `got ${r.status} ${r.data.error || ""}`);
 
   // 7. 409 未核销 → 同一验证码直接登录成功 → 200
@@ -64,7 +64,7 @@ async function main() {
   // 8. 邮箱通道平级：注册 200
   const e1 = email();
   ({ code } = await getCode("email", e1));
-  r = await post("/api/auth/verify", { channel: "email", target: e1, code, intent: "register", agreed: true });
+  r = await post("/api/auth/verify", { channel: "email", target: e1, code, intent: "register", password: "Test1234!ok", agreed: true });
   check("register 邮箱通道 200（平级）", r.status === 200 && r.data.ok, `got ${r.status} ${r.data.error || ""}`);
 
   // 9. 邮箱登录未注册 → 404（同手机规则）
@@ -78,7 +78,7 @@ async function main() {
   check("verify 错码 400 invalid_code", r.status === 400 && r.data.error === "invalid_code", `got ${r.status} ${r.data.error || ""}`);
 
   // 11. 微信 qrcode：未配置 WECHAT_* → 503 wechat_not_configured（配置过则应 200 返回 url）
-  r = await post("/api/auth/wechat/qrcode", { intent: "register" });
+  r = await post("/api/auth/wechat/qrcode", { intent: "register", password: "Test1234!ok" });
   check(
     "wechat qrcode 降级 503 / 配置态 200",
     (r.status === 503 && r.data.error === "wechat_not_configured") || (r.status === 200 && !!r.data.url),
