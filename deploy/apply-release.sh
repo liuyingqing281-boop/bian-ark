@@ -22,6 +22,17 @@ rm -rf .next
 tar xzf bian-release-next.tar.gz
 rm -f bian-release-next.tar.gz
 
+echo "=== [4.5/6] 修复 Turbopack 原生模块哈希别名（坑9）==="
+# npm ci 会清掉 Turbopack 构建期望的 node_modules/<pkg>-<16位hex> 别名（如 better-sqlite3-90e2652d1716b047），
+# 缺失则所有引用该模块的 chunk 运行时 500（2026-08-26 线上事故）。按 .next 实际引用动态补链：
+for name in $(grep -rhoE '[a-zA-Z@/._][a-zA-Z0-9@/._-]*-[0-9a-f]{16}' .next/server/chunks/*.js 2>/dev/null | sort -u); do
+  base="${name%-[0-9a-f]*}"
+  if [ -d "node_modules/$base" ] && [ ! -e "node_modules/$name" ]; then
+    ln -sfn "$base" "node_modules/$name"
+    echo "  已补别名 node_modules/$name -> $base"
+  fi
+done
+
 echo "=== [5/6] 数据库迁移与校验 ==="
 npm run db:migrate
 npm run db:verify

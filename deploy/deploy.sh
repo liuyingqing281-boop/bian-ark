@@ -22,6 +22,16 @@ echo "=== [5/7] 数据库迁移与校验 ==="
 npm run db:migrate
 npm run db:verify
 
+echo "=== [4.5/7 顺带] 修复 Turbopack 原生模块哈希别名（坑9，npm ci 会清掉它们）==="
+# 同 apply-release.sh：按 .next 实际引用补 node_modules/<pkg>-<16位hex> 软链
+for name in $(grep -rhoE '[a-zA-Z@/._][a-zA-Z0-9@/._-]*-[0-9a-f]{16}' .next/server/chunks/*.js 2>/dev/null | sort -u); do
+  base="${name%-[0-9a-f]*}"
+  if [ -d "node_modules/$base" ] && [ ! -e "node_modules/$name" ]; then
+    ln -sfn "$base" "node_modules/$name"
+    echo "  已补别名 node_modules/$name -> $base"
+  fi
+done
+
 echo "=== [6/7] 重启服务 ==="
 # 先清残留进程：游离的 next-server 会占住 3002，pm2 新进程起不来（2026-08-25 线上事故）
 pkill -f "next-server" 2>/dev/null || true
