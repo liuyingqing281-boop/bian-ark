@@ -63,8 +63,10 @@ export function ensureAutomaticHallPosition(
   db: GardenDb,
   hall: { id: string; garden_x: number | null; garden_y: number | null }
 ): GardenPoint | null {
-  const existingX = Number(hall.garden_x);
-  const existingY = Number(hall.garden_y);
+  const hasSavedPosition = hall.garden_x !== null && hall.garden_x !== undefined
+    && hall.garden_y !== null && hall.garden_y !== undefined;
+  const existingX = hasSavedPosition ? Number(hall.garden_x) : Number.NaN;
+  const existingY = hasSavedPosition ? Number(hall.garden_y) : Number.NaN;
   if (Number.isFinite(existingX) && Number.isFinite(existingY) && existingX >= 0 && existingX <= 1 && existingY >= 0 && existingY <= 1) {
     setHallGardenPosition(db, hall.id, existingX, existingY);
     return { x: existingX, y: existingY };

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json().catch(() => null);
   const place = body?.in_garden === true;
   if (place) {
-    if (memorial.visibility !== "public") {
+    if (memorial.visibility !== "public" || hall.visibility !== "public") {
       return NextResponse.json({ error: "visibility_required" }, { status: 400 });
     }
     const row = db
@@ -33,9 +33,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const section = String(Math.floor((slot - 1) / 30));
     const position = ensureAutomaticHallPosition(db, hall);
     if (!position) return NextResponse.json({ error: "no_space" }, { status: 409 });
-    if (hall.visibility !== "public") {
-      db.prepare("UPDATE halls SET visibility = 'public', updated_at = datetime('now') WHERE id = ?").run(hallId);
-    }
     db.prepare("UPDATE memorials SET in_garden = 1, garden_slot = ?, garden_section = ?, updated_at = datetime('now') WHERE id = ?").run(slot, section, id);
     return NextResponse.json({ ok: true, in_garden: true, slot, section, hallId, inGarden: true, x: position.x, y: position.y });
   }

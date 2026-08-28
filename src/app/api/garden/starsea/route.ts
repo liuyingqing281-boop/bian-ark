@@ -30,17 +30,17 @@ export async function GET(req: NextRequest) {
   const rows = db
     .prepare(
       `SELECT h.id AS hall_id, h.name AS hall_name, h.garden_x AS x, h.garden_y AS y, h.garden_zone AS zone,
-              (SELECT COUNT(*) FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1) AS lamp_count,
-              (SELECT m.name FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 ORDER BY m.created_at ASC LIMIT 1) AS first_name,
-              (SELECT m.avatar_url FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 ORDER BY m.created_at ASC LIMIT 1) AS avatar_url,
-              (SELECT m.birth_date FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 ORDER BY m.created_at ASC LIMIT 1) AS birth_date,
-              (SELECT m.death_date FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 ORDER BY m.created_at ASC LIMIT 1) AS death_date,
-              (SELECT m.epitaph FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 ORDER BY m.created_at ASC LIMIT 1) AS epitaph,
+              (SELECT COUNT(*) FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public') AS lamp_count,
+              (SELECT m.name FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public' ORDER BY m.created_at ASC LIMIT 1) AS first_name,
+              (SELECT m.avatar_url FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public' ORDER BY m.created_at ASC LIMIT 1) AS avatar_url,
+              (SELECT m.birth_date FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public' ORDER BY m.created_at ASC LIMIT 1) AS birth_date,
+              (SELECT m.death_date FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public' ORDER BY m.created_at ASC LIMIT 1) AS death_date,
+              (SELECT m.epitaph FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public' ORDER BY m.created_at ASC LIMIT 1) AS epitaph,
               EXISTS(SELECT 1 FROM memorials m JOIN tributes t ON t.memorial_id = m.id
-                     WHERE m.hall_id = h.id AND t.created_at >= datetime('now', '-24 hours')) AS candle_lit
+                     WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public' AND t.created_at >= datetime('now', '-24 hours')) AS candle_lit
        FROM halls h
        WHERE h.in_garden = 1 AND h.visibility = 'public' AND h.garden_x IS NOT NULL AND h.garden_y IS NOT NULL
-         AND EXISTS (SELECT 1 FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1)
+         AND EXISTS (SELECT 1 FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public')
          ${zone ? "AND h.garden_zone = ?" : ""}
          ${bbox ? "AND h.garden_x BETWEEN ? AND ? AND h.garden_y BETWEEN ? AND ?" : ""}
          ${cursor ? "AND h.id > ?" : ""}
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     birth_date: string; death_date: string; epitaph: string; candle_lit: number;
   }>;
 
-  const mask = (name: string) => (name.length <= 1 ? name : name[0] + "*".repeat(Math.min(name.length - 1, 2)));
+  const mask = (name: string) => (name.length <= 1 ? "*" : name[0] + "*".repeat(Math.min(name.length - 1, 2)));
   const emitted = rows.slice(0, limit);
   const body = {
     halls: emitted.map((r) => ({

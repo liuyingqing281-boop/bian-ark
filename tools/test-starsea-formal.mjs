@@ -10,12 +10,11 @@ import { migrateUp, verifyDatabase } from "../src/lib/migrations.mjs";
 const root = process.cwd();
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "bian-starsea-formal-"));
 const dbPath = path.join(tempRoot, "formal.db");
-const appRoot = path.join(root, ".starsea-formal-app");
 const distPath = path.join(root, ".next-starsea-formal");
-const tsconfigPath = path.join(root, "tsconfig.json");
-const nextEnvPath = path.join(root, "next-env.d.ts");
-const tsconfigOriginal = fs.readFileSync(tsconfigPath, "utf8");
-const nextEnvOriginal = fs.readFileSync(nextEnvPath, "utf8");
+const protectedConfigPaths = ["next.config.ts", "tsconfig.json", "next-env.d.ts"];
+const protectedConfigHashes = new Map(protectedConfigPaths.map((file) => [file, checksum(path.join(root, file))]));
+const sourceConfigPaths = ["tsconfig.json", "next-env.d.ts"];
+const sourceConfigContents = new Map(sourceConfigPaths.map((file) => [file, fs.readFileSync(path.join(root, file), "utf8")]));
 const port = 7417;
 const baseUrl = `http://127.0.0.1:${port}`;
 let server;
@@ -46,6 +45,10 @@ async function checkAsync(name, fn) {
 
 function checksum(file) {
   return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function restoreSourceConfigs() {
+  for (const [file, content] of sourceConfigContents) fs.writeFileSync(path.join(root, file), content);
 }
 
 async function waitForServer() {
@@ -117,6 +120,10 @@ async function createPublicMemorial(client, name) {
   return response.json.id;
 }
 
+function positionDistance(first, second) {
+  return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
 async function main() {
   const migrationPath = path.join(root, "migrations", "025_garden_canonical.sql");
   check("025 migration exists", () => assert.equal(fs.existsSync(migrationPath), true));
@@ -161,14 +168,6 @@ async function main() {
     db.close();
   });
 
-  // Next 16 permits only one dev server per distDir. Give the isolated test
-  // process a temporary output directory without persisting configuration.
-  const nextConfigPath = path.join(root, "next.config.ts");
-  const nextConfig = fs.readFileSync(nextConfigPath, "utf8");
-  fs.writeFileSync(
-    nextConfigPath,
-    nextConfig.replace("const nextConfig: NextConfig = {", 'const nextConfig: NextConfig = {\n  distDir: process.env.BIAN_NEXT_DIST_DIR || ".next",')
-  );
   server = spawn(process.execPath, ["tools/dev.mjs", "-p", String(port)], {
     cwd: root,
     env: { ...process.env, SMOKE_DB_PATH: dbPath, BIAN_NEXT_DIST_DIR: ".next-starsea-formal", NODE_ENV: "development" },
@@ -177,6 +176,7 @@ async function main() {
   server.stdout.on("data", (chunk) => process.stdout.write(`[server] ${chunk}`));
   server.stderr.on("data", (chunk) => process.stderr.write(`[server] ${chunk}`));
   await waitForServer();
+  restoreSourceConfigs();
 
   const client = cookieJar();
   await register(client);
@@ -184,6 +184,7 @@ async function main() {
   for (const name of ["正式星海甲", "正式星海乙", "正式星海丙"]) {
     ids.push(await createPublicMemorial(client, name));
   }
+  const oneCharacterId = await createPublicMemorial(client, "一");
 
   const db = new Database(dbPath, { readonly: true });
   check("new memorial links to its canonical hall", () => {
@@ -198,6 +199,7 @@ async function main() {
   });
   db.close();
 
+  const placements = [];
   for (const id of ids) {
     const placement = await client.request(`/api/memorials/${id}/garden`, {
       method: "POST",
@@ -209,8 +211,65 @@ async function main() {
       assert.equal(placement.json.inGarden, true);
       assert.equal(typeof placement.json.x, "number");
       assert.equal(typeof placement.json.y, "number");
+      placements.push(placement.json);
     });
   }
+
+  await checkAsync("SQL NULL coordinates receive sparse deterministic positions", async () => {
+    assert.notDeepEqual({ x: placements[0].x, y: placements[0].y }, { x: 0, y: 0 });
+    assert.equal(positionDistance(placements[0], placements[1]) >= 0.04, true);
+  });
+
+  const oneCharacterPlacement = await client.request(`/api/memorials/${oneCharacterId}/garden`, {
+    method: "POST",
+    body: { in_garden: true },
+  });
+  await checkAsync("one-character StarSea names are always masked", async () => {
+    assert.equal(oneCharacterPlacement.status, 200);
+    const body = await (await fetch(`${baseUrl}/api/garden/starsea?bbox=0,0,1,1`)).json();
+    const hall = body.halls.find((item) => item.hallId === `hall_${oneCharacterId}`);
+    assert.equal(hall.nameMasked, "*");
+  });
+
+  const writer = new Database(dbPath);
+  const protectedHallId = `hall_${ids[0]}`;
+  const owner = writer.prepare("SELECT user_id FROM memorials WHERE id = ?").get(ids[0]);
+  writer.prepare("UPDATE halls SET visibility = 'private', in_garden = 0, garden_x = NULL, garden_y = NULL WHERE id = ?").run(protectedHallId);
+  writer.prepare(
+    `INSERT INTO memorials (id, name, user_id, visibility, is_published, hall_id, avatar_url, birth_date, death_date, epitaph, created_at)
+     VALUES (?, '秘', ?, 'private', 1, ?, 'secret-avatar', '1900', '2000', 'secret epitaph', '2000-01-01 00:00:00')`
+  ).run(`private_${randomUUID()}`, owner.user_id, protectedHallId);
+  writer.close();
+
+  await checkAsync("legacy placement refuses a public member inside a non-public hall", async () => {
+    const response = await client.request(`/api/memorials/${ids[0]}/garden`, { method: "POST", body: { in_garden: true } });
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.json, { error: "visibility_required" });
+    const db = new Database(dbPath, { readonly: true });
+    const hall = db.prepare("SELECT visibility, in_garden FROM halls WHERE id = ?").get(protectedHallId);
+    db.close();
+    assert.deepEqual(hall, { visibility: "private", in_garden: 0 });
+  });
+
+  const publicHallId = `hall_${ids[1]}`;
+  const writer2 = new Database(dbPath);
+  const owner2 = writer2.prepare("SELECT user_id FROM memorials WHERE id = ?").get(ids[1]);
+  writer2.prepare(
+    `INSERT INTO memorials (id, name, user_id, visibility, is_published, hall_id, avatar_url, birth_date, death_date, epitaph, created_at)
+     VALUES (?, '隐', ?, 'group', 1, ?, 'secret-avatar', '1901', '2001', 'secret epitaph', '2000-01-01 00:00:00')`
+  ).run(`group_${randomUUID()}`, owner2.user_id, publicHallId);
+  writer2.close();
+
+  await checkAsync("starsea excludes private and group members from public aggregates", async () => {
+    const body = await (await fetch(`${baseUrl}/api/garden/starsea?bbox=0,0,1,1`)).json();
+    const hall = body.halls.find((item) => item.hallId === publicHallId);
+    assert.equal(hall.lampCount, 1);
+    assert.equal(hall.avatarUrl, "");
+    assert.equal(hall.birthDate, "");
+    assert.equal(hall.deathDate, "");
+    assert.equal(hall.epitaph, "");
+    assert.notEqual(hall.nameMasked, "隐");
+  });
 
   await checkAsync("invalid bbox is rejected instead of widening the query", async () => {
     const response = await fetch(`${baseUrl}/api/garden/starsea?bbox=0.9,0.2,0.1,0.8`);
@@ -249,7 +308,14 @@ async function main() {
     const second = await (await fetch(`${baseUrl}/api/garden/starsea?limit=2&cursor=${encodeURIComponent(first.nextCursor)}`)).json();
     assert.equal(second.halls.length, 1);
     assert.equal(second.nextCursor, null);
-    assert.deepEqual([...first.halls, ...second.halls].map((hall) => hall.hallId), [...ids].map((id) => `hall_${id}`).sort());
+    assert.deepEqual(
+      [...first.halls, ...second.halls].map((hall) => hall.hallId),
+      [...ids.slice(1), oneCharacterId].map((id) => `hall_${id}`).sort()
+    );
+  });
+
+  check("formal test leaves Next configuration sources unchanged", () => {
+    for (const [file, before] of protectedConfigHashes) assert.equal(checksum(path.join(root, file)), before, file);
   });
 }
 
@@ -259,19 +325,16 @@ try {
   failures += 1;
   console.error(`FATAL ${error.stack || error}`);
 } finally {
-  if (server && !server.killed) {
+  if (server && !server.killed && server.exitCode === null) {
     server.kill("SIGTERM");
-    await new Promise((resolve) => server.once("exit", resolve));
+    await new Promise((resolve) => {
+      if (server.exitCode !== null) resolve(undefined);
+      else server.once("exit", resolve);
+    });
   }
   fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3 });
-  fs.rmSync(appRoot, { recursive: true, force: true, maxRetries: 3 });
   fs.rmSync(distPath, { recursive: true, force: true, maxRetries: 3 });
-  const nextConfigPath = path.join(root, "next.config.ts");
-  if (fs.existsSync(nextConfigPath)) {
-    fs.writeFileSync(nextConfigPath, fs.readFileSync(nextConfigPath, "utf8").replace('  distDir: process.env.BIAN_NEXT_DIST_DIR || ".next",\n', ""));
-  }
-  fs.writeFileSync(tsconfigPath, tsconfigOriginal);
-  fs.writeFileSync(nextEnvPath, nextEnvOriginal);
+  restoreSourceConfigs();
 }
 
 console.log(`Formal StarSea: ${passes} passed, ${failures} failed`);
