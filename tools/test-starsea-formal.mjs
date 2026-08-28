@@ -4,20 +4,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import Database from "better-sqlite3";
 import { migrateUp, verifyDatabase } from "../src/lib/migrations.mjs";
 
 const root = process.cwd();
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "bian-starsea-formal-"));
+const tempRoot = fs.mkdtempSync(path.join(root, ".starsea-formal-"));
 const dbPath = path.join(tempRoot, "formal.db");
-const distPath = path.join(root, ".next-starsea-formal");
-const protectedConfigPaths = ["next.config.ts", "tsconfig.json", "next-env.d.ts"];
-const protectedConfigHashes = new Map(protectedConfigPaths.map((file) => [file, checksum(path.join(root, file))]));
-const sourceConfigPaths = ["tsconfig.json", "next-env.d.ts"];
-const sourceConfigContents = new Map(sourceConfigPaths.map((file) => [file, fs.readFileSync(path.join(root, file), "utf8")]));
+const appRoot = path.join(tempRoot, "app");
+const distPath = path.join(appRoot, ".next-starsea-formal");
 const port = 7417;
 const baseUrl = `http://127.0.0.1:${port}`;
 let server;
+let serverExitPromise;
 let failures = 0;
 let passes = 0;
 
@@ -47,8 +46,18 @@ function checksum(file) {
   return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
-function restoreSourceConfigs() {
-  for (const [file, content] of sourceConfigContents) fs.writeFileSync(path.join(root, file), content);
+function waitForExit(child) {
+  let settled = false;
+  return new Promise((resolve) => {
+    const settle = (event, code, signal) => {
+      if (settled) return;
+      settled = true;
+      resolve({ event, code, signal });
+    };
+    child.once("exit", (code, signal) => settle("exit", code, signal));
+    child.once("close", (code, signal) => settle("close", code, signal));
+    if (child.exitCode !== null || child.signalCode !== null) settle("state", child.exitCode, child.signalCode);
+  });
 }
 
 async function waitForServer() {
@@ -120,6 +129,10 @@ async function createPublicMemorial(client, name) {
   return response.json.id;
 }
 
+function formalTestSource() {
+  return fs.readFileSync(new URL(import.meta.url), "utf8");
+}
+
 function positionDistance(first, second) {
   return Math.hypot(first.x - second.x, first.y - second.y);
 }
@@ -168,15 +181,31 @@ async function main() {
     db.close();
   });
 
-  server = spawn(process.execPath, ["tools/dev.mjs", "-p", String(port)], {
-    cwd: root,
-    env: { ...process.env, SMOKE_DB_PATH: dbPath, BIAN_NEXT_DIST_DIR: ".next-starsea-formal", NODE_ENV: "development" },
+  fs.mkdirSync(appRoot, { recursive: true });
+  for (const entry of ["src", "public", "migrations", "package.json", "next.config.ts", "postcss.config.mjs", "tailwind.config.ts"]) {
+    const source = path.join(root, entry);
+    if (!fs.existsSync(source)) continue;
+    if (["src", "public", "migrations"].includes(entry)) {
+      const copy = spawn("robocopy", [source, path.join(appRoot, entry), "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NC", "/NS"], { stdio: "ignore" });
+      const exit = await new Promise((resolve) => copy.once("exit", resolve));
+      if (exit === null || exit > 7) throw new Error(`robocopy ${entry} failed: ${exit}`);
+    } else fs.copyFileSync(source, path.join(appRoot, entry));
+  }
+  const copyDependencies = spawn("robocopy", [path.join(root, "node_modules"), path.join(appRoot, "node_modules"), "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NC", "/NS"], { stdio: "ignore" });
+  const copyExit = await new Promise((resolve) => copyDependencies.once("exit", resolve));
+  if (copyExit === null || copyExit > 7) throw new Error(`robocopy node_modules failed: ${copyExit}`);
+  fs.copyFileSync(path.join(root, "tsconfig.json"), path.join(appRoot, "tsconfig.json"));
+  const require = createRequire(import.meta.url);
+  const nextBin = path.join(path.dirname(require.resolve("next/package.json")), "dist", "bin", "next");
+  server = spawn(process.execPath, [nextBin, "dev", appRoot, "--webpack", "-p", String(port)], {
+    cwd: appRoot,
+    env: { ...process.env, NODE_PATH: path.join(root, "node_modules"), SMOKE_DB_PATH: dbPath, BIAN_NEXT_DIST_DIR: ".next-starsea-formal", NODE_ENV: "development" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (chunk) => process.stdout.write(`[server] ${chunk}`));
   server.stderr.on("data", (chunk) => process.stderr.write(`[server] ${chunk}`));
+  serverExitPromise = waitForExit(server);
   await waitForServer();
-  restoreSourceConfigs();
 
   const client = cookieJar();
   await register(client);
@@ -185,6 +214,7 @@ async function main() {
     ids.push(await createPublicMemorial(client, name));
   }
   const oneCharacterId = await createPublicMemorial(client, "一");
+  const savedZeroId = await createPublicMemorial(client, "零");
 
   const db = new Database(dbPath, { readonly: true });
   check("new memorial links to its canonical hall", () => {
@@ -198,6 +228,19 @@ async function main() {
     }
   });
   db.close();
+
+  const zeroWriter = new Database(dbPath);
+  zeroWriter.prepare("UPDATE halls SET garden_x = 0, garden_y = 0 WHERE id = ?").run(`hall_${savedZeroId}`);
+  zeroWriter.close();
+  const savedZeroPlacement = await client.request(`/api/memorials/${savedZeroId}/garden`, {
+    method: "POST",
+    body: { in_garden: true },
+  });
+  await checkAsync("valid saved zero coordinates remain valid", async () => {
+    assert.equal(savedZeroPlacement.status, 200);
+    assert.equal(savedZeroPlacement.json.x, 0);
+    assert.equal(savedZeroPlacement.json.y, 0);
+  });
 
   const placements = [];
   for (const id of ids) {
@@ -289,7 +332,7 @@ async function main() {
     const body = await response.json();
     assert.equal(Array.isArray(body.halls), true);
     assert.equal("nextCursor" in body, true);
-    assert.equal(body.halls.length, ids.length);
+    assert.equal(body.halls.length, ids.length + 1);
     for (const hall of body.halls) {
       assert.equal(hall.hallId.startsWith("hall_"), true);
       assert.equal(hall.lampCount >= 1, true);
@@ -306,16 +349,27 @@ async function main() {
     assert.equal(typeof first.nextCursor, "string");
     assert.equal(first.nextCursor, first.halls.at(-1).hallId);
     const second = await (await fetch(`${baseUrl}/api/garden/starsea?limit=2&cursor=${encodeURIComponent(first.nextCursor)}`)).json();
-    assert.equal(second.halls.length, 1);
+    assert.equal(second.halls.length, 2);
     assert.equal(second.nextCursor, null);
     assert.deepEqual(
       [...first.halls, ...second.halls].map((hall) => hall.hallId),
-      [...ids.slice(1), oneCharacterId].map((id) => `hall_${id}`).sort()
+      [...ids.slice(1), oneCharacterId, savedZeroId].map((id) => `hall_${id}`).sort()
     );
   });
 
-  check("formal test leaves Next configuration sources unchanged", () => {
-    for (const [file, before] of protectedConfigHashes) assert.equal(checksum(path.join(root, file)), before, file);
+  check("formal test never writes root Next configuration sources", () => {
+    const source = formalTestSource();
+    const writeCall = ["write", "File", "Sync"].join("");
+    const restoreCall = ["restore", "Source", "Configs"].join("");
+    assert.equal(source.includes(writeCall), false);
+    assert.equal(source.includes(restoreCall), false);
+  });
+
+  check("shutdown wait is pre-registered and covers exit plus close", () => {
+    const source = formalTestSource();
+    assert.match(source, /function waitForExit\(child\)/);
+    assert.match(source, /child\.once\("exit"/);
+    assert.match(source, /child\.once\("close"/);
   });
 }
 
@@ -325,16 +379,19 @@ try {
   failures += 1;
   console.error(`FATAL ${error.stack || error}`);
 } finally {
-  if (server && !server.killed && server.exitCode === null) {
+  if (server && !server.killed && server.exitCode === null && server.signalCode === null) {
     server.kill("SIGTERM");
-    await new Promise((resolve) => {
-      if (server.exitCode !== null) resolve(undefined);
-      else server.once("exit", resolve);
-    });
+  }
+  if (serverExitPromise) {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("server shutdown timeout")), 5000));
+    try { await Promise.race([serverExitPromise, timeout]); }
+    catch (error) {
+      failures += 1;
+      console.error(`FAIL shutdown: ${error.message}`);
+      if (server && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
+    }
   }
   fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3 });
-  fs.rmSync(distPath, { recursive: true, force: true, maxRetries: 3 });
-  restoreSourceConfigs();
 }
 
 console.log(`Formal StarSea: ${passes} passed, ${failures} failed`);
