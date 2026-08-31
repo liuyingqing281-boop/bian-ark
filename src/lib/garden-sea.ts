@@ -80,3 +80,19 @@ export function starOffsets(hallId: string, lampCount: number): Array<{ x: numbe
 export function stableHallOrder(halls: Array<GardenSeaHall>): Array<GardenSeaHall> {
   return [...halls].sort((a, b) => (a.hallId < b.hallId ? -1 : a.hallId > b.hallId ? 1 : 0));
 }
+
+// ---- 择位模式（Task 6，墓园规格 §8.3 馆主亲手择位 / 13 号方案风险 C） ----
+// active=true 仅由「我的」页择位入口（?placing=馆id）显式激活：普通浏览
+// pointer down/up 只处理点击，绝不拖动星群；访客永远看不到择位 UI。
+// 写入安全边界在服务端（PATCH /api/halls/[id]/garden-pos 鉴权馆主 + public）。
+export type PlacementState = { hallId: string; active: true } | { active: false };
+
+/**
+ * 择位坐标归一化：钳制到 0–1 并保留 3 位小数（拖拽实时显示与发送前统一走这里，
+ * 与 halls.garden_x/garden_y 的存储精度一致；NaN 回落 0）。
+ * 钳制在先、舍入在后：边界值四舍五入不会越界（0.9996 → 1 而非 1.001）。
+ */
+export function roundPlacementPoint(x: number, y: number): { x: number; y: number } {
+  const clamp = (v: number) => (Number.isNaN(v) ? 0 : Math.min(1, Math.max(0, v)));
+  return { x: Math.round(clamp(x) * 1000) / 1000, y: Math.round(clamp(y) * 1000) / 1000 };
+}

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { Browser } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import { apiLogin, dbPath, gotoStable, RUN } from "./helpers";
 
@@ -69,6 +69,21 @@ test.describe("星海页面输入切换（Task 3）", () => {
     await expect(page.locator(".garden-sea")).toBeVisible({ timeout: 15_000 });
     await expect(page).toHaveURL(/zone=public&hall=h1&panel=detail/, { timeout: 15_000 });
   });
+
+  // Task 6（Task 5 评审携带项）：浏览快照键必须按 lang 隔离（同镜头键规则），
+  // 否则 zh 会话的搜索词/选中项会在无显式参数的 /en/garden 上跨语言泄漏恢复
+  test("快照按语言隔离：zh 搜索态不得串扰 en 星海", async ({ page }) => {
+    test.setTimeout(90_000);
+    await gotoStable(page, "/zh/garden");
+    await expect(page.locator(".starsea-cluster").first()).toBeVisible({ timeout: 30_000 });
+    await page.getByLabel("搜索星海").fill("绝不匹配xyzq");
+    await expect(page).toHaveURL(/q=/, { timeout: 5_000 });
+    await gotoStable(page, "/en/garden");
+    // 等数据落地（挂载效应 + URL 同步均在数据请求前完成）再断言 URL
+    await expect(page.locator(".starsea-cluster").first()).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(300);
+    await expect(page).not.toHaveURL(/q=|hall=|zone=/);
+  });
 });
 
 // ---------- 正式 2.5D 星海垂直切片（Task 4） ----------
@@ -82,6 +97,27 @@ let seededHallId = "";
 let seededMemorialId = "";
 let seededPrivateHallId = "";
 let seededPrivateMemorialId = "";
+// 种子馆主的会话 Cookie（beforeAll 登录一次；择位测试逐个开新 context 注入，
+// 避免对同一邮箱反复 request-code 撞 60s 限频，也保证每例 sessionStorage 干净）
+let ownerCookies: Array<{ name: string; value: string; domain: string; path: string }> = [];
+
+// 拖拽辅助：mouse API 产生 pointer 事件（pointerType=mouse，移动端投影同样驱动
+// 指针事件路径）。从星群中心按下、步进移动到目标后由调用方 mouse.up()，
+// 抓取点=星群中心 → 落点草稿位 ≈ 目标点（camera 恒等时严格相等）
+async function dragClusterTo(page: Page, cluster: Locator, targetX: number, targetY: number) {
+  const box = await cluster.boundingBox();
+  if (!box) throw new Error("cluster not measurable before drag");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetX, targetY, { steps: 10 });
+}
+
+async function ownerPage(browser: Browser) {
+  const ctx = await browser.newContext();
+  await ctx.addCookies(ownerCookies);
+  const page = await ctx.newPage();
+  return { ctx, page };
+}
 
 test.describe("正式 2.5D 星海", () => {
   test.beforeAll(async ({ browser }: { browser: Browser }) => {
@@ -170,6 +206,7 @@ test.describe("正式 2.5D 星海", () => {
     } finally {
       db.close();
     }
+    ownerCookies = (await ctx.cookies()).map(({ name, value, domain, path }) => ({ name, value, domain, path }));
     await ctx.close();
   });
 
@@ -480,5 +517,211 @@ test.describe("正式 2.5D 星海", () => {
     await expect(page.getByText("纪念馆不存在或未公开")).toBeVisible({ timeout: 15_000 });
     await gotoStable(page, `/zh/hall/${seededPrivateMemorialId}`);
     await expect(page.getByText("纪念馆不存在或未公开")).toBeVisible({ timeout: 15_000 });
+  });
+
+  // ---------- 显式择位模式（Task 6，墓园规格 §8.3 馆主亲手择位） ----------
+  test("馆主择位：拖拽星群到空位发送 0–1 三位小数坐标并本地落位", async ({ browser }) => {
+    test.setTimeout(120_000);
+    const { ctx, page } = await ownerPage(browser);
+    const patches: Array<{ x: number; y: number }> = [];
+    await page.route("**/api/halls/*/garden-pos", async (route) => {
+      const body = (await route.request().postDataJSON()) as { x: number; y: number };
+      patches.push({ x: body.x, y: body.y });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, in_garden: true, x: body.x, y: body.y }),
+      });
+    });
+    try {
+      await gotoStable(page, `/zh/garden?placing=${seededHallId}`);
+      await expect(page.locator(".starsea-placement-bar")).toBeVisible({ timeout: 30_000 });
+      const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+      await expect(cluster).toBeVisible({ timeout: 30_000 });
+      const sea = await page.locator(".garden-sea").boundingBox();
+      expect(sea, "garden-sea 应有尺寸").toBeTruthy();
+      const tx = sea!.x + sea!.width * 0.68;
+      const ty = sea!.y + sea!.height * 0.3;
+      await dragClusterTo(page, cluster, tx, ty);
+      // 拖拽期间：44px 目标环 + 实时坐标（馆主专属；访客永远看不到）
+      const ring = page.locator(".starsea-placement-ring");
+      await expect(ring).toBeVisible();
+      const ringBox = await ring.boundingBox();
+      expect(Math.min(ringBox!.width, ringBox!.height), "目标环最小 44×44px").toBeGreaterThanOrEqual(44);
+      await expect(page.locator(".starsea-placement-coords")).toHaveText(/\d\.\d{3}, \d\.\d{3}/);
+      await page.mouse.up();
+      // 松开即提交：PATCH body 为 0–1 归一化三位小数坐标
+      await expect.poll(() => patches.length).toBe(1);
+      const sent = patches[0];
+      expect(sent.x).toBeGreaterThanOrEqual(0);
+      expect(sent.x).toBeLessThanOrEqual(1);
+      expect(sent.y).toBeGreaterThanOrEqual(0);
+      expect(sent.y).toBeLessThanOrEqual(1);
+      expect(sent.x).toBeCloseTo(0.68, 3);
+      expect(sent.y).toBeCloseTo(0.3, 3);
+      expect(Number(sent.x.toFixed(3)), "坐标保留 3 位小数").toBe(sent.x);
+      expect(Number(sent.y.toFixed(3)), "坐标保留 3 位小数").toBe(sent.y);
+      // 200 后：本地坐标更新（星群中心 ≈ 落点）+ toast + 退出择位
+      await expect(page.locator(".starsea-toast")).toBeVisible({ timeout: 5_000 });
+      await expect(page.locator(".starsea-placement-bar")).toHaveCount(0);
+      const moved = await cluster.boundingBox();
+      expect(Math.abs(moved!.x + moved!.width / 2 - tx), "星群应落在新位置").toBeLessThanOrEqual(2);
+      expect(Math.abs(moved!.y + moved!.height / 2 - ty), "星群应落在新位置").toBeLessThanOrEqual(2);
+      // placing 参数一次性消费：激活后即从 URL 剥离（URL 白名单不含 placing）
+      await expect(page).not.toHaveURL(/placing=/);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("择位撞上占用点返回 409：建议位 UI 可确认并吸附建议位", async ({ browser }) => {
+    test.setTimeout(120_000);
+    const { ctx, page } = await ownerPage(browser);
+    const bodies: Array<{ x: number; y: number }> = [];
+    let calls = 0;
+    const suggested = { x: 0.42, y: 0.31 };
+    await page.route("**/api/halls/*/garden-pos", async (route) => {
+      calls += 1;
+      const body = (await route.request().postDataJSON()) as { x: number; y: number };
+      bodies.push({ x: body.x, y: body.y });
+      if (calls === 1) {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "position_conflict", suggested }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true, in_garden: true, x: body.x, y: body.y }),
+        });
+      }
+    });
+    try {
+      await gotoStable(page, `/zh/garden?placing=${seededHallId}`);
+      await expect(page.locator(".starsea-placement-bar")).toBeVisible({ timeout: 30_000 });
+      const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+      await expect(cluster).toBeVisible({ timeout: 30_000 });
+      const sea = await page.locator(".garden-sea").boundingBox();
+      await dragClusterTo(page, cluster, sea!.x + sea!.width * 0.6, sea!.y + sea!.height * 0.4);
+      await page.mouse.up();
+      // 409 → 「这里太靠近其他纪念馆」+「使用建议位置」
+      await expect(page.getByText("这里太靠近其他纪念馆")).toBeVisible({ timeout: 5_000 });
+      const suggestBtn = page.getByRole("button", { name: "使用建议位置" });
+      await expect(suggestBtn).toBeVisible();
+      await suggestBtn.click();
+      // 第二次 PATCH body = 建议位坐标（原样透传）
+      await expect.poll(() => bodies.length).toBe(2);
+      expect(bodies[1]).toEqual(suggested);
+      // 吸附建议位 + toast + 退出择位
+      await expect(page.locator(".starsea-toast")).toBeVisible({ timeout: 5_000 });
+      await expect(page.locator(".starsea-placement-bar")).toHaveCount(0);
+      const moved = await cluster.boundingBox();
+      expect(Math.abs(moved!.x + moved!.width / 2 - (sea!.x + suggested.x * sea!.width))).toBeLessThanOrEqual(2);
+      expect(Math.abs(moved!.y + moved!.height / 2 - (sea!.y + suggested.y * sea!.height))).toBeLessThanOrEqual(2);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("择位发送中 Esc 仍可退出：迟到响应不复活择位，普通点击恢复聚焦", async ({ browser }) => {
+    test.setTimeout(120_000);
+    const { ctx, page } = await ownerPage(browser);
+    const gate = { release: () => {} };
+    const gatePromise = new Promise<void>((resolve) => {
+      gate.release = resolve;
+    });
+    await page.route("**/api/halls/*/garden-pos", async (route) => {
+      await gatePromise;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, in_garden: true, x: 0.77, y: 0.44 }),
+      });
+    });
+    try {
+      await gotoStable(page, `/zh/garden?placing=${seededHallId}`);
+      await expect(page.locator(".starsea-placement-bar")).toBeVisible({ timeout: 30_000 });
+      const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+      await expect(cluster).toBeVisible({ timeout: 30_000 });
+      const origin = await cluster.evaluate((el) => `${getComputedStyle(el).left}|${getComputedStyle(el).top}`);
+      const sea = await page.locator(".garden-sea").boundingBox();
+      await dragClusterTo(page, cluster, sea!.x + sea!.width * 0.55, sea!.y + sea!.height * 0.35);
+      await page.mouse.up();
+      // 发送中锁定星群（不可再拖），但 Esc 仍可退出
+      await expect(page.locator(".starsea-placement-bar")).toHaveAttribute("data-status", "sending", { timeout: 5_000 });
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".starsea-placement-bar")).toHaveCount(0);
+      // 退出即弹回原位（未确认的拖拽绝不落库/改本地坐标）
+      await expect
+        .poll(async () => cluster.evaluate((el) => `${getComputedStyle(el).left}|${getComputedStyle(el).top}`))
+        .toBe(origin);
+      // 放行迟到的成功：不得复活择位、不得改动本地坐标、不得弹 toast
+      gate.release();
+      await page.waitForTimeout(500);
+      await expect(page.locator(".starsea-placement-bar")).toHaveCount(0);
+      expect(await cluster.evaluate((el) => `${getComputedStyle(el).left}|${getComputedStyle(el).top}`)).toBe(origin);
+      await expect(page.locator(".starsea-toast")).toHaveCount(0);
+      // 退出择位后普通点击恢复既有交互：聚焦 → 详情抽屉
+      await cluster.click();
+      await expect(cluster).toHaveClass(/is-focused/, { timeout: 3_000 });
+      await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible({ timeout: 3_000 });
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("访客看不到任何择位控件，普通浏览拖拽不改星群位置", async ({ page }) => {
+    test.setTimeout(90_000);
+    let patchSeen = false;
+    page.on("request", (req) => {
+      if (req.url().includes("/api/halls/") && req.url().includes("/garden-pos")) patchSeen = true;
+    });
+    await gotoStable(page, "/zh/garden");
+    const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+    await expect(cluster).toBeVisible({ timeout: 30_000 });
+    // 访客（未登录普通浏览）永远看不到择位 UI（目标环/横幅）
+    await expect(page.locator(".starsea-placement-bar")).toHaveCount(0);
+    await expect(page.locator(".starsea-placement-ring")).toHaveCount(0);
+    // 普通模式 pointer down/up 只处理点击：拖拽不产生择位请求、不改变位置
+    const before = await cluster.evaluate((el) => `${getComputedStyle(el).left}|${getComputedStyle(el).top}`);
+    const box = await cluster.boundingBox();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2 + 140, box!.y + box!.height / 2 + 80, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    expect(patchSeen, "普通浏览拖拽绝不发送择位请求").toBe(false);
+    expect(await cluster.evaluate((el) => `${getComputedStyle(el).left}|${getComputedStyle(el).top}`)).toBe(before);
+  });
+
+  test("「我的」公开馆择位入口落到 /garden?placing= 并激活择位", async ({ browser }) => {
+    test.setTimeout(150_000);
+    const { ctx, page } = await ownerPage(browser);
+    // 独立公开馆：不动共享种子馆的入园状态（并行测试依赖其可见性）
+    const created = await ctx.request.post("/api/memorials", {
+      data: { name: `${TAG}择位入口馆`, type: "person", visibility: "public", biography: `E2E ${TAG}` },
+    });
+    const createdBody = (await created.json()) as { id?: string };
+    if (!created.ok() || !createdBody.id) throw new Error(`seed entry memorial failed: ${created.status()}`);
+    try {
+      await gotoStable(page, "/zh/me");
+      // .first()：纪念馆设置区（含择位入口）先于「我的纪念」聚合区渲染
+      const row = page.locator("li").filter({ hasText: `${TAG}择位入口馆` }).first();
+      await expect(row).toBeVisible({ timeout: 30_000 });
+      await row.locator("label").filter({ hasText: "放入公共墓园" }).locator("input[type=checkbox]").click();
+      // 旧 POST 成功后跳转带 ?placing=（Task 6 统一择位入口；旧接口保留给历史客户端）
+      await page.waitForURL(
+        (url) => url.pathname.endsWith("/zh/garden") && url.searchParams.has("placing"),
+        { timeout: 30_000 }
+      );
+      await expect(page).toHaveURL(new RegExp(`placing=hall_${createdBody.id}`));
+      // 落地即激活择位：横幅出现；placing 参数消费后从 URL 剥离
+      await expect(page.locator(".starsea-placement-bar")).toBeVisible({ timeout: 30_000 });
+      await expect(page).not.toHaveURL(/placing=/, { timeout: 10_000 });
+    } finally {
+      await ctx.close();
+    }
   });
 });

@@ -141,10 +141,18 @@ export function MemorialSettings({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ in_garden: next }),
     });
-    if (res.ok) {
-      setInGarden(next);
-      router.refresh();
+    if (!res.ok) return;
+    setInGarden(next);
+    if (next) {
+      // Task 6：公开馆入园统一走星海显式择位——旧 POST 成功（自动疏朗位）后
+      // 带 placing 直达星海拖拽微调（墓园规格 §8.3 馆主亲手择位）；
+      // 旧接口本身保留给历史客户端。
+      const body = (await res.json().catch(() => null)) as { hallId?: string } | null;
+      const hallId = body?.hallId || `hall_${memorial.id}`;
+      router.push(`/${lang}/garden?placing=${encodeURIComponent(hallId)}`);
+      return;
     }
+    router.refresh();
   }
 
   async function save() {

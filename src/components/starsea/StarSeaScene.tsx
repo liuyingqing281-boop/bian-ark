@@ -7,9 +7,14 @@
 //   API 错误时显示可重试横幅，背景场景仍可操作。
 // - panel 非 list 时场景 inert（焦点限制在抽屉/控件内，墓园规格 §6）。
 // - 背景星空用纯 CSS 渐变（确定性，无 Math.random）。
+// - 择位模式（Task 6，墓园规格 §8.3）：placementHallId 非 null 时仅该星群可
+//   pointer capture 拖拽（草稿位经控制器，松开提交 PATCH）；普通浏览
+//   pointer down/up 只处理点击（点星群聚焦 / 拖空白平移），绝不移动星群。
+//   拖拽期间显示 44px 目标环 + 实时坐标（馆主专属；访客永远看不到）。
 
 import { useEffect, useRef } from "react";
 import type { GardenSeaHall } from "../../lib/garden-sea";
+import { roundPlacementPoint } from "../../lib/garden-sea";
 import type { GardenSeaState } from "../../lib/garden-sea-state";
 import StarCluster from "./StarCluster";
 import type { StarClusterLabels } from "./StarCluster";
@@ -27,6 +32,12 @@ interface StarSeaSceneProps {
   state: GardenSeaState;
   matchedHallIds: Set<string> | null; // null = 无搜索词，全部匹配
   focusedHallId: string | null;
+  /** 择位模式目标馆（Task 6；非 null = 择位激活，馆主专属流程） */
+  placementHallId: string | null;
+  /** 拖拽草稿位（0–1 三位小数）；null = 尚未拖拽（星群停在原位） */
+  placementDraft: { x: number; y: number } | null;
+  /** 发送中锁定：禁止开始新的拖拽（Esc 仍可退出，由控制器处理） */
+  placementLocked: boolean;
   loading: boolean;
   error: string | null;
   labels: StarSeaSceneLabels;
@@ -34,12 +45,20 @@ interface StarSeaSceneProps {
   onSelectHall: (hallId: string) => void;
   onEnterHall: (hallId: string) => void;
   onCameraChange: (camera: { scale: number; x: number; y: number }) => void;
+  onPlacementDrag: (point: { x: number; y: number }) => void;
+  onPlacementDrop: (point: { x: number; y: number }) => void;
 }
 
 interface PointerState {
   pointers: Map<number, { x: number; y: number }>;
   last: { x: number; y: number } | null;
   pinchBase: { distance: number; scale: number } | null;
+}
+
+interface PlacementDrag {
+  pointerId: number;
+  /** 抓取点偏移（pointerNorm − 星群Norm）：拖拽中星群不跳变到手心 */
+  grab: { x: number; y: number };
 }
 
 const MIN_SCALE = 0.5;
@@ -50,6 +69,9 @@ export default function StarSeaScene({
   state,
   matchedHallIds,
   focusedHallId,
+  placementHallId,
+  placementDraft,
+  placementLocked,
   loading,
   error,
   labels,
@@ -57,8 +79,11 @@ export default function StarSeaScene({
   onSelectHall,
   onEnterHall,
   onCameraChange,
+  onPlacementDrag,
+  onPlacementDrop,
 }: StarSeaSceneProps) {
   const dragRef = useRef<PointerState>({ pointers: new Map(), last: null, pinchBase: null });
+  const placementDragRef = useRef<PlacementDrag | null>(null);
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const camera = useRef({ scale: state.scale, x: state.offset.x, y: state.offset.y });
   camera.current = { scale: state.scale, x: state.offset.x, y: state.offset.y };
@@ -68,7 +93,40 @@ export default function StarSeaScene({
     onCameraChange({ scale, x: next.x, y: next.y });
   }
 
+  // 视口坐标 → 场景归一化坐标（scene getBoundingClientRect 为基准，逆 camera transform）
+  function sceneToNorm(clientX: number, clientY: number): { x: number; y: number } | null {
+    const rect = sceneRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+    const cam = camera.current;
+    return {
+      x: (clientX - rect.left - cam.x) / (cam.scale * rect.width),
+      y: (clientY - rect.top - cam.y) / (cam.scale * rect.height),
+    };
+  }
+
+  // 拖拽前星群的当前视觉位（草稿优先，未拖过 = 原位）
+  const placingHall = placementHallId ? halls.find((hall) => hall.hallId === placementHallId) || null : null;
+  const placementBase =
+    placementHallId ? (placementDraft || (placingHall ? { x: placingHall.x, y: placingHall.y } : null)) : null;
+
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (placementHallId) {
+      const hit = (event.target as HTMLElement).closest(".starsea-cluster");
+      if (hit && hit.getAttribute("data-hall-id") === placementHallId) {
+        // 择位拖拽：仅显式择位模式 + 命中被择位星群才启用 pointer capture
+        if (placementLocked) return; // 发送中锁定（Esc 退出归控制器）
+        event.preventDefault();
+        const norm = sceneToNorm(event.clientX, event.clientY);
+        const base = placementBase || (norm ? { x: norm.x, y: norm.y } : { x: 0.5, y: 0.5 });
+        placementDragRef.current = {
+          pointerId: event.pointerId,
+          grab: norm ? { x: norm.x - base.x, y: norm.y - base.y } : { x: 0, y: 0 },
+        };
+        sceneRef.current?.setPointerCapture(event.pointerId);
+        return;
+      }
+      if (hit) return; // 择位任务态：点其他星群不触发选中/聚焦（空场景仍可平移环顾）
+    }
     if ((event.target as HTMLElement).closest(".starsea-cluster")) return; // 点星群不触发拖拽
     sceneRef.current?.setPointerCapture(event.pointerId);
     const pointers = dragRef.current.pointers;
@@ -83,6 +141,14 @@ export default function StarSeaScene({
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const placement = placementDragRef.current;
+    if (placement) {
+      if (event.pointerId !== placement.pointerId) return;
+      const norm = sceneToNorm(event.clientX, event.clientY);
+      if (!norm) return;
+      onPlacementDrag(roundPlacementPoint(norm.x - placement.grab.x, norm.y - placement.grab.y));
+      return;
+    }
     const pointers = dragRef.current.pointers;
     if (!pointers.has(event.pointerId)) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -111,6 +177,13 @@ export default function StarSeaScene({
   }
 
   function onPointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    const placement = placementDragRef.current;
+    if (placement && event.pointerId === placement.pointerId) {
+      placementDragRef.current = null;
+      const norm = sceneToNorm(event.clientX, event.clientY);
+      if (norm) onPlacementDrop(roundPlacementPoint(norm.x - placement.grab.x, norm.y - placement.grab.y));
+      return;
+    }
     dragRef.current.pointers.delete(event.pointerId);
     if (dragRef.current.pointers.size === 0) {
       dragRef.current.last = null;
@@ -145,6 +218,7 @@ export default function StarSeaScene({
       aria-label={labels.scene}
       ref={sceneRef}
       inert={inert}
+      data-placing={placementHallId || undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -154,17 +228,64 @@ export default function StarSeaScene({
         className="starsea-camera"
         style={{ transform: `translate(${state.offset.x}px, ${state.offset.y}px) scale(${state.scale})` }}
       >
-        {halls.map((hall) => (
-          <StarCluster
-            key={hall.hallId}
-            hall={hall}
-            matched={!matchedHallIds || matchedHallIds.has(hall.hallId)}
-            focused={focusedHallId === hall.hallId}
-            labels={labels}
-            onSelect={onSelectHall}
-            onEnter={onEnterHall}
-          />
-        ))}
+        {halls.map((hall) => {
+          // 择位草稿不改 halls 节点数组（搜索空间不变性红线）：仅渲染层克隆覆盖坐标
+          const isPlacing = placementHallId === hall.hallId;
+          const renderHall =
+            isPlacing && placementDraft ? { ...hall, x: placementDraft.x, y: placementDraft.y } : hall;
+          return (
+            <StarCluster
+              key={hall.hallId}
+              hall={renderHall}
+              matched={!matchedHallIds || matchedHallIds.has(hall.hallId)}
+              focused={focusedHallId === hall.hallId}
+              labels={labels}
+              onSelect={onSelectHall}
+              onEnter={onEnterHall}
+            />
+          );
+        })}
+        {placementHallId && placementBase && (
+          // 44px 目标环 + 实时坐标（馆主专属）：挂 camera 层用归一化百分比定位，
+          // 随镜头变换；样式内联（globals.css 不在本任务改动清单内，Task 8/9 归拢 token）
+          <div
+            className="starsea-placement-ring"
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: `${placementBase.x * 100}%`,
+              top: `${placementBase.y * 100}%`,
+              width: "44px",
+              height: "44px",
+              margin: 0,
+              transform: "translate(-50%, -50%)",
+              border: "2px dashed rgba(252, 211, 77, 0.85)",
+              borderRadius: "50%",
+              boxSizing: "border-box",
+              background: "rgba(252, 211, 77, 0.08)",
+              pointerEvents: "none",
+            }}
+          >
+            <span
+              className="starsea-placement-coords"
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "calc(100% + 6px)",
+                transform: "translateX(-50%)",
+                padding: "2px 8px",
+                borderRadius: "8px",
+                background: "rgba(10, 13, 26, 0.92)",
+                color: "#cdd5e5",
+                fontSize: "11px",
+                letterSpacing: "0.06em",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {placementBase.x.toFixed(3)}, {placementBase.y.toFixed(3)}
+            </span>
+          </div>
+        )}
       </div>
       {loading && halls.length === 0 && <div className="garden-sea-skeleton" aria-hidden="true" />}
       {!loading && !error && halls.length === 0 && (

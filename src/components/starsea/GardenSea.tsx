@@ -16,6 +16,12 @@
 // - 园→馆→园（Task 5）：浏览状态持续落 bian-garden-snapshot（sessionStorage，
 //   TTL 10min）；进馆附 from=garden（仅状态恢复语义），馆页返回 /garden 时
 //   无显式 URL 参数则恢复快照，快照无效/过期回默认星海。
+// - 择位模式（Task 6，墓园规格 §8.3 馆主亲手择位）：挂载时读取一次 placing
+//   参数显式激活（「我的」页择位入口专用，URL 白名单不含 placing，激活即剥离）；
+//   拖拽草稿 → 松开 PATCH /api/halls/[id]/garden-pos；200 更新本地坐标 + toast；
+//   409 建议位可一键确认吸附；403 公开权限/无权提示；网络错误弹回原位可重试；
+//   发送中锁定星群但 Esc 仍可退出（序号守卫丢弃迟到响应）。访客永远看不到
+//   择位 UI（激活仅靠显式 placing 参数，写入鉴权在服务端）。
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -31,8 +37,8 @@ import {
   serializeGardenUrl,
 } from "../../lib/garden-sea-state";
 import type { GardenSeaAction, GardenSeaCamera, GardenSeaState } from "../../lib/garden-sea-state";
-import { stableHallOrder } from "../../lib/garden-sea";
-import type { GardenSeaHall, GardenZone } from "../../lib/garden-sea";
+import { roundPlacementPoint, stableHallOrder } from "../../lib/garden-sea";
+import type { GardenSeaHall, GardenZone, PlacementState } from "../../lib/garden-sea";
 import StarSeaScene from "./StarSeaScene";
 import StarSeaControls from "./StarSeaControls";
 import StarSeaDrawer from "./StarSeaDrawer";
@@ -45,6 +51,10 @@ interface GardenSeaProps {
 }
 
 type Bbox = [number, number, number, number];
+
+// 择位写入状态机：idle 拖拽中 / sending 锁定 / conflict 409 建议位 /
+// visibility·forbidden 403 两类 / error 网络或其他失败（弹回原位可重试）
+type PlacementPhase = "idle" | "sending" | "conflict" | "visibility" | "forbidden" | "error";
 
 const ZH_LABELS = {
   scene: "星海",
@@ -91,6 +101,17 @@ const ZH_LABELS = {
   membersRetry: "重试",
   loginLink: "去登录",
   epitaphEmpty: "此处安息，静待思念",
+  placementHint: "择位模式：拖动你的星群到心仪位置，松开保存",
+  placementSending: "正在保存位置…",
+  placementConflict: "这里太靠近其他纪念馆",
+  placementSuggest: "使用建议位置",
+  placementDismiss: "重新拖拽",
+  placementVisibility: "入星海需先将纪念馆设为公开（「我的」页可修改可见性）",
+  placementForbidden: "只有馆主可以调整这个位置",
+  placementError: "位置保存失败，请重试或重新拖拽",
+  placementRetry: "重试",
+  placementExit: "退出择位",
+  placementUpdated: "位置已更新",
 };
 
 const EN_LABELS = {
@@ -139,6 +160,17 @@ const EN_LABELS = {
   membersRetry: "Retry",
   loginLink: "Sign in",
   epitaphEmpty: "Resting here, awaiting remembrance",
+  placementHint: "Placement mode: drag your star cluster to a spot you like and release to save",
+  placementSending: "Saving position…",
+  placementConflict: "Too close to another memorial hall",
+  placementSuggest: "Use suggested spot",
+  placementDismiss: "Drag again",
+  placementVisibility: "Set the hall to public first (visibility can be changed on the profile page)",
+  placementForbidden: "Only the hall owner can place this hall",
+  placementError: "Failed to save the position; retry or drag again",
+  placementRetry: "Retry",
+  placementExit: "Exit placement",
+  placementUpdated: "Position updated",
 };
 
 const ZH_ITEM_NAMES: Record<string, string> = {
@@ -223,7 +255,11 @@ async function readApiError(response: Response): Promise<string> {
 // JSON 解析失败 / 结构非法 / 超时（10 分钟）一律回落默认星海。
 // 快照随浏览持续刷新（不一次性消费）：React dev StrictMode 会双重调用挂载效应，
 // 读取即删会让第二次调用读到空、把恢复态打回默认；TTL 负责过期。
-const GARDEN_SNAPSHOT_KEY = "bian-garden-snapshot";
+// 键按 lang 区分（Task 6 修 Task 5 评审小项）：中英文会话各自恢复各自的
+// 浏览态，zh 的快照不泄漏到 /en/garden（同 gardenCameraStorageKey 规则）。
+function gardenSnapshotStorageKey(lang: string): string {
+  return `starsea:snapshot:${lang}`;
+}
 const GARDEN_SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 
 interface GardenSnapshot {
@@ -324,6 +360,18 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   const [offerNotice, setOfferNotice] = useState("");
   const offerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ---- 择位模式（Task 6，墓园规格 §8.3）----
+  const [placement, setPlacement] = useState<PlacementState>({ active: false });
+  const [placementDraft, setPlacementDraft] = useState<{ x: number; y: number } | null>(null);
+  const [placementPhase, setPlacementPhase] = useState<PlacementPhase>("idle");
+  const [placementSuggested, setPlacementSuggested] = useState<{ x: number; y: number } | null>(null);
+  const [placementLastPoint, setPlacementLastPoint] = useState<{ x: number; y: number } | null>(null);
+  const placementSeqRef = useRef(0);
+
+  // 择位成功 toast（≤1.2s 仪式反馈区间）
+  const [toast, setToast] = useState("");
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const cameraKey = gardenCameraStorageKey(lang);
 
   function send(action: GardenSeaAction) {
@@ -340,11 +388,25 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
       // 无显式状态（含从馆页「返回星海」）：恢复进馆前的浏览状态；
       // 显式深链（分享链接等）优先 URL；快照无效/过期/JSON 损坏时
       // parseGardenUrl 已给出默认星海
-      const snapshot = readGardenSnapshot(GARDEN_SNAPSHOT_KEY);
+      const snapshot = readGardenSnapshot(gardenSnapshotStorageKey(lang));
       if (snapshot) {
         const restored = parseGardenUrl(new URLSearchParams(snapshot.params));
         next = { ...restored, scale: snapshot.scale, offset: { x: snapshot.offset.x, y: snapshot.offset.y } };
       }
+    }
+    // Task 6：读取一次 placing 参数（「我的」页择位入口显式激活，仅馆主入口生成）。
+    // 激活即消费：URL 白名单不含 placing，下一次 URL 同步即剥离（刷新即退出择位）；
+    // 择位为专注任务态，进入时清掉快照带来的详情/供奉选中。
+    const placingHallId = urlParams.get("placing");
+    if (placingHallId) {
+      next = {
+        ...next,
+        panel: "list",
+        drawer: "collapsed",
+        selectedHallId: null,
+        selectedMemorialId: null,
+      };
+      setPlacement({ hallId: placingHallId, active: true });
     }
     setState(next);
     setUrlReady(true);
@@ -364,7 +426,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
     const search = serializeGardenUrl(state).toString();
     // 浏览状态持续落快照：星群双击 / 抽屉「进馆」锚点 / Enter 进馆
     // （任意离馆导航）都能在返回时恢复，不依赖特定入口先存快照
-    saveGardenSnapshot(GARDEN_SNAPSHOT_KEY, search, { scale: state.scale, offset: state.offset });
+    saveGardenSnapshot(gardenSnapshotStorageKey(lang), search, { scale: state.scale, offset: state.offset });
     if (skipUrlWriteRef.current) {
       skipUrlWriteRef.current = false;
       return;
@@ -474,6 +536,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
       abortRef.current?.abort();
       if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
       if (offerTimerRef.current) clearTimeout(offerTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
 
@@ -494,14 +557,16 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   }
 
   function handleSelectHall(hallId: string) {
+    if (placement.active) return; // 择位任务态：点击不进入详情（含被择位星群自身的误触 click）
     focusThen(hallId, () => send({ type: "selectHall", hallId }));
   }
 
   function handleEnterHall(hallId: string) {
+    if (placement.active) return; // 择位任务态：双击/Enter 不进馆
     focusThen(hallId, () => {
       // 进馆前再兜底落一次快照（聚焦动画期间状态未变时 URL 同步效应已存）；
       // from=garden 只用于返回状态恢复语义，绝不参与权限判断
-      saveGardenSnapshot(GARDEN_SNAPSHOT_KEY, serializeGardenUrl(state).toString(), {
+      saveGardenSnapshot(gardenSnapshotStorageKey(lang), serializeGardenUrl(state).toString(), {
         scale: state.scale,
         offset: state.offset,
       });
@@ -605,7 +670,114 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
     send({ type: "openOffer" });
   }
 
+  // ---- 择位提交与状态（Task 6）----
+  function exitPlacement() {
+    placementSeqRef.current += 1; // 在途响应作废（含发送中 Esc 后迟到的成功）
+    setPlacement({ active: false });
+    setPlacementDraft(null);
+    setPlacementPhase("idle");
+    setPlacementSuggested(null);
+    setPlacementLastPoint(null);
+  }
+
+  function applyHallPosition(hallId: string, point: { x: number; y: number }) {
+    const hall = hallsRef.current.get(hallId);
+    if (!hall) return;
+    hallsRef.current.set(hallId, { ...hall, x: point.x, y: point.y });
+    setHalls(stableHallOrder([...hallsRef.current.values()]));
+  }
+
+  function showToast(text: string) {
+    setToast(text);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      toastTimerRef.current = null;
+      setToast("");
+    }, 1800);
+  }
+
+  function handlePlacementDrag(point: { x: number; y: number }) {
+    setPlacementDraft(point);
+  }
+
+  function handlePlacementDrop(point: { x: number; y: number }) {
+    setPlacementDraft(point);
+    setPlacementLastPoint(point);
+    void commitPlacement(point);
+  }
+
+  function confirmSuggested() {
+    if (!placementSuggested) return;
+    setPlacementDraft(placementSuggested); // 先视觉吸附建议位，再以建议位提交
+    setPlacementLastPoint(placementSuggested);
+    void commitPlacement(placementSuggested);
+  }
+
+  async function commitPlacement(point: { x: number; y: number }) {
+    if (!placement.active) return;
+    const hallId = placement.hallId;
+    const seq = ++placementSeqRef.current;
+    setPlacementPhase("sending");
+    try {
+      const response = await fetch(`/api/halls/${encodeURIComponent(hallId)}/garden-pos`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(point),
+      });
+      if (seq !== placementSeqRef.current) return; // Esc 退出后迟到的响应直接丢弃
+      if (response.ok) {
+        // 200：更新本地坐标（服务端回显为准）+ toast + 退出择位
+        const body = (await response.json().catch(() => null)) as { x?: number; y?: number } | null;
+        const final =
+          body && typeof body.x === "number" && typeof body.y === "number" ? roundPlacementPoint(body.x, body.y) : point;
+        applyHallPosition(hallId, final);
+        exitPlacement();
+        showToast(labels.placementUpdated);
+      } else if (response.status === 409) {
+        const body = (await response.json().catch(() => null)) as
+          | { error?: string; suggested?: { x: number; y: number } }
+          | null;
+        if (body?.error === "position_conflict" && body.suggested) {
+          setPlacementSuggested(roundPlacementPoint(body.suggested.x, body.suggested.y));
+          setPlacementPhase("conflict");
+        } else {
+          // no_space：整片星域无空位，重试同一坐标无意义 → 错误态提示换区域
+          setPlacementDraft(null);
+          setPlacementPhase("error");
+        }
+      } else if (response.status === 403) {
+        const body = (await response.json().catch(() => null)) as { reason?: string } | null;
+        setPlacementPhase(body?.reason === "visibility_required" ? "visibility" : "forbidden");
+      } else {
+        setPlacementDraft(null); // 弹回原位
+        setPlacementPhase("error");
+      }
+    } catch {
+      if (seq !== placementSeqRef.current) return;
+      setPlacementDraft(null); // 网络错误：保持原位，支持重试（重发上次坐标）
+      setPlacementPhase("error");
+    }
+  }
+
+  // Esc 退出择位（含发送中）：document 捕获阶段先于抽屉的 bubble 监听，
+  // 择位退出一次到位，不再连带触发面板层级回退
+  useEffect(() => {
+    if (!placement.active) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      exitPlacement();
+    }
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placement]);
+
   // ---- 搜索匹配（只影响降亮与抽屉轨道，不改坐标/节点） ----
+  // 搜索空间不变性（Task 6 §5）：只产出匹配集（is-dimmed / 抽屉轨道 / 选中候选），
+  // 绝不改场景节点数组与位置。数据源无别名字段（GardenSeaHall 契约无 alias，
+  // API 也不下发），只匹配馆名（nameMasked；单人馆即首位逝者名）与墓志铭，
+  // 不伪造别名命中。
   const query = state.query.trim().toLowerCase();
   const matchedHallIds = useMemo(() => {
     if (!query) return null;
@@ -634,12 +806,17 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         state={state}
         matchedHallIds={matchedHallIds}
         focusedHallId={focusedHallId}
+        placementHallId={placement.active ? placement.hallId : null}
+        placementDraft={placement.active ? placementDraft : null}
+        placementLocked={placementPhase === "sending"}
         loading={loading}
         error={error}
         labels={labels}
         onRetry={retryLoad}
         onSelectHall={handleSelectHall}
         onEnterHall={handleEnterHall}
+        onPlacementDrag={handlePlacementDrag}
+        onPlacementDrop={handlePlacementDrop}
         onCameraChange={(camera) =>
           setState((prev) =>
             gardenSeaReducer(gardenSeaReducer(prev, { type: "zoom", scale: camera.scale }), {
@@ -650,6 +827,145 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
           )
         }
       />
+      {placement.active && (
+        // 择位横幅（馆主专属；访客的 placement 永远 inactive，整块不渲染）。
+        // 样式内联：globals.css 不在本任务改动清单内，token 归拢交后续任务。
+        <div
+          className="starsea-placement-bar"
+          role="status"
+          data-status={placementPhase}
+          style={{
+            position: "fixed",
+            top: "calc(env(safe-area-inset-top, 0px) + 68px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 25,
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "8px 12px",
+            maxWidth: "min(92vw, 720px)",
+            padding: "8px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(252, 211, 77, 0.35)",
+            background: "rgba(10, 13, 26, 0.92)",
+            backdropFilter: "blur(6px)",
+            color: "#cdd5e5",
+            fontSize: 13,
+          }}
+        >
+          <p className="starsea-placement-hint" style={{ margin: 0, color: "#cdd5e5" }}>
+            {labels.placementHint}
+          </p>
+          {placementPhase === "sending" && (
+            <p style={{ margin: 0, color: "#8b94a8" }}>{labels.placementSending}</p>
+          )}
+          {placementPhase === "conflict" && (
+            <div className="starsea-placement-conflict" role="alert" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: "#fcd34d" }}>{labels.placementConflict}</span>
+              <button
+                type="button"
+                className="starsea-placement-suggest"
+                onClick={confirmSuggested}
+                style={{
+                  border: "1px solid rgba(252, 211, 77, 0.9)",
+                  background: "transparent",
+                  color: "#fcd34d",
+                  borderRadius: 8,
+                  padding: "4px 12px",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                {labels.placementSuggest}
+              </button>
+              <button
+                type="button"
+                className="starsea-placement-dismiss"
+                onClick={() => setPlacementPhase("idle")}
+                style={{
+                  border: "1px solid rgba(205, 213, 229, 0.25)",
+                  background: "transparent",
+                  color: "#8b94a8",
+                  borderRadius: 8,
+                  padding: "4px 12px",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                {labels.placementDismiss}
+              </button>
+            </div>
+          )}
+          {(placementPhase === "visibility" || placementPhase === "forbidden") && (
+            <p role="alert" style={{ margin: 0, color: "#fcd34d" }}>
+              {placementPhase === "visibility" ? labels.placementVisibility : labels.placementForbidden}
+            </p>
+          )}
+          {placementPhase === "error" && (
+            <div role="alert" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: "#fcd34d" }}>{labels.placementError}</span>
+              <button
+                type="button"
+                className="starsea-placement-retry"
+                disabled={!placementLastPoint}
+                onClick={() => placementLastPoint && void commitPlacement(placementLastPoint)}
+                style={{
+                  border: "1px solid rgba(252, 211, 77, 0.9)",
+                  background: "transparent",
+                  color: "#fcd34d",
+                  borderRadius: 8,
+                  padding: "4px 12px",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                {labels.placementRetry}
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="starsea-placement-exit"
+            onClick={exitPlacement}
+            style={{
+              border: "1px solid rgba(205, 213, 229, 0.25)",
+              background: "transparent",
+              color: "#8b94a8",
+              borderRadius: 8,
+              padding: "4px 12px",
+              fontSize: 13,
+              cursor: "pointer",
+              marginLeft: "auto",
+            }}
+          >
+            {labels.placementExit}（Esc）
+          </button>
+        </div>
+      )}
+      {toast && (
+        <div
+          className="starsea-toast"
+          role="status"
+          style={{
+            position: "fixed",
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 40,
+            padding: "10px 18px",
+            borderRadius: 12,
+            border: "1px solid rgba(252, 211, 77, 0.5)",
+            background: "rgba(10, 13, 26, 0.94)",
+            color: "#fcd34d",
+            fontSize: 14,
+            letterSpacing: "0.08em",
+            pointerEvents: "none",
+          }}
+        >
+          {toast}
+        </div>
+      )}
       <StarSeaControls
         state={state}
         totalHalls={halls.length}

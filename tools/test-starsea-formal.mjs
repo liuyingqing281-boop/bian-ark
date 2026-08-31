@@ -286,8 +286,19 @@ async function main() {
     assert.equal(source.includes("Math.random"), false, "确定性布局禁用 Math.random");
   });
 
-  await checkAsync("waitForExit resolves promptly after the child already exited", async () => {
-    const child = spawn(process.execPath, ["-e", ""]);
+  // ---- Task 6：择位坐标归一化（clamp 0–1 + 3 位小数，发送前统一走这里） ----
+  await checkAsync("placement points clamp to 0-1 and round to 3 decimals", async () => {
+    const m = await import("../src/lib/garden-sea.ts");
+    assert.equal(typeof m.roundPlacementPoint, "function");
+    assert.deepEqual(m.roundPlacementPoint(0.123456, 0.9876549), { x: 0.123, y: 0.988 });
+    assert.deepEqual(m.roundPlacementPoint(-0.2, 1.4), { x: 0, y: 1 });
+    assert.deepEqual(m.roundPlacementPoint(NaN, 0.5), { x: 0, y: 0.5 });
+    assert.deepEqual(m.roundPlacementPoint(Infinity, 0.5), { x: 1, y: 0.5 });
+    // 钳制在先、舍入在后：边界值四舍五入不会越界（0.9996 → 1 而非 1.001）
+    assert.deepEqual(m.roundPlacementPoint(0.9996, 0.9994), { x: 1, y: 0.999 });
+  });
+
+  await checkAsync("waitForExit resolves promptly after the child already exited", async () => {    const child = spawn(process.execPath, ["-e", ""]);
     await new Promise((resolve) => child.once("exit", resolve)); // 先让它自然退出
     const startedAt = Date.now();
     const result = await withTimeout(waitForExit(child), 1500, "post-exit listener path hung");
