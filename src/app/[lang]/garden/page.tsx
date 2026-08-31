@@ -51,9 +51,13 @@ export default async function GardenPage({
   const newCount = memorials.filter((m) => m.is_new === 1).length;
 
   return (
-    <div className="garden-page">
+    // 星海 Task 2 过渡壳：真实星海渲染器（Task 4）落地前，旧墓园内容暂驻沉浸壳内，
+    // 行为不变，仅不再被左导航/聊天条/footer 挤压
+    <div className="starsea-shell">
+      <div className="starsea-scene">
+        <div className="garden-page">
 
-      <GardenViewSwitch
+          <GardenViewSwitch
           sections={sections}
           initialQuery={keyword}
           newTodayText={newCount > 0 ? `${dict.garden.newToday}: ${newCount}` : ""}
@@ -73,6 +77,8 @@ export default async function GardenPage({
             noResult: dict.garden.empty,
           }}
         />
+        </div>
+      </div>
     </div>
   );
 }

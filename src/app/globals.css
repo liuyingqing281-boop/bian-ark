@@ -414,3 +414,27 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
     max-width: 880px;
   }
 }
+
+/* ================= 星海沉浸壳（starsea，Task 2，2026-08-31） =================
+   /[lang]/garden 与 /[lang]/hall/* 专用：固定视口壳 + 场景层 + 顶部控件层 + 底部抽屉层。
+   壳层 isolation 隔离内部层级；场景层 fixed inset 0（与壳同尺寸，z-index 0 起步）；
+   桌面端顶部控件内容 1120px 限宽居中，移动端容器 padding-inline 12px，不产生横向滚动。 */
+.starsea-shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #070912;
+  isolation: isolate;
+}
+.starsea-scene { position: fixed; inset: 0; z-index: 0; }
+.starsea-controls { position: fixed; inset: env(safe-area-inset-top) 0 auto; z-index: 20; }
+.starsea-controls-inner { width: min(100% - 3rem, 1120px); margin-inline: auto; }
+.starsea-drawer { position: fixed; inset: auto 0 0; z-index: 30; }
+
+@media (max-width: 640px) {
+  .starsea-controls { padding-inline: 12px; box-sizing: border-box; }
+  .starsea-controls-inner { width: 100%; }
+}
+
+/* 沉浸页不受 PC 左导航让位规则影响：#main-content 不再缩进 224px/64px */
+[data-immersive] #main-content { margin-left: 0; }

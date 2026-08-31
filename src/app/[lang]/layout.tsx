@@ -3,9 +3,7 @@ import { notFound } from "next/navigation";
 import "../globals.css";
 import { defaultLocale, getDictionary, hasLocale, locales } from "./dictionaries";
 import { getSessionUser } from "../../lib/auth";
-import NavBar from "../../components/NavBar";
-import ThemeBackground from "../../components/ThemeBackground";
-import PcShell from "../../components/pc/PcShell";
+import AppFrame from "../../components/immersive/AppFrame";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -49,19 +47,15 @@ export default async function RootLayout({
         >
           {lang === "zh" ? "跳转到主要内容" : "Skip to main content"}
         </a>
-        <ThemeBackground labels={dict.themes} />
-        <header className="pc-topbar sticky top-0 z-50 border-b border-stone-800/80 bg-stone-950/75 backdrop-blur-xl">
-          <NavBar lang={lang} user={!!user} t={dict.nav} />
-        </header>
-        <PcShell lang={lang} user={!!user} />
-        <main id="main-content" className="min-h-[calc(100vh-4rem)]">{children}</main>
-        <footer className="border-t border-stone-800 py-8 text-center text-stone-600 text-xs space-y-2" role="contentinfo">
-          <p>{dict.footer}</p>
-          <p className="space-x-4">
-            <a href={`/${lang}/legal/terms`} className="py-2 hover:text-stone-400 transition">{lang === "en" ? "Terms" : "用户协议"}</a>
-            <a href={`/${lang}/legal/privacy`} className="py-2 hover:text-stone-400 transition">{lang === "en" ? "Privacy" : "隐私政策"}</a>
-          </p>
-        </footer>
+        {/* 应用壳分流（星海 Task 2）：/garden 与 /hall/* 走沉浸壳，其余走普通壳；
+            skip link 留在 AppFrame 之外，沉浸页同样可跳转主内容 */}
+        <AppFrame
+          lang={lang}
+          user={!!user}
+          dict={{ nav: dict.nav, themes: dict.themes, footer: dict.footer }}
+        >
+          {children}
+        </AppFrame>
       </body>
     </html>
   );
