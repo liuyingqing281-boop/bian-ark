@@ -142,6 +142,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     for (const [field, value] of Object.entries(changes)) {
       db.prepare(`UPDATE memorials SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`).run(value, id);
     }
+    // 馆随人物同可见性（Task 5 修复）：同事务同步 halls.visibility，
+    // 否则星海/馆级路由按馆可见性判断会与人物可见性脱节（馆不随人物公开入园）
+    if (changes.visibility) {
+      db.prepare(
+        `UPDATE halls SET visibility = ?, updated_at = datetime('now')
+         WHERE id = COALESCE(NULLIF((SELECT hall_id FROM memorials WHERE id = ?), ''), 'hall_' || ?)`
+      ).run(changes.visibility, id, id);
+    }
     if (Array.isArray(body.group_ids)) {
       const myGroups = new Set(
         (db.prepare("SELECT group_id FROM group_members WHERE user_id = ?").all(user.id) as { group_id: string }[])

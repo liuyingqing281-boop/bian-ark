@@ -152,9 +152,9 @@ requireResponse("publish memorial", publish, {
   validate: (json) => json?.ok === true,
   expected: "HTTP 200 with ok=true",
 });
-// PATCH /api/memorials/[id] 暂不同步 hall.visibility（建馆时馆随人物同可见性，
-// PATCH 侧缺口见 Task 4 报告）；此处直写 DB 恢复该不变量后才能入园
-db.prepare("UPDATE halls SET visibility = 'public', updated_at = datetime('now') WHERE id = ?").run(`hall_${mid}`);
+// PATCH 现在同事务同步 halls.visibility（Task 5 修复）：断言馆可见性 parity
+check("patch syncs hall visibility",
+  db.prepare("SELECT visibility AS v FROM halls WHERE id = ?").get(`hall_${mid}`)?.v, "public");
 const place = await api(`/api/memorials/${mid}/garden`, { method: "POST", body: { in_garden: true } });
 const placement = requireResponse("place memorial in garden", place, {
   validate: (json) => json?.ok === true && json.in_garden === true && Number.isInteger(json.slot)

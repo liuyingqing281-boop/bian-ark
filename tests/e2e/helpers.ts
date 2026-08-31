@@ -3,8 +3,10 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import type { APIRequestContext, Page } from "@playwright/test";
 
-/** 全局唯一前缀：本次运行创建的所有数据（邮箱/馆名/群组名）都带它，结束时按前缀清理 */
-export const RUN = `e2e${Date.now().toString(36)}`;
+/** 全局唯一前缀：本次运行创建的所有数据（邮箱/馆名/群组名）都带它，结束时按前缀清理。
+ *  叠加 pid：多 worker 同毫秒 import 本模块也不会撞前缀（同邮箱 60s 限频/数据互踩）；
+ *  同一 worker 进程内模块只求值一次，emailOf 语义不变。 */
+export const RUN = `e2e${Date.now().toString(36)}-${process.pid.toString(36)}`;
 export const emailOf = (role: string) => `${RUN}-${role}@bian.dev`;
 
 /** dev 首编译竞态兜底：Next 16 dev 偶发页面级运行时错浮层（Next 内部 JSON.parse，

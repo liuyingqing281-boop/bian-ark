@@ -41,10 +41,16 @@ test("馆主进入纪念馆并上传照片到影像记忆", async () => {
   await page.goto("/zh/me");
 
   await page.getByRole("link", { name: "查看 →" }).click();
-  await page.waitForURL(/\/zh\/memorial\//, { timeout: 10_000 });
-  memorialId = page.url().match(/\/zh\/memorial\/([^/?#]+)/)?.[1] || "";
+  // 「我的」页链接走馆级路由 /hall/{memorialId}（旧人物 id），
+  // Task 5 起服务端 canonical redirect 到 /hall/hall_…?p=…（落地即聚焦该人物）；
+  // 30s 吸收 dev 冷编译（旧人物 URL → 流式 meta refresh → 规范地址两跳）
+  await page.waitForURL(
+    (url) => url.pathname.includes("/zh/hall/hall_") && url.searchParams.has("p"),
+    { timeout: 30_000 }
+  );
+  memorialId = new URL(page.url()).searchParams.get("p") || "";
   expect(memorialId).toBeTruthy();
-  await expect(page.getByRole("heading", { name: memorialName })).toBeVisible();
+  await expect(page.getByRole("heading", { name: memorialName })).toBeVisible({ timeout: 15_000 });
 
   // MediaManager 的多文件输入（name=files，区别于页头的头像/背景输入）
   const mediaInput = page.locator('input[type="file"][name="files"]');

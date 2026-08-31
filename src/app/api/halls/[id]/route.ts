@@ -52,7 +52,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
        FROM memorials WHERE hall_id = ? AND is_published = 1 ORDER BY created_at ASC LIMIT 6`
     )
     .all(id) as MemberRow[];
-
   // 每人独立明灭：24h 内有祭扫则微亮（口径同 candleLit）
   const litRows = db
     .prepare(
@@ -64,12 +63,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .all(...members.map((m) => m.id)) as Array<{ memorial_id: string }>;
   const lit = new Set(litRows.map((r) => r.memorial_id));
 
+  const isOwner = !!user && hall.owner_user_id === user.id;
+  // nameMasked 按视角装配（docs/08 §3.13 F7 / FR-04）：馆主原文，访客首字 + **
+  const maskName = (name: string) => (name.length <= 1 ? "*" : name[0] + "**");
+
   return NextResponse.json({
     hall: { id: hall.id, name: hall.name, motto: hall.motto, skin: hall.skin, visibility: hall.visibility, inGarden: hall.in_garden === 1, gardenX: hall.garden_x, gardenY: hall.garden_y },
-    isOwner: !!user && hall.owner_user_id === user.id,
+    isOwner,
     members: members.map((m) => ({
       id: m.id,
       name: m.name,
+      nameMasked: isOwner ? m.name : maskName(m.name),
       appellation: m.appellation || "",
       birthDate: m.birth_date,
       deathDate: m.death_date,

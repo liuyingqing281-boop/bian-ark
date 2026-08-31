@@ -13,11 +13,15 @@
 // - 供奉：POST /api/tribute 按 response.status 分流（ok/401/其他），
 //   成功 1000ms 反馈后回详情；失败/未登录绝不清空输入与选中。
 // - 镜头（scale/offset）只进 sessionStorage（按 lang），URL 永不承载像素坐标。
+// - 园→馆→园（Task 5）：浏览状态持续落 bian-garden-snapshot（sessionStorage，
+//   TTL 10min）；进馆附 from=garden（仅状态恢复语义），馆页返回 /garden 时
+//   无显式 URL 参数则恢复快照，快照无效/过期回默认星海。
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DEFAULT_GARDEN_CAMERA,
+  GARDEN_URL_PARAMS,
   gardenCameraStorageKey,
   gardenSeaReducer,
   initialGardenSeaState,
@@ -26,7 +30,7 @@ import {
   saveGardenCamera,
   serializeGardenUrl,
 } from "../../lib/garden-sea-state";
-import type { GardenSeaAction, GardenSeaState } from "../../lib/garden-sea-state";
+import type { GardenSeaAction, GardenSeaCamera, GardenSeaState } from "../../lib/garden-sea-state";
 import { stableHallOrder } from "../../lib/garden-sea";
 import type { GardenSeaHall, GardenZone } from "../../lib/garden-sea";
 import StarSeaScene from "./StarSeaScene";
@@ -213,6 +217,73 @@ async function readApiError(response: Response): Promise<string> {
   return `http_${response.status}`;
 }
 
+// ---- 园 → 馆 → 园 浏览状态快照（Task 5，墓园规格 §8.2 / 13 号方案 §11.2） ----
+// 进馆前把 query/zone/selectedHallId/drawer/panel/scale/offset 存 sessionStorage；
+// 馆页「返回星海」回到 /garden 时恢复。存储约定沿用 Task 3 镜头键风格：
+// JSON 解析失败 / 结构非法 / 超时（10 分钟）一律回落默认星海。
+// 快照随浏览持续刷新（不一次性消费）：React dev StrictMode 会双重调用挂载效应，
+// 读取即删会让第二次调用读到空、把恢复态打回默认；TTL 负责过期。
+const GARDEN_SNAPSHOT_KEY = "bian-garden-snapshot";
+const GARDEN_SNAPSHOT_TTL_MS = 10 * 60 * 1000;
+
+interface GardenSnapshot {
+  savedAt: number;
+  /** serializeGardenUrl 产出的白名单查询串（view/q/zone/hall/memorial/panel） */
+  params: string;
+  scale: number;
+  offset: { x: number; y: number };
+}
+
+function saveGardenSnapshot(key: string, params: string, camera: GardenSeaCamera): void {
+  try {
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({ savedAt: Date.now(), params, scale: camera.scale, offset: camera.offset })
+    );
+  } catch {
+    // 隐私模式/配额异常：快照不持久化，静默降级
+  }
+}
+
+// 无效/过期返回 null → 调用方回落默认星海（快照留在存储中不影响，下次保存即覆盖）
+function readGardenSnapshot(key: string): GardenSnapshot | null {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<GardenSnapshot> | null;
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      typeof parsed.savedAt !== "number" ||
+      !Number.isFinite(parsed.savedAt) ||
+      typeof parsed.params !== "string" ||
+      typeof parsed.scale !== "number" ||
+      !Number.isFinite(parsed.scale) ||
+      !parsed.offset ||
+      typeof parsed.offset.x !== "number" ||
+      !Number.isFinite(parsed.offset.x) ||
+      typeof parsed.offset.y !== "number" ||
+      !Number.isFinite(parsed.offset.y)
+    ) {
+      return null;
+    }
+    if (Date.now() - parsed.savedAt > GARDEN_SNAPSHOT_TTL_MS) return null;
+    return {
+      savedAt: parsed.savedAt,
+      params: parsed.params,
+      scale: parsed.scale,
+      offset: { x: parsed.offset.x, y: parsed.offset.y },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   const router = useRouter();
   const labels = lang === "en" ? EN_LABELS : ZH_LABELS;
@@ -260,27 +331,44 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
     setState((prev) => gardenSeaReducer(prev, action));
   }
 
-  // ---- 挂载：URL 水合 + popstate 监听 ----
+  // ---- 挂载：URL 水合 + 未决快照恢复 + popstate 监听 ----
   useEffect(() => {
-    setState(parseGardenUrl(new URLSearchParams(window.location.search)));
+    const urlParams = new URLSearchParams(window.location.search);
+    const explicit = GARDEN_URL_PARAMS.some((key) => urlParams.has(key));
+    let next = parseGardenUrl(urlParams);
+    if (!explicit) {
+      // 无显式状态（含从馆页「返回星海」）：恢复进馆前的浏览状态；
+      // 显式深链（分享链接等）优先 URL；快照无效/过期/JSON 损坏时
+      // parseGardenUrl 已给出默认星海
+      const snapshot = readGardenSnapshot(GARDEN_SNAPSHOT_KEY);
+      if (snapshot) {
+        const restored = parseGardenUrl(new URLSearchParams(snapshot.params));
+        next = { ...restored, scale: snapshot.scale, offset: { x: snapshot.offset.x, y: snapshot.offset.y } };
+      }
+    }
+    setState(next);
     setUrlReady(true);
     function onPopState() {
-      const next = parseGardenUrl(new URLSearchParams(window.location.search));
+      const pop = parseGardenUrl(new URLSearchParams(window.location.search));
       skipUrlWriteRef.current = true;
-      setState((prev) => ({ ...next, scale: prev.scale, offset: prev.offset }));
+      setState((prev) => ({ ...pop, scale: prev.scale, offset: prev.offset }));
     }
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- URL 同步：状态 → 规范查询串；push 意图决定 pushState/replaceState ----
   useEffect(() => {
     if (!urlReady) return;
+    const search = serializeGardenUrl(state).toString();
+    // 浏览状态持续落快照：星群双击 / 抽屉「进馆」锚点 / Enter 进馆
+    // （任意离馆导航）都能在返回时恢复，不依赖特定入口先存快照
+    saveGardenSnapshot(GARDEN_SNAPSHOT_KEY, search, { scale: state.scale, offset: state.offset });
     if (skipUrlWriteRef.current) {
       skipUrlWriteRef.current = false;
       return;
     }
-    const search = serializeGardenUrl(state).toString();
     const current = window.location.search.replace(/^\?/, "");
     if (search === current) return;
     const url = `${window.location.pathname}${search ? `?${search}` : ""}`;
@@ -290,6 +378,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
     } else {
       window.history.replaceState(window.history.state, "", url);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, urlReady]);
 
   // ---- 镜头持久化（sessionStorage，按 lang；跳过首帧） ----
@@ -409,7 +498,15 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   }
 
   function handleEnterHall(hallId: string) {
-    focusThen(hallId, () => router.push(`/${lang}/hall/${hallId}`));
+    focusThen(hallId, () => {
+      // 进馆前再兜底落一次快照（聚焦动画期间状态未变时 URL 同步效应已存）；
+      // from=garden 只用于返回状态恢复语义，绝不参与权限判断
+      saveGardenSnapshot(GARDEN_SNAPSHOT_KEY, serializeGardenUrl(state).toString(), {
+        scale: state.scale,
+        offset: state.offset,
+      });
+      router.push(`/${lang}/hall/${encodeURIComponent(hallId)}?from=garden`);
+    });
   }
 
   function handleResetCamera() {
