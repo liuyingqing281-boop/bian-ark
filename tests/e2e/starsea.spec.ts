@@ -97,6 +97,11 @@ let seededHallId = "";
 let seededMemorialId = "";
 let seededPrivateHallId = "";
 let seededPrivateMemorialId = "";
+// Task 7 近邻三馆：C（上）/ A（中）/ B（下）同 x —— A–B Δ0.05 投影热区重叠（候选菜单），
+// C–A Δ0.09 不重叠（方向键直达）；几何由 beforeAll 校验，方向键目标不被环境馆劫持
+let nearHallAId = "";
+let nearHallBId = "";
+let nearHallCId = "";
 // 种子馆主的会话 Cookie（beforeAll 登录一次；择位测试逐个开新 context 注入，
 // 避免对同一邮箱反复 request-code 撞 60s 限频，也保证每例 sessionStorage 干净）
 let ownerCookies: Array<{ name: string; value: string; domain: string; path: string }> = [];
@@ -188,6 +193,68 @@ test.describe("正式 2.5D 星海", () => {
       if (!retry.ok()) throw new Error(`seed garden-pos retry failed: ${retry.status()}`);
     } else if (!positioned.ok()) {
       throw new Error(`seed garden-pos failed: ${positioned.status()}`);
+    }
+
+    // ---- Task 7：近邻三馆（3D overlay 方向键 + 重叠候选菜单的确定性几何） ----
+    // safe-spot 重扫（含刚落位的种子馆与其余在园馆）：clear ≥0.14 且 y∈[0.25,0.42]
+    // （C 需在 A 上方 0.09 仍处安全带）。409 → 用建议位重试；落位后几何校验，
+    // 不满足直接抛错暴露（重叠判定按最小视口 720/740px：0.064×740≈47.4<48 重叠、
+    // 0.067×740≈49.6>48 不重叠）。
+    async function seedNearHall(name: string): Promise<string> {
+      const res = await ctx.request.post("/api/memorials", {
+        data: { name, type: "person", visibility: "public", biography: `E2E ${TAG}` },
+      });
+      const body = (await res.json()) as { id?: string };
+      if (!res.ok() || !body.id) throw new Error(`seed near memorial failed: ${res.status()}`);
+      const placed = await ctx.request.post(`/api/memorials/${body.id}/garden`, { data: { in_garden: true } });
+      if (!placed.ok()) throw new Error(`seed near garden failed: ${placed.status()}`);
+      return `hall_${body.id}`;
+    }
+    async function placeNearHall(hallId: string, x: number, y: number): Promise<{ x: number; y: number }> {
+      const res = await ctx.request.patch(`/api/halls/${hallId}/garden-pos`, { data: { x, y } });
+      if (res.ok()) return { x, y };
+      if (res.status() === 409) {
+        const sug = ((await res.json()) as { suggested?: { x: number; y: number } }).suggested;
+        if (!sug) throw new Error("near seed conflict without suggestion");
+        const retry = await ctx.request.patch(`/api/halls/${hallId}/garden-pos`, { data: { x: sug.x, y: sug.y } });
+        if (!retry.ok()) throw new Error(`near seed retry failed: ${retry.status()}`);
+        return { x: sug.x, y: sug.y };
+      }
+      throw new Error(`near seed patch failed: ${res.status()}`);
+    }
+    const nearDb = new Database(dbPath());
+    let baseX = 0.5;
+    let baseY = 0.33;
+    try {
+      const existing = nearDb
+        .prepare("SELECT garden_x AS x, garden_y AS y FROM halls WHERE in_garden = 1 AND garden_x IS NOT NULL")
+        .all() as Array<{ x: number; y: number }>;
+      const grid: Array<{ x: number; y: number; clear: number }> = [];
+      for (let gx = 0.08; gx <= 0.92; gx += 0.02) {
+        for (let gy = 0.25; gy <= 0.42; gy += 0.02) {
+          let clear = 1;
+          for (const point of existing) clear = Math.min(clear, Math.hypot(point.x - gx, point.y - gy));
+          grid.push({ x: Math.round(gx * 1000) / 1000, y: Math.round(gy * 1000) / 1000, clear });
+        }
+      }
+      const ranked = grid.sort((a, b) => b.clear - a.clear);
+      const pool = ranked.filter((c) => c.clear >= 0.14);
+      const pick = (pool.length ? pool : ranked)[process.pid % (pool.length || ranked.length)];
+      baseX = pick.x;
+      baseY = pick.y;
+    } finally {
+      nearDb.close();
+    }
+    nearHallAId = await seedNearHall(`${TAG}近邻甲`);
+    const spotA = await placeNearHall(nearHallAId, baseX, baseY);
+    nearHallBId = await seedNearHall(`${TAG}近邻乙`);
+    const spotB = await placeNearHall(nearHallBId, spotA.x, Math.min(0.92, spotA.y + 0.05));
+    nearHallCId = await seedNearHall(`${TAG}近邻丙`);
+    const spotC = await placeNearHall(nearHallCId, spotA.x, Math.max(0.08, spotA.y - 0.09));
+    const dAB = Math.hypot(spotA.x - spotB.x, spotA.y - spotB.y);
+    const dAC = Math.hypot(spotA.x - spotC.x, spotA.y - spotC.y);
+    if (dAB > 0.064 || dAC < 0.067) {
+      throw new Error(`near seed geometry broken: dAB=${dAB.toFixed(4)} dAC=${dAC.toFixed(4)}`);
     }
 
     // 3 人馆：无成员新增 API（docs/08 §3.13），直插 2 行公共成员 + 1 条 24h 内祭扫（candleLit）
@@ -744,6 +811,272 @@ test.describe("正式 2.5D 星海", () => {
       await expect(page.locator(".starsea-placement-ring")).toBeVisible();
       // 激活重置后 URL 同步剥离 zone（择位专注态不带浏览过滤）
       await expect(page).not.toHaveURL(/zone=/, { timeout: 10_000 });
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  // ---------- 3D 渐进增强与降级（Task 7，墓园规格 §5） ----------
+  // 3D 只负责渲染与镜头；热区/键盘/语义交互全部走独立 DOM overlay；
+  // GPU/导入失败只替换场景渲染器（fallback2d），抽屉与控制条不动。
+  // Three.js 的 deprecated warning 属依赖升级项，不计入功能证据（只断言 console error）。
+
+  test("3D 深链：真实 WebGL 渲染 canvas + 投影 overlay 按钮，canvas aria-hidden", async ({ page }) => {
+    test.setTimeout(150_000);
+    const pageErrors: string[] = [];
+    const consoleErrors: string[] = [];
+    page.on("pageerror", (err) => pageErrors.push(String(err)));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+    await gotoStable(page, "/zh/garden?view=3d");
+    const root = page.locator(".starsea-scene-3d");
+    await expect(root).toBeVisible({ timeout: 30_000 });
+    // three 动态导入 + 首帧渲染完成
+    await expect(root).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+    const canvas = root.locator("canvas");
+    await expect(canvas).toBeVisible();
+    await expect(canvas).toHaveAttribute("aria-hidden", "true");
+    await expect(canvas).toHaveCount(1);
+    // canvas 铺满场景（renderer 尺寸同步）
+    const canvasBox = await canvas.boundingBox();
+    const viewport = page.viewportSize();
+    expect(Math.abs(canvasBox!.width - viewport!.width), "canvas 宽应铺满视口").toBeLessThanOrEqual(2);
+    expect(Math.abs(canvasBox!.height - viewport!.height), "canvas 高应铺满视口").toBeLessThanOrEqual(2);
+    // 投影 overlay：每座可见星群一个按钮（≥44×44 热区 + 脱敏 aria-label）
+    const cluster = page.locator(`.starsea-3d-cluster[data-hall-id='${seededHallId}']`);
+    await expect(cluster).toBeVisible({ timeout: 30_000 });
+    const box = await cluster.boundingBox();
+    expect(Math.min(box!.width, box!.height), "3D overlay 热区最小 44×44px").toBeGreaterThanOrEqual(44);
+    await expect(cluster).toHaveAttribute("aria-label", /.+，3 位亲人/);
+    // 不引入额外交互 chrome：控制条仍只有一套
+    await expect(page.locator(".starsea-controls")).toHaveCount(1);
+    expect(pageErrors, "3D 渲染不得抛页面错误").toEqual([]);
+    expect(consoleErrors, "3D 渲染不得产生 console error").toEqual([]);
+  });
+
+  test("WebGL 不可用 + reduced-motion：3D 深链自动回退 2.5D 并以 role=status 播报", async ({ page }) => {
+    test.setTimeout(120_000);
+    const pageErrors: string[] = [];
+    page.on("pageerror", (err) => pageErrors.push(String(err)));
+    await page.addInitScript(() => {
+      HTMLCanvasElement.prototype.getContext = () => null;
+    });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await gotoStable(page, "/zh/garden?view=3d");
+    await expect(page.locator(".starsea-scene-2d")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("[role='status']")).toContainText("2.5D");
+    // 回退后 3D canvas 不存在，URL 摘除 view=3d（view 回默认值不序列化）
+    await expect(page.locator(".starsea-scene-3d canvas")).toHaveCount(0);
+    await expect(page).not.toHaveURL(/view=3d/, { timeout: 5_000 });
+    // 2.5D 场景仍可正常浏览（星群在、抽屉在）
+    await expect(page.locator(".starsea-cluster").first()).toBeVisible({ timeout: 30_000 });
+    expect(pageErrors, "降级路径不得抛页面错误").toEqual([]);
+  });
+
+  test("2D/3D 切换保留 query/zone/selected/drawer，镜头状态双向共享", async ({ page }) => {
+    test.setTimeout(150_000);
+    await gotoStable(page, "/zh/garden?view=3d");
+    const cluster3d = page.locator(`.starsea-3d-cluster[data-hall-id='${seededHallId}']`);
+    await expect(cluster3d).toBeVisible({ timeout: 30_000 });
+    // 3D 内点星群 → 同一选中语义（聚焦时序 → 详情抽屉）
+    await cluster3d.click();
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible({ timeout: 3_000 });
+    await page.getByLabel("搜索星海").fill("绝不匹配xyzq");
+    await expect(page).toHaveURL(/q=/, { timeout: 5_000 });
+    await page.locator(".starsea-zone").selectOption("public");
+    await expect(page).toHaveURL(/zone=public/, { timeout: 5_000 });
+    // 切 2.5D：query/zone/hall/panel 全部保留（同一 GardenSeaState + 同一 halls）
+    await page.locator(".starsea-segment button").filter({ hasText: "2.5D" }).click();
+    await expect(page.locator(".starsea-scene-2d")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`q=[^&]+&zone=public&hall=${seededHallId}&panel=detail`), {
+      timeout: 5_000,
+    });
+    await expect(page).not.toHaveURL(/view=/);
+    // 回列表（详情态场景 inert，无法变焦镜头）
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toHaveCount(0, { timeout: 5_000 });
+    // 镜头共享：光标锚定滚轮缩放（确定性变换）。2.5D 缩放 → 切 3D 再缩 → 切回
+    // 2.5D，transform 应等于两次锚定缩放的复合值：既证明 2.5D 镜头带进 3D，也证明
+    // 3D 镜头写回共享状态。wheel 经 dispatchEvent 显式带 clientX/Y（真实滚轮在
+    // 移动端模拟下锚点坐标不可靠；两视图的原生非 passive 监听走同一入口）。
+    const vp0 = page.viewportSize()!;
+    const wheelAt = { x: Math.round(vp0.width * 0.3), y: Math.round(vp0.height * 0.45) };
+    const wheelZoom = (cx: number, cy: number) =>
+      page.evaluate(
+        ({ cx, cy }) => {
+          const target = document.querySelector(".garden-sea");
+          target?.dispatchEvent(
+            new WheelEvent("wheel", { deltaY: -240, clientX: cx, clientY: cy, bubbles: true, cancelable: true })
+          );
+        },
+        { cx, cy }
+      );
+    const anchorZoom = (
+      prev: { x: number; y: number; scale: number },
+      cx: number,
+      cy: number,
+      deltaY: number
+    ) => {
+      const factor = Math.exp(-deltaY * 0.0015);
+      const scale = Math.min(4, Math.max(0.5, prev.scale * factor));
+      const px = (cx - prev.x) / prev.scale;
+      const py = (cy - prev.y) / prev.scale;
+      return { x: cx - px * scale, y: cy - py * scale, scale };
+    };
+    const readTransform = () =>
+      page.locator(".starsea-camera").evaluate((el) => {
+        const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\(([\d.]+)\)/.exec(el.style.transform);
+        return m ? { x: Number(m[1]), y: Number(m[2]), scale: Number(m[3]) } : null;
+      });
+    // 2.5D 滚轮缩放
+    await wheelZoom(wheelAt.x, wheelAt.y);
+    const t1 = await readTransform();
+    const expect1 = anchorZoom({ x: 0, y: 0, scale: 1 }, wheelAt.x, wheelAt.y, -240);
+    expect(t1, "2.5D 缩放应写入共享镜头").toBeTruthy();
+    expect(
+      Math.abs(t1!.x - expect1.x) + Math.abs(t1!.y - expect1.y) + Math.abs(t1!.scale - expect1.scale),
+      "2.5D 光标锚定缩放数值"
+    ).toBeLessThan(0.5);
+    // 切 3D：同点再缩一次（3D 滚轮用同一套锚定数学，且起点必须是 2.5D 带入的镜头）
+    await page.locator(".starsea-segment button").filter({ hasText: "3D" }).click();
+    await expect(page.locator(".starsea-scene-3d")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".starsea-scene-3d")).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+    await wheelZoom(wheelAt.x, wheelAt.y);
+    // 切回 2.5D：transform 应等于复合锚定缩放（3D 镜头写回了共享状态）
+    await page.locator(".starsea-segment button").filter({ hasText: "2.5D" }).click();
+    await expect(page.locator(".starsea-scene-2d")).toBeVisible({ timeout: 10_000 });
+    const t2 = await readTransform();
+    const expect2 = anchorZoom(expect1, wheelAt.x, wheelAt.y, -240);
+    expect(t2, "切回 2.5D 后应读到镜头 transform").toBeTruthy();
+    expect(
+      Math.abs(t2!.x - expect2.x) + Math.abs(t2!.y - expect2.y) + Math.abs(t2!.scale - expect2.scale),
+      "3D 缩放必须以带入镜头为起点并写回共享镜头"
+    ).toBeLessThan(0.5);
+  });
+
+  test("3D overlay 键盘：方向键直达最近星群并见焦点环，Enter 聚焦进详情，Esc 回退，Tab 可离开", async ({ page }) => {
+    test.setTimeout(150_000);
+    await gotoStable(page, "/zh/garden?view=3d");
+    const a = page.locator(`.starsea-3d-cluster[data-hall-id='${nearHallAId}']`);
+    await expect(a).toBeVisible({ timeout: 30_000 });
+    await a.focus();
+    // Tab：overlay 按钮在 Tab 序列内，可离开
+    await page.keyboard.press("Tab");
+    const tabbed = await page.evaluate(() => document.activeElement?.getAttribute("data-hall-id") ?? "");
+    expect(tabbed, "Tab 应把焦点移出/移到下一站").not.toBe(nearHallAId);
+    // 方向键上：直达最近上方星群 C（桌面：C 无重叠 → 直接聚焦不开菜单）
+    await a.focus();
+    await page.keyboard.press("ArrowUp");
+    // 键盘移动的焦点带 2px 烛金焦点环（:focus-visible；无论直达还是菜单首项，
+    // 焦点都源自键盘事件）
+    const outline = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el) return "";
+      const cs = getComputedStyle(el);
+      return `${cs.outlineStyle}/${cs.outlineWidth}/${cs.outlineColor}`;
+    });
+    expect(outline, "键盘焦点必须可见（outline 非 none）").toMatch(/solid/);
+    // 桌面宽视口（≥1200px）：0.05 归一化间距 × 1280px ≈ 64px > 48px 热区，C 与
+    // 任何环境馆都不重叠 → 方向键直达且不开候选菜单。
+    // 窄视口（412px：0.05×412≈21px < 48px）环境馆可能与 C 真实重叠，此时打开
+    // 候选菜单是正确行为（不随机挑）：菜单须包含目标 C 且焦点已入菜单，Esc 关闭继续。
+    const vpWidth = page.viewportSize()?.width ?? 0;
+    const menuOpen = await page.locator(".starsea-3d-candidates").isVisible().catch(() => false);
+    if (!menuOpen) {
+      const movedId = await page.evaluate(() => document.activeElement?.getAttribute("data-hall-id") ?? "");
+      expect(movedId, "方向键应聚焦最近星群").toBe(nearHallCId);
+      if (vpWidth >= 1200) {
+        await expect(page.locator(".starsea-3d-candidates")).toHaveCount(0);
+      }
+    } else {
+      expect(vpWidth < 1200, "宽视口下 C 不应与任何星群重叠").toBe(true);
+      await expect(
+        page.locator(`.starsea-3d-candidates button[data-hall-id='${nearHallCId}']`),
+        "重叠菜单必须包含方向键目标"
+      ).toBeVisible();
+      const focusInMenu = await page.evaluate(() =>
+        Boolean(document.activeElement?.closest(".starsea-3d-candidates"))
+      );
+      expect(focusInMenu, "菜单打开即聚焦首项").toBe(true);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".starsea-3d-candidates")).toHaveCount(0);
+      await page.locator(`.starsea-3d-cluster[data-hall-id='${nearHallCId}']`).focus();
+    }
+    // Enter → 聚焦时序 → 详情抽屉（与 2.5D 同一语义链路）
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible({ timeout: 3_000 });
+    await expect(page).toHaveURL(new RegExp(`hall=${nearHallCId}&panel=detail`), { timeout: 5_000 });
+    // Esc：详情回列表（抽屉既有层级回退，3D 场景恢复可交互）
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toHaveCount(0, { timeout: 5_000 });
+  });
+
+  test("方向键落进重叠星群：打开候选菜单而非随机选择，Esc 关闭回焦", async ({ page }) => {
+    test.setTimeout(150_000);
+    await gotoStable(page, "/zh/garden?view=3d");
+    const a = page.locator(`.starsea-3d-cluster[data-hall-id='${nearHallAId}']`);
+    await expect(a).toBeVisible({ timeout: 30_000 });
+    await a.focus();
+    // A 下方最近是 B，但 A/B 热区重叠（Δy≈36px < 48px）→ 候选菜单
+    await page.keyboard.press("ArrowDown");
+    const menu = page.locator(".starsea-3d-candidates");
+    await expect(menu).toBeVisible({ timeout: 3_000 });
+    const items = menu.locator("button[role='menuitem']");
+    // A/B 必在候选中；窄视口下环境馆也可能真实挤进重叠区（0.09×412≈37px<48px），
+    // 只要包含 A/B 且 ≥2 项即为合法候选菜单
+    expect(await items.count(), "候选菜单至少包含目标与重叠者").toBeGreaterThanOrEqual(2);
+    await expect(menu.locator(`button[data-hall-id='${nearHallAId}']`)).toBeVisible();
+    await expect(menu.locator(`button[data-hall-id='${nearHallBId}']`)).toBeVisible();
+    // 候选项带完整 aria-label（脱敏馆名 + 人数）
+    await expect(items.first()).toHaveAttribute("aria-label", /.+，1 位亲人/);
+    // Esc：关闭菜单，焦点回退到触发星群
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    const backId = await page.evaluate(() => document.activeElement?.getAttribute("data-hall-id") ?? "");
+    expect(backId, "Esc 后焦点应回到原星群").toBe(nearHallAId);
+    // 重开菜单，明确选择 B → 进 B 的详情（不随机）
+    await page.keyboard.press("ArrowDown");
+    await expect(menu).toBeVisible({ timeout: 3_000 });
+    await menu.locator(`button[data-hall-id='${nearHallBId}']`).click();
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible({ timeout: 3_000 });
+    await expect(page).toHaveURL(new RegExp(`hall=${nearHallBId}&panel=detail`), { timeout: 5_000 });
+  });
+
+  test("reduced-motion：3D 不跑连续 rAF，仅镜头变化渲染单帧", async ({ page }) => {
+    test.setTimeout(150_000);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await gotoStable(page, "/zh/garden?view=3d");
+    const root = page.locator(".starsea-scene-3d");
+    await expect(root).toBeVisible({ timeout: 30_000 });
+    await expect(root).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+    const readFrames = () => root.evaluate((el) => Number((el as HTMLElement).dataset.frames || "0"));
+    const still = await readFrames();
+    await page.waitForTimeout(600);
+    expect(await readFrames(), "reduced-motion 静止时不得连续渲染").toBe(still);
+    // 镜头变化 → 恰好补渲染（单帧）
+    const vp = page.viewportSize();
+    await page.mouse.move(vp!.width / 2, vp!.height / 2);
+    await page.mouse.wheel(0, -240);
+    await expect.poll(() => readFrames(), { timeout: 5_000 }).toBeGreaterThan(still);
+  });
+
+  test("择位模式锁定 2.5D：placing 激活不渲染 3D canvas（择位为 2D DOM 交互）", async ({ browser }) => {
+    test.setTimeout(120_000);
+    const { ctx, page } = await ownerPage(browser);
+    try {
+      await gotoStable(page, `/zh/garden?view=3d&placing=${seededHallId}`);
+      await expect(page.locator(".starsea-placement-bar")).toBeVisible({ timeout: 30_000 });
+      // 择位任务态强制 2.5D：不渲染 3D 场景，3D 分段不处于按下态
+      await expect(page.locator(".starsea-scene-2d")).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator(".starsea-scene-3d")).toHaveCount(0);
+      await expect(page.locator(".starsea-segment button[aria-pressed='true']")).toHaveText(/2\.5D/);
+      await expect(page).not.toHaveURL(/view=3d/, { timeout: 5_000 });
+      // 2.5D 择位交互不受影响：目标星群与 44px 目标环就位（激活即渲染，非拖拽后）
+      const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+      await expect(cluster).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator(".starsea-placement-ring")).toBeVisible();
     } finally {
       await ctx.close();
     }

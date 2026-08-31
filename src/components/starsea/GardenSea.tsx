@@ -40,6 +40,7 @@ import type { GardenSeaAction, GardenSeaCamera, GardenSeaState } from "../../lib
 import { roundPlacementPoint, stableHallOrder } from "../../lib/garden-sea";
 import type { GardenSeaHall, GardenZone, PlacementState } from "../../lib/garden-sea";
 import StarSeaScene from "./StarSeaScene";
+import StarSea3D, { StarSeaDomOverlay } from "./StarSea3D";
 import StarSeaControls from "./StarSeaControls";
 import StarSeaDrawer from "./StarSeaDrawer";
 import type { HallMember, OfferItemOption, OfferStatus } from "./StarSeaDrawer";
@@ -112,6 +113,8 @@ const ZH_LABELS = {
   placementRetry: "重试",
   placementExit: "退出择位",
   placementUpdated: "位置已更新",
+  viewFallback: "当前环境暂不支持 3D 渲染，已切换到 2.5D 视图",
+  candidatesTitle: "请选择星群",
 };
 
 const EN_LABELS = {
@@ -171,6 +174,8 @@ const EN_LABELS = {
   placementRetry: "Retry",
   placementExit: "Exit placement",
   placementUpdated: "Position updated",
+  viewFallback: "3D rendering is unavailable here; switched to the 2.5D view",
+  candidatesTitle: "Choose a star cluster",
 };
 
 const ZH_ITEM_NAMES: Record<string, string> = {
@@ -372,6 +377,11 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   const [toast, setToast] = useState("");
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ---- 3D 渐进增强（Task 7）----
+  // fallback2d：WebGL/three 失败只回退视图（state.view 整树 setState，不改冻结状态机）
+  // 并以 role=status 播报；抽屉/控制条/其余浏览状态原样保留。用户主动切换视图即清除提示。
+  const [fallback3dNotice, setFallback3dNotice] = useState(false);
+
   const cameraKey = gardenCameraStorageKey(lang);
 
   function send(action: GardenSeaAction) {
@@ -411,6 +421,8 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         selectedMemorialId: null,
         zone: null,
         query: "",
+        // Task 7：择位拖拽是 2D DOM 交互，任务态锁定 2.5D（即使深链/快照带 view=3d）
+        view: "2d",
       };
       setPlacement({ hallId: placingHallId, active: true });
     }
@@ -585,6 +597,30 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
     setState((prev) =>
       gardenSeaReducer(gardenSeaReducer(prev, { type: "zoom", scale: 1 }), { type: "pan", x: 0, y: 0 })
     );
+  }
+
+  // 2.5D 场景与 3D 层共用同一镜头回流（zoom+pan 归一到共享状态，双向保留快照）
+  function handleSceneCameraChange(camera: { scale: number; x: number; y: number }) {
+    setState((prev) =>
+      gardenSeaReducer(
+        gardenSeaReducer(prev, { type: "zoom", scale: camera.scale }),
+        { type: "pan", x: camera.x, y: camera.y }
+      )
+    );
+  }
+
+  // 3D 致命错误（WebGL 不可用 / three 加载失败 / 上下文丢失）：回退 2.5D + 播报。
+  // 只改 view（scene renderer 归属），抽屉/控制条/选中/搜索/星域全部不动。
+  function handle3dFatalError() {
+    setFallback3dNotice(true);
+    setState((prev) => (prev.view === "3d" ? { ...prev, view: "2d" } : prev));
+  }
+
+  function handleViewChange(view: "2d" | "3d") {
+    // 择位任务态锁定 2.5D（择位拖拽是 2D DOM 交互，Task 7 裁定）
+    if (placement.active && view === "3d") return;
+    setFallback3dNotice(false);
+    send({ type: "setView", view });
   }
 
   // ---- 供奉成员（GET /api/halls/[id]） ----
@@ -805,34 +841,57 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   );
   const matchedCount = matchedHallIds ? matchedHallIds.size : halls.length;
 
+  // 3D 渐进增强（Task 7）：view=3d 时渲染 StarSea3D（canvas + 独立 DOM overlay），
+  // 其余情况（默认 2.5D / 择位任务态 / 3D 回退后）渲染 2.5D 场景。
+  // .starsea-scene-2d 是 2.5D 场景的语义包裹层（降级/测试识别钩子）。
+  const scene3d = state.view === "3d" && !placement.active;
+
   return (
     <>
-      <StarSeaScene
-        halls={halls}
-        state={state}
-        matchedHallIds={matchedHallIds}
-        focusedHallId={focusedHallId}
-        placementHallId={placement.active ? placement.hallId : null}
-        placementDraft={placement.active ? placementDraft : null}
-        placementLocked={placementPhase === "sending"}
-        loading={loading}
-        error={error}
-        labels={labels}
-        onRetry={retryLoad}
-        onSelectHall={handleSelectHall}
-        onEnterHall={handleEnterHall}
-        onPlacementDrag={handlePlacementDrag}
-        onPlacementDrop={handlePlacementDrop}
-        onCameraChange={(camera) =>
-          setState((prev) =>
-            gardenSeaReducer(gardenSeaReducer(prev, { type: "zoom", scale: camera.scale }), {
-              type: "pan",
-              x: camera.x,
-              y: camera.y,
-            })
-          )
-        }
-      />
+      {scene3d ? (
+        <StarSea3D
+          halls={halls}
+          camera={{ scale: state.scale, x: state.offset.x, y: state.offset.y }}
+          onCameraChange={handleSceneCameraChange}
+          onSelectHall={handleSelectHall}
+          onEnterHall={handleEnterHall}
+          matchedHallIds={matchedHallIds}
+          focusedHallId={focusedHallId}
+          inert={state.panel !== "list"}
+          loading={loading}
+          error={error}
+          labels={labels}
+          onRetry={retryLoad}
+          overlay={<StarSeaDomOverlay halls={halls} />}
+          onFatalError={handle3dFatalError}
+        />
+      ) : (
+        <div className="starsea-scene-2d">
+          <StarSeaScene
+            halls={halls}
+            state={state}
+            matchedHallIds={matchedHallIds}
+            focusedHallId={focusedHallId}
+            placementHallId={placement.active ? placement.hallId : null}
+            placementDraft={placement.active ? placementDraft : null}
+            placementLocked={placementPhase === "sending"}
+            loading={loading}
+            error={error}
+            labels={labels}
+            onRetry={retryLoad}
+            onSelectHall={handleSelectHall}
+            onEnterHall={handleEnterHall}
+            onPlacementDrag={handlePlacementDrag}
+            onPlacementDrop={handlePlacementDrop}
+            onCameraChange={handleSceneCameraChange}
+          />
+        </div>
+      )}
+      {fallback3dNotice && !scene3d && (
+        <p className="starsea-fallback-notice" role="status">
+          {labels.viewFallback}
+        </p>
+      )}
       {placement.active && (
         // 择位横幅（馆主专属；访客的 placement 永远 inactive，整块不渲染）。
         // 样式内联：globals.css 不在本任务改动清单内，token 归拢交后续任务。
@@ -979,7 +1038,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         labels={labels}
         onQueryChange={(query) => send({ type: "setQuery", query })}
         onZoneChange={(zone) => send({ type: "setZone", zone: zone || null })}
-        onViewChange={(view) => send({ type: "setView", view })}
+        onViewChange={handleViewChange}
         onBack={() => send({ type: "back" })}
         onResetCamera={handleResetCamera}
       />

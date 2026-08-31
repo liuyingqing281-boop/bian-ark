@@ -974,3 +974,68 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   .starsea-cluster { transition-duration: 80ms !important; animation: none !important; }
 }
 
+
+/* ================= 3D 渐进增强层（starsea，Task 7，规格 §5） =================
+   .starsea-scene-3d 组合在 .garden-sea 上（组件 className），复用底图/光标/触摸
+   语义；canvas 透明叠加在 CSS 星空底图上，与 2.5D 视觉连续。
+   .starsea-scene-2d 是 2.5D 场景的语义包裹层（降级/测试识别钩子，不改布局）。
+   overlay 层指针穿透（热区按钮单独 pointer-events:auto），canvas 承担拖拽/缩放。 */
+.starsea-scene-2d { position: absolute; inset: 0; }
+.starsea-3d-canvas-holder { position: absolute; inset: 0; }
+.starsea-scene-3d canvas { display: block; width: 100%; height: 100%; }
+.starsea-3d-overlay { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.starsea-3d-overlay .starsea-cluster { pointer-events: auto; }
+/* 候选菜单：方向键落进重叠星群时明确选择（不随机挑一个） */
+.starsea-3d-candidates {
+  position: absolute;
+  z-index: 3;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--st-line, rgba(205, 213, 229, 0.16));
+  background: var(--st-panel, rgba(10, 13, 26, 0.92));
+  backdrop-filter: blur(8px);
+  transform: translate(-50%, 0);
+}
+.starsea-3d-candidates button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(205, 213, 229, 0.24);
+  background: transparent;
+  color: var(--st-ink, #cdd5e5);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.starsea-3d-candidates button:hover { background: rgba(205, 213, 229, 0.12); }
+.starsea-3d-candidates button:focus-visible {
+  outline: 2px solid var(--st-gold, #fcd34d);
+  outline-offset: 1px;
+}
+/* 3D 回退播报（role=status）：GPU/键盘/reduced-motion 条件不满足自动回 2.5D */
+.starsea-fallback-notice {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 68px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 24;
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(252, 211, 77, 0.35);
+  background: var(--st-panel, rgba(10, 13, 26, 0.92));
+  color: var(--st-ink, #cdd5e5);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .starsea-3d-overlay .starsea-cluster,
+  .starsea-3d-candidates button { transition: none !important; animation: none !important; }
+}
