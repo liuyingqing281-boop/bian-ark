@@ -438,3 +438,527 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 
 /* 沉浸页不受 PC 左导航让位规则影响：#main-content 不再缩进 224px/64px */
 [data-immersive] #main-content { margin-left: 0; }
+
+/* ================= 正式 2.5D 星海（starsea，Task 4，2026-08-31） =================
+   墓园页面前端设计规格 §1–§8：深色夜空 + 暗铜烛金；场景 > 星群信息 > 操作。
+   语义 token（组件不散落硬编码）：
+   --st-bg 夜空底色 / --st-ink 正文（对比度 ≥4.5:1）/ --st-ink-dim 次级文字
+   --st-gold 烛金（焦点环/主操作）/ --st-star-cold 冷白低亮 / --st-star-warm 暖橙明灭
+   --st-panel 浮层面板 / --st-line 描边
+   时序：微交互 150ms / 抽屉 300ms / 聚焦 450ms / 仪式反馈 ≤1.2s（JS 侧控制） */
+.garden-sea {
+  --st-bg: #060913;
+  --st-ink: #cdd5e5;
+  --st-ink-dim: #8b94a8;
+  --st-gold: #fcd34d;
+  --st-gold-deep: #b45309;
+  --st-star-cold: rgba(197, 208, 229, 0.55);
+  --st-star-warm: #fbbf24;
+  --st-panel: rgba(10, 13, 26, 0.92);
+  --st-line: rgba(205, 213, 229, 0.16);
+  --st-micro: 150ms;
+  --st-drawer: 300ms;
+  --st-focus: 450ms;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 700px at 18% 12%, rgba(37, 47, 84, 0.5), transparent 60%),
+    radial-gradient(900px 600px at 82% 78%, rgba(51, 38, 66, 0.42), transparent 65%),
+    radial-gradient(1.2px 1.2px at 12% 22%, rgba(205, 213, 229, 0.5), transparent),
+    radial-gradient(1px 1px at 28% 64%, rgba(205, 213, 229, 0.35), transparent),
+    radial-gradient(1.4px 1.4px at 55% 18%, rgba(205, 213, 229, 0.4), transparent),
+    radial-gradient(1px 1px at 72% 44%, rgba(205, 213, 229, 0.3), transparent),
+    radial-gradient(1.2px 1.2px at 88% 70%, rgba(205, 213, 229, 0.45), transparent),
+    radial-gradient(1px 1px at 42% 86%, rgba(205, 213, 229, 0.3), transparent),
+    var(--st-bg);
+  color: var(--st-ink);
+  touch-action: none; /* 平移/捏合由场景接管 */
+  cursor: grab;
+}
+.garden-sea:active { cursor: grabbing; }
+.garden-sea:focus-visible { outline: none; }
+
+/* 镜头层：星群挂 left/top 百分比，镜头 = 单一 transform（绝不 flex/grid 重排） */
+.starsea-camera {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* 初次加载骨架（Task 3 内联样式迁入；固定尺寸，不因数据返回改变布局） */
+.garden-sea-skeleton {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 280px;
+  height: 320px;
+  transform: translate(-50%, -50%);
+  border-radius: 16px;
+  border: 1px solid rgba(232, 226, 214, 0.12);
+  background: rgba(232, 226, 214, 0.04);
+  animation: starsea-breathe 1.6s ease-in-out infinite;
+}
+@keyframes starsea-breathe {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.95; }
+}
+
+.starsea-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  color: var(--st-ink-dim);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+.starsea-loading {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--st-gold);
+  animation: starsea-breathe 1.2s ease-in-out infinite;
+}
+.starsea-error {
+  position: absolute;
+  left: 50%;
+  top: 88px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border: 1px solid rgba(252, 211, 77, 0.35);
+  border-radius: 12px;
+  background: var(--st-panel);
+  color: var(--st-ink);
+  font-size: 13px;
+  backdrop-filter: blur(6px);
+}
+.starsea-retry {
+  border: 1px solid var(--st-gold);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--st-gold);
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--st-micro) ease;
+}
+.starsea-retry:hover { background: rgba(252, 211, 77, 0.12); }
+
+/* ---- 星群（馆）：热区 ≥44×44，位置只认 left/top 百分比 ---- */
+.starsea-cluster {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity var(--st-micro) ease, filter var(--st-focus) ease, transform var(--st-focus) ease;
+}
+.starsea-cluster:focus-visible {
+  outline: 2px solid var(--st-gold);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+.starsea-starfield { position: absolute; inset: 0; pointer-events: none; }
+.starsea-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--st-star-cold);
+  box-shadow: 0 0 6px rgba(197, 208, 229, 0.35);
+  transition: background var(--st-micro) ease, box-shadow var(--st-micro) ease;
+}
+/* 明灭语义：24h 内有祭扫 = 暖橙高亮；否则低亮冷白（无热度文案/排序） */
+.starsea-cluster.is-lit .starsea-dot {
+  background: var(--st-star-warm);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.75), 0 0 22px rgba(251, 191, 36, 0.3);
+}
+/* 名人星域：只改一个亮度 token，不改位置/尺寸/排序 */
+.starsea-cluster.is-official .starsea-dot { filter: brightness(1.3); }
+/* 搜索不匹配：降亮不隐藏、不移动 */
+.starsea-cluster.is-dimmed { opacity: 0.22; }
+/* 聚焦（400–700ms 可见状态） */
+.starsea-cluster.is-focused { transform: translate(-50%, -50%) scale(1.5); }
+.starsea-cluster.is-focused .starsea-dot { filter: brightness(1.8); }
+.starsea-name {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 2px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--st-ink);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.starsea-cluster.is-dimmed .starsea-name { opacity: 0.45; }
+
+/* ---- 顶部控件（Task 2 已定位；此处补内容样式） ---- */
+.starsea-controls-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: var(--st-panel, rgba(10, 13, 26, 0.92));
+  border: 1px solid var(--st-line, rgba(205, 213, 229, 0.16));
+  backdrop-filter: blur(8px);
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.starsea-controls button,
+.starsea-controls select,
+.starsea-controls input {
+  font: inherit;
+  color: var(--st-ink, #cdd5e5);
+}
+.starsea-back,
+.starsea-reset {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(205, 213, 229, 0.24);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--st-micro) ease;
+}
+.starsea-back:disabled { opacity: 0.35; cursor: default; }
+.starsea-back:not(:disabled):hover,
+.starsea-reset:hover { background: rgba(205, 213, 229, 0.12); }
+.starsea-controls button:focus-visible,
+.starsea-controls select:focus-visible,
+.starsea-controls input:focus-visible {
+  outline: 2px solid #fcd34d;
+  outline-offset: 1px;
+}
+.starsea-search { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 220px; }
+.starsea-search-label {
+  font-size: 12px;
+  color: #8b94a8;
+  white-space: nowrap;
+}
+.starsea-search-input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 30px 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(205, 213, 229, 0.24);
+  background: rgba(6, 9, 19, 0.8);
+  font-size: 13px;
+}
+.starsea-search-input::placeholder { color: #8b94a8; }
+.starsea-search-clear {
+  position: absolute;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: #8b94a8;
+  transition: color var(--st-micro) ease;
+}
+.starsea-search-clear:hover { color: #cdd5e5; }
+.starsea-count { margin: 0; font-size: 12px; color: #8b94a8; white-space: nowrap; }
+.starsea-zone-label { font-size: 12px; color: #8b94a8; white-space: nowrap; }
+.starsea-zone {
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(205, 213, 229, 0.24);
+  background: rgba(6, 9, 19, 0.8);
+  font-size: 13px;
+}
+.starsea-zone option { color: #cdd5e5; background: #0a0d1a; }
+.starsea-segment {
+  display: flex;
+  border: 1px solid rgba(205, 213, 229, 0.24);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.starsea-segment button {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--st-micro) ease, color var(--st-micro) ease;
+  color: #8b94a8;
+}
+.starsea-segment button.is-active {
+  background: rgba(252, 211, 77, 0.16);
+  color: #fcd34d;
+}
+
+/* ---- 底部抽屉：三态（移动端 68px / 50vh / 92vh；桌面卡片轨道 + 880px 详情） ---- */
+.starsea-drawer {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--st-panel, rgba(10, 13, 26, 0.92));
+  border-top: 1px solid var(--st-line, rgba(205, 213, 229, 0.16));
+  backdrop-filter: blur(10px);
+  color: var(--st-ink, #cdd5e5);
+  height: 68px; /* 收起 64–72px */
+  transition: height var(--st-drawer) ease;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
+}
+.starsea-drawer[data-state="half"] { height: 50vh; } /* 45–55% */
+.starsea-drawer[data-state="full"] { height: min(92vh, calc(100dvh - env(safe-area-inset-top))); }
+.starsea-handle {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 20px;
+  margin: 4px auto 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(205, 213, 229, 0.28);
+  cursor: pointer;
+  transition: background var(--st-micro) ease;
+}
+.starsea-handle:hover { background: rgba(205, 213, 229, 0.45); }
+.starsea-handle:focus-visible { outline: 2px solid #fcd34d; outline-offset: 2px; }
+.starsea-drawer-inner {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 16px 12px;
+  overscroll-behavior: contain;
+}
+
+/* 列表态：横向卡片轨道（连续滚动，不分页） */
+.starsea-list-title { margin: 2px 0 8px; font-size: 12px; color: #8b94a8; }
+.starsea-rail {
+  display: flex;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+.starsea-card {
+  display: flex;
+  gap: 10px;
+  width: 236px;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  padding: 10px;
+  text-align: left;
+  border: 1px solid rgba(205, 213, 229, 0.18);
+  border-radius: 12px;
+  background: rgba(6, 9, 19, 0.6);
+  cursor: pointer;
+  color: inherit;
+  transition: border-color var(--st-micro) ease, transform var(--st-micro) ease;
+}
+.starsea-card:hover { border-color: rgba(252, 211, 77, 0.55); transform: translateY(-2px); }
+.starsea-card:focus-visible { outline: 2px solid #fcd34d; outline-offset: 2px; }
+.starsea-card-avatar {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(205, 213, 229, 0.1);
+  font-size: 18px;
+  color: #fcd34d;
+}
+.starsea-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.starsea-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.starsea-card-name { font-size: 14px; font-weight: 600; color: #cdd5e5; }
+.starsea-card-meta { font-size: 12px; color: #8b94a8; }
+.starsea-card-epitaph {
+  font-size: 12px;
+  color: #a9b2c5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 详情：固定身份摘要 + 独立滚动正文 + 固定底部双主操作 */
+.starsea-detail { max-width: 880px; margin: 0 auto; }
+.starsea-detail-name { margin: 6px 0 2px; font-size: 20px; color: #e7ecf6; letter-spacing: 0.04em; }
+.starsea-detail-name:focus-visible { outline: 2px solid #fcd34d; outline-offset: 3px; border-radius: 4px; }
+.starsea-detail-count { margin: 0 0 2px; font-size: 13px; color: #fcd34d; }
+.starsea-detail-years { margin: 0 0 8px; font-size: 13px; color: #8b94a8; }
+.starsea-detail-epitaph {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #cdd5e5;
+  white-space: pre-wrap;
+}
+.starsea-detail-loading { margin: 12px 0; font-size: 13px; color: #8b94a8; }
+.starsea-detail-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: 0;
+  padding: 10px 0 4px;
+  background: linear-gradient(to top, rgba(10, 13, 26, 0.95), transparent);
+}
+/* 双主操作：进馆 / 供奉（供奉在上于窄屏堆叠） */
+.starsea-enter,
+.starsea-offer-open {
+  flex: 1 1 180px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter var(--st-micro) ease, transform var(--st-micro) ease;
+}
+.starsea-enter {
+  border: 1px solid rgba(252, 211, 77, 0.65);
+  background: rgba(252, 211, 77, 0.1);
+  color: #fcd34d;
+}
+.starsea-offer-open {
+  order: -1; /* 供奉在上 */
+  border: none;
+  background: linear-gradient(145deg, #b45309, #92410e);
+  color: #fff4d6;
+}
+.starsea-enter:hover,
+.starsea-offer-open:hover { filter: brightness(1.15); }
+.starsea-enter:focus-visible,
+.starsea-offer-open:focus-visible { outline: 2px solid #fcd34d; outline-offset: 2px; }
+
+/* 供奉面板 */
+.starsea-offer { max-width: 880px; margin: 0 auto; }
+.starsea-offer-title { margin: 6px 0 10px; font-size: 18px; color: #e7ecf6; }
+.starsea-offer-title:focus-visible { outline: 2px solid #fcd34d; outline-offset: 3px; border-radius: 4px; }
+.starsea-offer-form { display: flex; flex-direction: column; gap: 12px; }
+.starsea-offer-form fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.starsea-offer-form legend { font-size: 12px; color: #8b94a8; padding: 0; margin-bottom: 4px; }
+.starsea-offer-members,
+.starsea-offer-items { display: flex; flex-wrap: wrap; gap: 8px; }
+.starsea-offer-members label,
+.starsea-offer-items label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(205, 213, 229, 0.24);
+  font-size: 13px;
+  color: #cdd5e5;
+  cursor: pointer;
+  transition: border-color var(--st-micro) ease, background var(--st-micro) ease;
+}
+.starsea-offer-members label.is-selected,
+.starsea-offer-items label.is-selected {
+  border-color: #fcd34d;
+  background: rgba(252, 211, 77, 0.14);
+}
+.starsea-offer-members input,
+.starsea-offer-items input { accent-color: #fcd34d; }
+.starsea-offer-message-label { font-size: 12px; color: #8b94a8; }
+.starsea-offer-message {
+  width: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(205, 213, 229, 0.24);
+  background: rgba(6, 9, 19, 0.8);
+  color: #cdd5e5;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+.starsea-offer-message:focus-visible { outline: 2px solid #fcd34d; outline-offset: 1px; }
+.starsea-offer-submit {
+  align-self: flex-start;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #b45309, #92410e);
+  color: #fff4d6;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter var(--st-micro) ease;
+}
+.starsea-offer-submit:hover:not(:disabled) { filter: brightness(1.15); }
+.starsea-offer-submit:disabled { opacity: 0.55; cursor: wait; }
+.starsea-offer-submit:focus-visible { outline: 2px solid #fcd34d; outline-offset: 2px; }
+.starsea-offer-status { margin: 0; font-size: 13px; min-height: 20px; }
+.starsea-offer-form .starsea-offer-status:has(+ *) { color: inherit; }
+.starsea-offer-status:empty { display: none; }
+/* 状态不只靠颜色（规格 §6）：成功/失败前置符号 */
+.starsea-drawer[data-panel="offer"] .starsea-offer-status { color: #e7ecf6; }
+.starsea-offer-error { display: flex; align-items: center; gap: 10px; }
+.starsea-offer-error button {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #fcd34d;
+  background: transparent;
+  color: #fcd34d;
+  cursor: pointer;
+}
+
+/* 桌面（≥768px）：收起 = 横向卡片轨道；半开/全开 = 居中 880px 详情面板 */
+@media (min-width: 768px) {
+  .starsea-drawer { height: 176px; }
+  .starsea-drawer[data-state="half"] { height: 46vh; }
+  .starsea-drawer[data-state="full"] { height: 84vh; }
+  .starsea-detail-actions { position: static; background: none; }
+  .starsea-enter,
+  .starsea-offer-open { flex: 0 1 220px; }
+  .starsea-offer-open { order: 0; }
+}
+
+/* 移动端窄屏：控件行允许换行，标签压缩 */
+@media (max-width: 640px) {
+  .starsea-controls-inner { gap: 6px; padding: 8px 10px; }
+  .starsea-search { flex: 1 1 130px; }
+  .starsea-search-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .starsea-count { display: none; } /* 结果数由 aria-live 读出，视觉让位 */
+  .starsea-zone-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+}
+
+/* prefers-reduced-motion：静态或 0–100ms（规格 §6） */
+@media (prefers-reduced-motion: reduce) {
+  .garden-sea *,
+  .garden-sea,
+  .starsea-drawer,
+  .starsea-cluster { transition-duration: 80ms !important; animation: none !important; }
+}
+

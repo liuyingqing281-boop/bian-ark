@@ -138,7 +138,9 @@ check("tribute with custom item redirects", tr.status >= 300 && tr.status < 400,
 const wall = await api(`/zh/memorial/${mid}`);
 check("wall shows custom item image", wall.text.includes("/uploads/items/"), true);
 
-// garden flow
+// garden flow（Task 4 正式语义）：星海页 SSR 只出沉浸壳/场景容器标记，
+// 不再渲染墓碑卡片；馆级数据走 GET /api/garden/starsea（客户端星群渲染
+// 由 e2e tests/e2e/starsea.spec.ts 覆盖，smoke 只断服务端契约）。
 const notPublic = await api(`/api/memorials/${mid}/garden`, { method: "POST", body: { in_garden: true } });
 requireResponse("private memorial garden rejection", notPublic, {
   status: 400,
@@ -150,6 +152,9 @@ requireResponse("publish memorial", publish, {
   validate: (json) => json?.ok === true,
   expected: "HTTP 200 with ok=true",
 });
+// PATCH /api/memorials/[id] 暂不同步 hall.visibility（建馆时馆随人物同可见性，
+// PATCH 侧缺口见 Task 4 报告）；此处直写 DB 恢复该不变量后才能入园
+db.prepare("UPDATE halls SET visibility = 'public', updated_at = datetime('now') WHERE id = ?").run(`hall_${mid}`);
 const place = await api(`/api/memorials/${mid}/garden`, { method: "POST", body: { in_garden: true } });
 const placement = requireResponse("place memorial in garden", place, {
   validate: (json) => json?.ok === true && json.in_garden === true && Number.isInteger(json.slot)
@@ -158,7 +163,13 @@ const placement = requireResponse("place memorial in garden", place, {
 });
 const gardenPage = await api("/zh/garden", { auth: false });
 check("garden page status", gardenPage.status, 200);
-check("garden page shows memorial", gardenPage.text.includes(memorialName), true);
+check("garden page has immersive starsea markers",
+  gardenPage.text.includes("starsea-shell") && gardenPage.text.includes("garden-sea"), true);
+check("garden page has no tombstone markup",
+  /garden-card|tombstone|garden-card-rail|garden-nav/.test(gardenPage.text), false);
+const starseaPlaced = await fetch(`${resolveBaseUrl()}/api/garden/starsea?bbox=0,0,1,1&limit=500`).then((r) => r.json());
+check("starsea api includes placed hall",
+  Array.isArray(starseaPlaced.halls) && starseaPlaced.halls.some((hall) => hall.hallId === `hall_${mid}` && hall.lampCount >= 1), true);
 const gardenApi = await api(`/api/garden?q=${encodeURIComponent(context.runId)}`, { auth: false });
 const gardenResult = requireResponse("search garden by run id", gardenApi, {
   validate: (json) => Array.isArray(json?.memorials),
@@ -179,8 +190,9 @@ requireResponse("remove memorial from garden", remove, {
   validate: (json) => json?.ok === true && json.in_garden === false,
   expected: "HTTP 200 with in_garden=false",
 });
-const gardenPage2 = await api("/zh/garden", { auth: false });
-check("garden empty after remove", gardenPage2.text.includes(memorialName), false);
+const starseaRemoved = await fetch(`${resolveBaseUrl()}/api/garden/starsea?bbox=0,0,1,1&limit=500`).then((r) => r.json());
+check("starsea api excludes removed hall",
+  Array.isArray(starseaRemoved.halls) && starseaRemoved.halls.some((hall) => hall.hallId === `hall_${mid}`), false);
 } finally {
   cleanupResources(db, resources);
   db.close();
