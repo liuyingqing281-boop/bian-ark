@@ -124,16 +124,27 @@ export default function StarSeaDrawer({
     });
   }, [members, state.selectedMemorialId]);
 
-  // 打开面板 → 焦点进入抽屉；回到列表 → 恢复把手焦点
+  // 打开面板 → 焦点进入抽屉；回到列表 → 恢复把手焦点。
+  // 深链 ?hall=&panel=detail 先于数据到达时 [data-autofocus] 尚不存在：
+  // 依赖加 selectedHall（数据落地后身份变化）重试一次；以 panel+hall 键去重，
+  // 避免后续数据刷新（合并分页等）反复抢焦点
+  const focusedKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (state.panel === "detail" || state.panel === "offer") {
+      const key = state.panel === "offer" ? "offer" : `detail:${state.selectedHallId ?? ""}`;
+      if (focusedKeyRef.current === key) return;
       const target = rootRef.current?.querySelector<HTMLElement>("[data-autofocus]");
-      target?.focus();
-    } else if (prevPanelRef.current && prevPanelRef.current !== "list") {
-      handleRef.current?.focus();
+      if (!target) return; // 数据未到，等 selectedHall 变化后重试
+      focusedKeyRef.current = key;
+      target.focus();
+    } else {
+      if (prevPanelRef.current && prevPanelRef.current !== "list") {
+        handleRef.current?.focus();
+      }
+      focusedKeyRef.current = null;
     }
     prevPanelRef.current = state.panel;
-  }, [state.panel]);
+  }, [state.panel, state.selectedHallId, selectedHall]);
 
   // Esc 层级回退：供奉 → 详情 → 列表（列表态无操作）
   useEffect(() => {

@@ -467,7 +467,8 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         if (offerTimerRef.current) clearTimeout(offerTimerRef.current);
         offerTimerRef.current = setTimeout(() => {
           offerTimerRef.current = null;
-          send({ type: "back" });
+          // 迟到守卫：pending 中 Esc 已离开供奉面板时，成功反馈不得再把详情回退成列表
+          setState((prev) => (prev.panel === "offer" ? gardenSeaReducer(prev, { type: "back" }) : prev));
         }, 1000); // 800–1200ms 仪式反馈
       } else if (response.status === 401) {
         setOfferStatus("requiresLogin");
@@ -491,6 +492,15 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
       return () => clearTimeout(timer);
     }
   }, [state.panel, offerStatus]);
+
+  // 面板离开供奉（含 pending 中 Esc）即取消在途的成功反馈定时器：
+  // 迟到的成功只允许更新文案状态，绝不允许再触发面板回退
+  useEffect(() => {
+    if (state.panel !== "offer" && offerTimerRef.current) {
+      clearTimeout(offerTimerRef.current);
+      offerTimerRef.current = null;
+    }
+  }, [state.panel]);
 
   function handleOpenOffer() {
     setOfferStatus("idle");

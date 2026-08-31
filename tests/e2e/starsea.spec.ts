@@ -342,4 +342,47 @@ test.describe("正式 2.5D 星海", () => {
     // URL 不承载像素镜头
     await expect(page).not.toHaveURL(/scale=|offset=/);
   });
+
+  test("移动端结果计数保持无障碍可达（视觉隐藏而非 display:none）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await gotoStable(page, "/zh/garden");
+    const count = page.locator(".starsea-count[aria-live='polite']");
+    await expect(count).toBeAttached({ timeout: 30_000 });
+    // 窄屏（≤640px，Pixel 7=412px）下计数只做视觉隐藏；
+    // display:none 会把 aria-live 区域整个移出无障碍树，读屏永远不播报
+    const display = await count.evaluate((el) => getComputedStyle(el).display);
+    expect(display, "aria-live 计数不得 display:none").not.toBe("none");
+  });
+
+  test("供奉 pending 中 Esc 回详情，迟到的成功不得再把详情回退成列表", async ({ page }) => {
+    test.setTimeout(90_000);
+    // 慢响应网关：挂起 /api/tribute，等测试放行后才返回成功
+    const gate = { release: () => {} };
+    const gatePromise = new Promise<void>((resolve) => {
+      gate.release = resolve;
+    });
+    await page.route("**/api/tribute", async (route) => {
+      await gatePromise;
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ id: "late-success" }) });
+    });
+    await gotoStable(page, "/zh/garden");
+    const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+    await expect(cluster).toBeVisible({ timeout: 30_000 });
+    await cluster.click();
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible({ timeout: 3_000 });
+    await page.locator("button.starsea-offer-open").click();
+    const offer = page.locator(".starsea-drawer .starsea-offer");
+    await expect(offer).toBeVisible({ timeout: 10_000 });
+    await offer.locator(".starsea-offer-submit").click();
+    // 提交中 Esc（规格允许）→ 回详情
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible({ timeout: 5_000 });
+    await expect(page).toHaveURL(/panel=detail/);
+    // 放行迟到的成功：1000ms 反馈 + 缓冲后，详情与选中必须原样保留
+    gate.release();
+    await page.waitForTimeout(1_800);
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible();
+    await expect(page.locator(".starsea-drawer .starsea-detail .starsea-detail-count")).toContainText("3 位亲人");
+    await expect(page).toHaveURL(/panel=detail/);
+  });
 });

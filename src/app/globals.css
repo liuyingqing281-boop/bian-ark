@@ -441,12 +441,13 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 
 /* ================= 正式 2.5D 星海（starsea，Task 4，2026-08-31） =================
    墓园页面前端设计规格 §1–§8：深色夜空 + 暗铜烛金；场景 > 星群信息 > 操作。
-   语义 token（组件不散落硬编码）：
+   语义 token（组件不散落硬编码）挂在 .starsea-shell（壳层）——场景/控件/抽屉
+   均为 shell 的后代或同级兄弟，统一从壳继承，控件与抽屉不再落字面 fallback：
    --st-bg 夜空底色 / --st-ink 正文（对比度 ≥4.5:1）/ --st-ink-dim 次级文字
    --st-gold 烛金（焦点环/主操作）/ --st-star-cold 冷白低亮 / --st-star-warm 暖橙明灭
    --st-panel 浮层面板 / --st-line 描边
    时序：微交互 150ms / 抽屉 300ms / 聚焦 450ms / 仪式反馈 ≤1.2s（JS 侧控制） */
-.garden-sea {
+.starsea-shell {
   --st-bg: #060913;
   --st-ink: #cdd5e5;
   --st-ink-dim: #8b94a8;
@@ -459,6 +460,8 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   --st-micro: 150ms;
   --st-drawer: 300ms;
   --st-focus: 450ms;
+}
+.garden-sea {
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -945,13 +948,22 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   .starsea-offer-open { order: 0; }
 }
 
-/* 移动端窄屏：控件行允许换行，标签压缩 */
+/* 移动端窄屏：控件行允许换行，标签压缩；
+   计数用视觉隐藏而非 display:none——aria-live 区域必须留在无障碍树内（规格 §6） */
 @media (max-width: 640px) {
   .starsea-controls-inner { gap: 6px; padding: 8px 10px; }
   .starsea-search { flex: 1 1 130px; }
-  .starsea-search-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .starsea-count { display: none; } /* 结果数由 aria-live 读出，视觉让位 */
-  .starsea-zone-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .starsea-search-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  .starsea-count {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .starsea-zone-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 }
 
 /* prefers-reduced-motion：静态或 0–100ms（规格 §6） */
