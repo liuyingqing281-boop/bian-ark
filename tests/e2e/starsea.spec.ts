@@ -124,6 +124,22 @@ async function ownerPage(browser: Browser) {
   return { ctx, page };
 }
 
+// 进馆导航（Fix Round 1 环境项）：next dev 的惰性路由编译会把 Fast Refresh 广播
+// 到并发连接的页面，偶发吞掉 Link 点击的 router.push（URL 停留星海，waitForURL
+// 超时；trace 可见 [Fast Refresh] rebuilding 恰落在点击窗口）。与 gotoStable 的
+// dev 抖动容错同哲学：单击未动时在仍停留星海的前提下重试一次，断言语义不变。
+async function enterHallFromDetail(page: Page, hallId: string): Promise<void> {
+  const target = new RegExp(`/zh/hall/${hallId}`);
+  page.locator(".starsea-drawer .starsea-detail a.starsea-enter").click();
+  try {
+    await page.waitForURL(target, { timeout: 30_000 });
+  } catch {
+    const enter = page.locator(".starsea-drawer .starsea-detail a.starsea-enter");
+    if (await enter.isVisible().catch(() => false)) await enter.click();
+    await page.waitForURL(target, { timeout: 30_000 });
+  }
+}
+
 test.describe("正式 2.5D 星海", () => {
   test.beforeAll(async ({ browser }: { browser: Browser }) => {
     const ctx = await browser.newContext();
@@ -338,8 +354,7 @@ test.describe("正式 2.5D 星海", () => {
     await expect(detail.locator("a.starsea-enter")).toHaveAttribute("href", `/zh/hall/${seededHallId}`);
     await expect(detail.locator("button.starsea-offer-open")).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`hall=${seededHallId}&panel=detail`));
-    await detail.locator("a.starsea-enter").click();
-    await page.waitForURL(new RegExp(`/zh/hall/${seededHallId}`), { timeout: 30_000 });
+    await enterHallFromDetail(page, seededHallId);
     await expect(page.locator(`[data-hall-id='${seededHallId}']`)).toBeVisible({ timeout: 15_000 });
   });
 
@@ -518,8 +533,7 @@ test.describe("正式 2.5D 星海", () => {
     await expect(detail).toBeVisible({ timeout: 3_000 });
     await expect(page).toHaveURL(new RegExp(`hall=${seededHallId}&panel=detail`));
     // 进馆 → 馆级页（3 人馆默认馆级公共层，不聚焦任何一盏灯）
-    await detail.locator("a.starsea-enter").click();
-    await page.waitForURL(new RegExp(`/zh/hall/${seededHallId}`), { timeout: 30_000 });
+    await enterHallFromDetail(page, seededHallId);
     const hallRoot = page.locator(`[data-hall-id='${seededHallId}']`);
     await expect(hallRoot).toBeVisible({ timeout: 15_000 });
     await expect(hallRoot.locator("[data-memorial-id]")).toHaveCount(3);
@@ -1036,12 +1050,42 @@ test.describe("正式 2.5D 星海", () => {
     await expect(menu).toHaveCount(0);
     const backId = await page.evaluate(() => document.activeElement?.getAttribute("data-hall-id") ?? "");
     expect(backId, "Esc 后焦点应回到原星群").toBe(nearHallAId);
+    // Fix Round 1（Minor）：点击菜单外任意处关闭陈旧菜单（capture 层，不影响后续手势）
+    await page.keyboard.press("ArrowDown");
+    await expect(menu).toBeVisible({ timeout: 3_000 });
+    await page.mouse.click(12, 12); // 控制条卡片外/容器的空白处（菜单外）
+    await expect(menu).toHaveCount(0);
     // 重开菜单，明确选择 B → 进 B 的详情（不随机）
+    await a.focus(); // 菜单外点击后焦点已随菜单卸载移出，重新定位触发星群
     await page.keyboard.press("ArrowDown");
     await expect(menu).toBeVisible({ timeout: 3_000 });
     await menu.locator(`button[data-hall-id='${nearHallBId}']`).click();
     await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible({ timeout: 3_000 });
     await expect(page).toHaveURL(new RegExp(`hall=${nearHallBId}&panel=detail`), { timeout: 5_000 });
+  });
+
+  // Fix Round 1（Important）：2D↔3D 每次切换都新建 WebGL 上下文；卸载若不
+  // forceContextLoss，脱离文档的旧 canvas 在 GC 前仍占浏览器活跃上下文名额
+  // （Chrome ~16 个），密集切换可能把活上下文挤掉 → 误降级。守卫测试：连切 20
+  // 次，末态必须仍真渲染且无降级播报。
+  test("2D↔3D 快速连续切换 20 次：上下文即取即释，3D 不被上下文上限挤掉", async ({ page }) => {
+    test.setTimeout(180_000);
+    const pageErrors: string[] = [];
+    page.on("pageerror", (err) => pageErrors.push(String(err)));
+    await gotoStable(page, "/zh/garden?view=3d");
+    await expect(page.locator(".starsea-scene-3d")).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+    const to3d = page.locator(".starsea-segment button").filter({ hasText: "3D" });
+    const to2d = page.locator(".starsea-segment button").filter({ hasText: "2.5D" });
+    for (let i = 0; i < 20; i += 1) {
+      await to2d.click();
+      await expect(page.locator(".starsea-scene-2d")).toBeVisible({ timeout: 10_000 });
+      await to3d.click();
+      await expect(page.locator(".starsea-scene-3d")).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+    }
+    // 末态仍真渲染：canvas 在、无降级播报、无页面错误
+    await expect(page.locator(".starsea-scene-3d canvas")).toBeVisible();
+    await expect(page.locator(".starsea-fallback-notice")).toHaveCount(0);
+    expect(pageErrors, "密集切换不得抛页面错误").toEqual([]);
   });
 
   test("reduced-motion：3D 不跑连续 rAF，仅镜头变化渲染单帧", async ({ page }) => {

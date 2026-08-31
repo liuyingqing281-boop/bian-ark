@@ -212,6 +212,19 @@ function StarSeaOverlayBody({ ctx, halls }: { ctx: StarSeaProjection; halls: Arr
     if (candidates) menuFirstRef.current?.focus();
   }, [candidates]);
 
+  // 菜单外点击（含 canvas 手势/其他星群/控件）关闭陈旧菜单；capture 层先于场景
+  // 手势触发，只做关闭，不改焦点/不吞事件——Esc/Enter 既有流程不受影响
+  useEffect(() => {
+    if (!candidates) return;
+    function onOutsidePointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".starsea-3d-candidates")) return; // 菜单内点击交给菜单按钮
+      setCandidates(null);
+    }
+    document.addEventListener("pointerdown", onOutsidePointerDown, true);
+    return () => document.removeEventListener("pointerdown", onOutsidePointerDown, true);
+  }, [candidates]);
+
   const visible = useMemo(
     () => ctx.onscreen.filter((entry) => hallIds.has(entry.hall.hallId)),
     [ctx.onscreen, hallIds]
@@ -438,6 +451,7 @@ export default function StarSea3D({
   // ---- three 生命周期：动态导入 + WebGL 探测 + 全量回收 ----
   useEffect(() => {
     let disposed = false;
+    let contextLost = false; // onContextLost 置位：上下文已丢，无需再强制释放
     let lateCleanup: (() => void) | null = null;
     void (async () => {
       try {
@@ -485,6 +499,7 @@ export default function StarSea3D({
 
         const onContextLost = (event: Event) => {
           event.preventDefault();
+          contextLost = true;
           if (!disposed) onFatalErrorRef.current();
         };
         canvas.addEventListener("webglcontextlost", onContextLost);
@@ -524,6 +539,12 @@ export default function StarSea3D({
           lampMat.dispose();
           domeGeo.dispose();
           domeMat.dispose();
+          // 显式释放 WebGL 上下文：2D↔3D 每次切换都新建上下文，浏览器对活跃
+          // 上下文有上限（Chrome ~16 个）——只 dispose 的话，脱离文档的旧 canvas
+          // 在 GC 前仍占名额，密集切换可能把活上下文挤掉导致误降级。上下文已
+          // 丢失（onFatalError 已触发）时不再强制。监听已先移除，强制丢失不会
+          // 再触发 onFatalError。
+          if (!contextLost) renderer.forceContextLoss();
           renderer.dispose();
           if (canvas.parentElement === holder) holder.removeChild(canvas);
           threeRef.current = null;
@@ -555,8 +576,10 @@ export default function StarSea3D({
     stack.camera.near = Math.max(d.dist * 0.02, 0.05);
     stack.camera.far = d.dist + 2400; // 覆盖星穹半径（880–1100）
     stack.camera.updateProjectionMatrix();
-    // 星点世界尺寸：7px CSS（与 2.5D .starsea-dot 同观感）在当前镜头下换算
-    stack.lampMat.size = (7 * d.worldH) / (cam.scale * h);
+    // 星点世界尺寸：three 的 sizeAttenuation 是 gl_PointSize = size × (vh/2) / dist
+    // （注意分母没有 tan(fov/2) 因子），因此要与 2.5D 的 7px .starsea-dot 同观感，
+    // 需 size = 7px × dist×2/vh ÷ tanHalf = 7 × worldH / (tanHalf × scale × vh)
+    stack.lampMat.size = (7 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
   };
 
   // ---- 数据 → 重建星点缓冲 + 单帧 ----

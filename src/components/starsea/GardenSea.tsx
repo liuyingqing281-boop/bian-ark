@@ -421,7 +421,10 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         selectedMemorialId: null,
         zone: null,
         query: "",
-        // Task 7：择位拖拽是 2D DOM 交互，任务态锁定 2.5D（即使深链/快照带 view=3d）
+        // Task 7：择位拖拽是 2D DOM 交互，任务态锁定 2.5D（即使深链/快照带 view=3d）。
+        // 注意：这是「挂载时」的 view 归一；未来若出现页内（非挂载）激活择位的路径
+        //（如馆页内直接唤起），该路径也必须同样强制 view="2d"——渲染分支的
+        // `!placement.active` 只兜底渲染，不会改写 state.view/分段按钮态。
         view: "2d",
       };
       setPlacement({ hallId: placingHallId, active: true });

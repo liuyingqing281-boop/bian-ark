@@ -1018,13 +1018,14 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   outline: 2px solid var(--st-gold, #fcd34d);
   outline-offset: 1px;
 }
-/* 3D 回退播报（role=status）：GPU/键盘/reduced-motion 条件不满足自动回 2.5D */
+/* 3D 回退播报（role=status）：GPU/键盘/reduced-motion 条件不满足自动回 2.5D；
+   临时提示最高层 z-40（规格 §2 层级） */
 .starsea-fallback-notice {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 68px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 24;
+  z-index: 40;
   margin: 0;
   padding: 8px 16px;
   border-radius: 12px;
