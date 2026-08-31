@@ -20,6 +20,9 @@ Thumbs.db
 
 _remote/
 
+# 星海正式测试临时目录（tools/test-starsea-formal.mjs 在仓库根 mkdtemp）
+.starsea-formal-*
+
 # local agent session artifacts
 .zcode/
 .maestroignore

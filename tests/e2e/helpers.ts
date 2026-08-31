@@ -1,21 +1,40 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 
 /** 全局唯一前缀：本次运行创建的所有数据（邮箱/馆名/群组名）都带它，结束时按前缀清理 */
 export const RUN = `e2e${Date.now().toString(36)}`;
 export const emailOf = (role: string) => `${RUN}-${role}@bian.dev`;
 
-/** 走浏览器上下文的共享 Cookie 完成 API 登录（登录态直接进入浏览器） */
+/** dev 首编译竞态兜底：Next 16 dev 偶发页面级运行时错浮层（Next 内部 JSON.parse，
+ *  与应用代码无关，Turbopack/Webpack 皆可复现）。识别到错误 dialog 则重载一次；
+ *  重载后仍失败由后续断言如实暴露。 */
+export async function gotoStable(page: Page, url: string): Promise<void> {
+  await page.goto(url);
+  const errorDialog = page.getByRole("dialog").first();
+  if (await errorDialog.isVisible().catch(() => false)) {
+    await page.reload();
+  }
+}
+
+/** 走浏览器上下文的共享 Cookie 完成 API 登录（登录态直接进入浏览器）。
+ *  2026-08-24/25 契约：verify 必带 intent；注册另需 password（8–64 位、四类≥3）+ agreed。
+ *  RUN 前缀邮箱全运行唯一 → 首次走注册；同邮箱重复调用（409 already_registered，分流校验
+ *  不核销验证码）回落 intent=login 复用同码。 */
 export async function apiLogin(request: APIRequestContext, mail: string): Promise<void> {
   const rc = await request.post("/api/auth/request-code", { data: { channel: "email", target: mail } });
   if (!rc.ok()) throw new Error(`request-code failed: ${rc.status()}`);
   const { devCode } = (await rc.json()) as { devCode: string };
   const vr = await request.post("/api/auth/verify", {
-    data: { channel: "email", target: mail, code: devCode },
+    data: { channel: "email", target: mail, code: devCode, intent: "register", password: "Test1234!ok", agreed: true },
   });
-  if (!vr.ok()) throw new Error(`verify failed: ${vr.status()}`);
+  if (vr.ok()) return;
+  if (vr.status() !== 409) throw new Error(`verify register failed: ${vr.status()}`);
+  const login = await request.post("/api/auth/verify", {
+    data: { channel: "email", target: mail, code: devCode, intent: "login" },
+  });
+  if (!login.ok()) throw new Error(`verify login failed: ${login.status()}`);
 }
 
 export async function createMemorialViaApi(

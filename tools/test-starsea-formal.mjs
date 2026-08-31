@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -12,7 +11,6 @@ const root = process.cwd();
 const tempRoot = fs.mkdtempSync(path.join(root, ".starsea-formal-"));
 const dbPath = path.join(tempRoot, "formal.db");
 const appRoot = path.join(tempRoot, "app");
-const distPath = path.join(appRoot, ".next-starsea-formal");
 const port = 7417;
 const baseUrl = `http://127.0.0.1:${port}`;
 let server;
@@ -58,6 +56,15 @@ function waitForExit(child) {
     child.once("close", (code, signal) => settle("close", code, signal));
     if (child.exitCode !== null || child.signalCode !== null) settle("state", child.exitCode, child.signalCode);
   });
+}
+
+// 带超时的竞争等待：无论成败都清掉计时器，不让悬挂的 setTimeout 拖住进程退出
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 async function waitForServer() {
@@ -179,6 +186,121 @@ async function main() {
     assert.equal(db.pragma("integrity_check", { simple: true }), "ok");
     assert.equal(db.pragma("foreign_key_check").length, 0);
     db.close();
+  });
+
+  // ---- Task 3：浏览状态机 / 确定性星阵 / waitForExit 行为化 ----
+  // 经 node --experimental-strip-types 直载真实 TS 模块（.ts 显式扩展名），禁止 JS 复刻 reducer
+  await checkAsync("garden-sea-state reducer drives the panel journey", async () => {
+    const m = await import("../src/lib/garden-sea-state.ts");
+    const initial = m.initialGardenSeaState();
+    assert.equal(initial.panel, "list");
+    assert.equal(initial.selectedHallId, null);
+    const detail = m.gardenSeaReducer(initial, { type: "selectHall", hallId: "h1" });
+    assert.equal(detail.panel, "detail");
+    assert.equal(detail.selectedHallId, "h1");
+    const offer = m.gardenSeaReducer(detail, { type: "openOffer" });
+    assert.equal(offer.panel, "offer");
+    assert.equal(m.gardenSeaReducer(offer, { type: "back" }).panel, "detail");
+    const list = m.gardenSeaReducer(detail, { type: "back" });
+    assert.equal(list.panel, "list");
+    assert.equal(list.selectedHallId, null);
+    assert.equal(list.selectedMemorialId, null);
+  });
+
+  await checkAsync("garden-sea-state URL contract round-trips through the whitelist", async () => {
+    const m = await import("../src/lib/garden-sea-state.ts");
+    const initial = m.initialGardenSeaState();
+    const detail = m.gardenSeaReducer(initial, { type: "selectHall", hallId: "h1" });
+    assert.equal(m.serializeGardenUrl(detail).get("hall"), "h1");
+    assert.equal(m.serializeGardenUrl(detail).get("panel"), "detail");
+    const parsed = m.parseGardenUrl(new URLSearchParams("hall=h1&panel=detail"));
+    assert.equal(parsed.selectedHallId, "h1");
+    assert.equal(parsed.panel, "detail");
+    // 旅程状态 serialize → parse 往返保持 URL 承载的浏览语义（不含像素坐标）
+    const detailMem = m.gardenSeaReducer(detail, { type: "selectMemorial", hallId: "h1", memorialId: "m1" });
+    const offer = m.gardenSeaReducer(detailMem, { type: "openOffer" });
+    const roundTrip = m.parseGardenUrl(m.serializeGardenUrl(offer));
+    for (const key of ["view", "query", "zone", "panel", "selectedHallId", "selectedMemorialId"]) {
+      assert.deepEqual(roundTrip[key], offer[key]);
+    }
+    // 白名单红线：scale/offset 绝不进 URL；未知参数解析时被忽略并回默认镜头
+    const zoomed = { ...detail, scale: 4, offset: { x: 0.75, y: 0.25 } };
+    assert.equal(m.serializeGardenUrl(zoomed).get("scale"), null);
+    assert.equal(m.serializeGardenUrl(zoomed).get("offset"), null);
+    const polluted = m.parseGardenUrl(new URLSearchParams("hall=h1&panel=offer&scale=9&offset=1,2&evil=x"));
+    assert.equal(polluted.scale, initial.scale);
+    assert.deepEqual(polluted.offset, initial.offset);
+    // setZone / setView / setQuery 落到 URL；默认值省略不写
+    assert.equal(m.serializeGardenUrl(m.gardenSeaReducer(initial, { type: "setZone", zone: "family" })).get("zone"), "family");
+    assert.equal(m.serializeGardenUrl(initial).get("zone"), null);
+    assert.equal(m.serializeGardenUrl(m.gardenSeaReducer(initial, { type: "setView", view: "3d" })).get("view"), "3d");
+    assert.equal(m.serializeGardenUrl(m.gardenSeaReducer(initial, { type: "setQuery", query: "  外婆  " })).get("q"), "外婆");
+    assert.equal(m.gardenSeaReducer(initial, { type: "setQuery", query: "a".repeat(50) }).query.length, 40);
+  });
+
+  await checkAsync("garden camera round-trips storage and corrupt JSON falls back to default", async () => {
+    const m = await import("../src/lib/garden-sea-state.ts");
+    const initial = m.initialGardenSeaState();
+    const expectedDefault = { scale: initial.scale, offset: { x: initial.offset.x, y: initial.offset.y } };
+    const backing = new Map();
+    const shim = {
+      getItem: (k) => (backing.has(k) ? backing.get(k) : null),
+      setItem: (k, v) => backing.set(k, String(v)),
+      removeItem: (k) => backing.delete(k),
+    };
+    const hadStorage = Object.prototype.hasOwnProperty.call(globalThis, "sessionStorage");
+    const originalStorage = globalThis.sessionStorage;
+    globalThis.sessionStorage = shim;
+    try {
+      m.saveGardenCamera("starsea:camera:zh", { scale: 2.5, offset: { x: 0.25, y: 0.75 } });
+      assert.deepEqual(m.loadGardenCamera("starsea:camera:zh"), { scale: 2.5, offset: { x: 0.25, y: 0.75 } });
+      backing.set("starsea:camera:zh", "{not json");
+      assert.deepEqual(m.loadGardenCamera("starsea:camera:zh"), expectedDefault);
+      backing.set("starsea:camera:zh", JSON.stringify({ scale: "big", offset: null }));
+      assert.deepEqual(m.loadGardenCamera("starsea:camera:zh"), expectedDefault);
+      assert.deepEqual(m.loadGardenCamera("starsea:camera:en"), expectedDefault);
+    } finally {
+      if (hadStorage) globalThis.sessionStorage = originalStorage;
+      else delete globalThis.sessionStorage;
+    }
+  });
+
+  await checkAsync("star offsets are deterministic per hall and clamp lamp counts", async () => {
+    const m = await import("../src/lib/garden-sea.ts");
+    const first = m.starOffsets("hall_demo", 4);
+    assert.deepEqual(m.starOffsets("hall_demo", 4), first); // 同馆同形：刷新/缩放/搜索后不变
+    assert.equal(first.length, 4);
+    assert.equal(m.starOffsets("hall_demo", 0).length, 1); // lampCount 下限 1
+    assert.equal(m.starOffsets("hall_demo", -3).length, 1);
+    assert.equal(m.starOffsets("hall_demo", 9).length, 6); // 上限 6
+    for (const point of first) {
+      assert.equal(Math.abs(point.x) <= 0.02, true, "成员偏移应落在星群半径内");
+      assert.equal(Math.abs(point.y) <= 0.02, true);
+    }
+    const shapes = new Set();
+    for (let i = 0; i < 60; i += 1) shapes.add(JSON.stringify(m.starOffsets(`hall_${i}`, 6)));
+    assert.equal(shapes.size >= 3, true, "固定预设应覆盖多种星形");
+    const ordered = m.stableHallOrder([{ hallId: "hall_b" }, { hallId: "hall_a" }]);
+    assert.deepEqual(ordered.map((h) => h.hallId), ["hall_a", "hall_b"]);
+    const source = fs.readFileSync(path.join(root, "src", "lib", "garden-sea.ts"), "utf8");
+    assert.equal(source.includes("Math.random"), false, "确定性布局禁用 Math.random");
+  });
+
+  await checkAsync("waitForExit resolves promptly after the child already exited", async () => {
+    const child = spawn(process.execPath, ["-e", ""]);
+    await new Promise((resolve) => child.once("exit", resolve)); // 先让它自然退出
+    const startedAt = Date.now();
+    const result = await withTimeout(waitForExit(child), 1500, "post-exit listener path hung");
+    assert.equal(Date.now() - startedAt < 1500, true);
+    assert.ok(result && ["exit", "close", "state"].includes(result.event));
+  });
+
+  await checkAsync("waitForExit resolves for a pre-registered child that gets killed", async () => {
+    const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"]);
+    const exitPromise = waitForExit(child); // 运行中先注册监听（pre-kill 路径）
+    child.kill();
+    const result = await withTimeout(exitPromise, 5000, "kill path hung");
+    assert.ok(result && ["exit", "close"].includes(result.event));
   });
 
   fs.mkdirSync(appRoot, { recursive: true });
@@ -383,12 +505,22 @@ try {
     server.kill("SIGTERM");
   }
   if (serverExitPromise) {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("server shutdown timeout")), 5000));
-    try { await Promise.race([serverExitPromise, timeout]); }
-    catch (error) {
+    let shutdownTimer;
+    const timeout = new Promise((_, reject) => {
+      shutdownTimer = setTimeout(() => reject(new Error("server shutdown timeout")), 5000);
+    });
+    try {
+      await Promise.race([serverExitPromise, timeout]);
+      clearTimeout(shutdownTimer);
+    } catch (error) {
       failures += 1;
       console.error(`FAIL shutdown: ${error.message}`);
-      if (server && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
+      if (server && server.exitCode === null && server.signalCode === null) {
+        server.kill("SIGKILL");
+        // SIGKILL 后等真正退出再清目录（Windows 下文件锁未释放会导致 rmSync 失败）
+        await withTimeout(serverExitPromise, 5000, "server ignored SIGKILL");
+      }
+      clearTimeout(shutdownTimer);
     }
   }
   fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3 });

@@ -13,11 +13,14 @@ export default defineConfig({
     video: "retain-on-failure",
   },
   webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER ? undefined : {
-    command: "npm run dev",
+    // --webpack 与 tools/test-starsea-formal.mjs 同轨：本机 Turbopack 原生模块不稳
+    // （偶发 dev 内部 JSON.parse 500，坑 9），webpack dev 全程稳定
+    command: "npm run dev -- --webpack",
     url: "http://localhost:3002/api/health",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { ...process.env, AUTH_IP_DAILY_LIMIT: "1000" },
+    // tools/dev.mjs 缺省端口 7300，注入 PORT 让自动起服落在 config 期望的 3002（Task 3 测试债）
+    env: { ...process.env, AUTH_IP_DAILY_LIMIT: "1000", PORT: "3002" },
   },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
