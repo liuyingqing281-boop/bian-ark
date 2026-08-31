@@ -724,4 +724,28 @@ test.describe("正式 2.5D 星海", () => {
       await ctx.close();
     }
   });
+
+  // Fix Round 1（评审 Important）：择位激活必须重置快照恢复的星域过滤——
+  // 馆主上次浏览 family 星域（10min TTL 内），随后为 public 星域馆择位时，
+  // 若 zone 残留，fetchStarsea 会把目标馆过滤掉：横幅在、星群/目标环永不出。
+  test("择位激活重置星域过滤：家族星域快照不吞掉公共馆择位目标", async ({ browser }) => {
+    test.setTimeout(150_000);
+    const { ctx, page } = await ownerPage(browser);
+    try {
+      // 先让馆主带着 zone=family 离开星海（挂载即持续落浏览快照）
+      await gotoStable(page, "/zh/garden?zone=family");
+      await expect(page.locator(".garden-sea")).toBeVisible({ timeout: 30_000 });
+      await expect(page).toHaveURL(/zone=family/);
+      // 再从择位入口进入：public 星域目标馆必须可见可拖，不被 family 过滤吞掉
+      await gotoStable(page, `/zh/garden?placing=${seededHallId}`);
+      await expect(page.locator(".starsea-placement-bar")).toBeVisible({ timeout: 30_000 });
+      const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+      await expect(cluster).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator(".starsea-placement-ring")).toBeVisible();
+      // 激活重置后 URL 同步剥离 zone（择位专注态不带浏览过滤）
+      await expect(page).not.toHaveURL(/zone=/, { timeout: 10_000 });
+    } finally {
+      await ctx.close();
+    }
+  });
 });

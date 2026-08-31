@@ -13,9 +13,9 @@
 // - 供奉：POST /api/tribute 按 response.status 分流（ok/401/其他），
 //   成功 1000ms 反馈后回详情；失败/未登录绝不清空输入与选中。
 // - 镜头（scale/offset）只进 sessionStorage（按 lang），URL 永不承载像素坐标。
-// - 园→馆→园（Task 5）：浏览状态持续落 bian-garden-snapshot（sessionStorage，
-//   TTL 10min）；进馆附 from=garden（仅状态恢复语义），馆页返回 /garden 时
-//   无显式 URL 参数则恢复快照，快照无效/过期回默认星海。
+// - 园→馆→园（Task 5）：浏览状态持续落 sessionStorage 快照（gardenSnapshotStorageKey
+//   按 lang 区分，TTL 10min）；进馆附 from=garden（仅状态恢复语义），馆页返回 /garden
+//   时无显式 URL 参数则恢复快照，快照无效/过期回默认星海。
 // - 择位模式（Task 6，墓园规格 §8.3 馆主亲手择位）：挂载时读取一次 placing
 //   参数显式激活（「我的」页择位入口专用，URL 白名单不含 placing，激活即剥离）；
 //   拖拽草稿 → 松开 PATCH /api/halls/[id]/garden-pos；200 更新本地坐标 + toast；
@@ -395,8 +395,12 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
       }
     }
     // Task 6：读取一次 placing 参数（「我的」页择位入口显式激活，仅馆主入口生成）。
-    // 激活即消费：URL 白名单不含 placing，下一次 URL 同步即剥离（刷新即退出择位）；
-    // 择位为专注任务态，进入时清掉快照带来的详情/供奉选中。
+    // 激活即消费：URL 白名单不含 placing，下一次 URL 同步即剥离（刷新即退出择位）。
+    // 择位为专注任务态，进入时重置快照恢复的全部浏览过滤：
+    // - 选中/面板（详情/供奉）让位给任务态；
+    // - zone 必须重置——public 星域目标馆会被残留的 family 过滤整个吞掉
+    //   （fetchStarsea 按 zone 分片，横幅在、星群永不出，Fix Round 1 Important）；
+    // - q 只降亮不吞节点（无害），但择位态保留搜索词徒增视觉噪声，一并清空。
     const placingHallId = urlParams.get("placing");
     if (placingHallId) {
       next = {
@@ -405,6 +409,8 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         drawer: "collapsed",
         selectedHallId: null,
         selectedMemorialId: null,
+        zone: null,
+        query: "",
       };
       setPlacement({ hallId: placingHallId, active: true });
     }

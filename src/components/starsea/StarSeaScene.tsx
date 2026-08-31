@@ -59,6 +59,8 @@ interface PlacementDrag {
   pointerId: number;
   /** 抓取点偏移（pointerNorm − 星群Norm）：拖拽中星群不跳变到手心 */
   grab: { x: number; y: number };
+  /** 拖拽开始时星群的基准位（0–1）：pointerup 落点 ≈ 基准位 = 无位移点击，不提交 */
+  base: { x: number; y: number };
 }
 
 const MIN_SCALE = 0.5;
@@ -121,6 +123,7 @@ export default function StarSeaScene({
         placementDragRef.current = {
           pointerId: event.pointerId,
           grab: norm ? { x: norm.x - base.x, y: norm.y - base.y } : { x: 0, y: 0 },
+          base: { x: base.x, y: base.y },
         };
         sceneRef.current?.setPointerCapture(event.pointerId);
         return;
@@ -181,7 +184,13 @@ export default function StarSeaScene({
     if (placement && event.pointerId === placement.pointerId) {
       placementDragRef.current = null;
       const norm = sceneToNorm(event.clientX, event.clientY);
-      if (norm) onPlacementDrop(roundPlacementPoint(norm.x - placement.grab.x, norm.y - placement.grab.y));
+      if (!norm) return;
+      const drop = roundPlacementPoint(norm.x - placement.grab.x, norm.y - placement.grab.y);
+      // 无位移点击（pointerup 落点 ≈ 拖拽开始基准位，半个千分位内 = 亚像素抖动）
+      // 不提交 PATCH：馆主在择位中点了一下自己的星群 ≠ 择位确认（Fix Round 1）
+      const moved =
+        Math.abs(drop.x - placement.base.x) >= 0.0005 || Math.abs(drop.y - placement.base.y) >= 0.0005;
+      if (moved) onPlacementDrop(drop);
       return;
     }
     dragRef.current.pointers.delete(event.pointerId);

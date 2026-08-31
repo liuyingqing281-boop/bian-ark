@@ -298,7 +298,8 @@ async function main() {
     assert.deepEqual(m.roundPlacementPoint(0.9996, 0.9994), { x: 1, y: 0.999 });
   });
 
-  await checkAsync("waitForExit resolves promptly after the child already exited", async () => {    const child = spawn(process.execPath, ["-e", ""]);
+  await checkAsync("waitForExit resolves promptly after the child already exited", async () => {
+    const child = spawn(process.execPath, ["-e", ""]);
     await new Promise((resolve) => child.once("exit", resolve)); // 先让它自然退出
     const startedAt = Date.now();
     const result = await withTimeout(waitForExit(child), 1500, "post-exit listener path hung");
