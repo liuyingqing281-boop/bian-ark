@@ -144,6 +144,137 @@ function positionDistance(first, second) {
   return Math.hypot(first.x - second.x, first.y - second.y);
 }
 
+// ---- Task 8：规模与性能（600+ 公共馆夹具 + bbox/游标/稳定排序证明） ----
+// 夹具只进本测试的临时库（SMOKE_DB_PATH），带运行前缀、结束时按前缀删除，
+// 绝不触碰开发库 data/bian.db 基线。
+const SCALE_RUN = randomUUID().slice(0, 8);
+const SCALE_HALLS = 620;
+
+// 向正式库插入 SCALE_HALLS 座公共馆（各带 1 条已发布公共 memorial）。
+// 坐标确定性散布（黄金比步进，无随机源）；避开 x/y = 0.5 精确值——
+// 相邻 bbox 的共享边界恰好不落在任何馆上，边界断言才可判定「零丢失/零重复」。
+// 事务包裹：失败整体回滚，不留半截夹具。
+function seedScaleFixture(db) {
+  db.exec("BEGIN");
+  try {
+    db.prepare("INSERT INTO users (id, email, name) VALUES (?, ?, '规模夹具')").run(`user_${SCALE_RUN}`, `scale-${SCALE_RUN}@test.local`);
+    const insertHall = db.prepare(
+      `INSERT INTO halls (id, name, visibility, owner_user_id, in_garden, garden_x, garden_y, garden_zone)
+       VALUES (?, ?, 'public', ?, 1, ?, ?, 'public')`
+    );
+    const insertMemorial = db.prepare(
+      `INSERT INTO memorials (id, name, user_id, visibility, is_published, hall_id)
+       VALUES (?, ?, ?, 'public', 1, ?)`
+    );
+    for (let i = 0; i < SCALE_HALLS; i += 1) {
+      let x = Math.round((0.02 + ((i * 0.61803398875) % 0.96)) * 1000) / 1000;
+      let y = Math.round((0.02 + ((i * 0.75487766624) % 0.96)) * 1000) / 1000;
+      if (x === 0.5) x = 0.501;
+      if (y === 0.5) y = 0.501;
+      const hallId = `hall_${SCALE_RUN}s${i}`;
+      insertHall.run(hallId, `规模馆${i}`, `user_${SCALE_RUN}`, x, y);
+      insertMemorial.run(`${SCALE_RUN}m${i}`, `亲人${i}`, `user_${SCALE_RUN}`, hallId);
+    }
+    db.exec("COMMIT");
+    return SCALE_HALLS;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function scaleFixtureCleanup(db) {
+  db.prepare("DELETE FROM memorials WHERE id LIKE ? OR user_id = ?").run(`${SCALE_RUN}%`, `user_${SCALE_RUN}`);
+  db.prepare("DELETE FROM halls WHERE id LIKE ? OR owner_user_id = ?").run(`hall_${SCALE_RUN}%`, `user_${SCALE_RUN}`);
+  db.prepare("DELETE FROM users WHERE id = ?").run(`user_${SCALE_RUN}`);
+}
+
+const STARSEA_GROUND_TRUTH_SQL = `
+  SELECT COUNT(*) AS n FROM halls h
+  WHERE h.in_garden = 1 AND h.visibility = 'public'
+    AND h.garden_x IS NOT NULL AND h.garden_y IS NOT NULL
+    AND EXISTS (SELECT 1 FROM memorials m WHERE m.hall_id = h.id AND m.is_published = 1 AND m.visibility = 'public')`;
+
+// 游标走全量：每页断言 200/OK、页内 hallId 升序、跨页严格递增（cursor 语义）
+async function walkStarsea(bbox, limit) {
+  const halls = [];
+  let cursor = null;
+  let pages = 0;
+  let lastId = "";
+  do {
+    const params = new URLSearchParams({ bbox, limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    const response = await fetch(`${baseUrl}/api/garden/starsea?${params.toString()}`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    const ids = body.halls.map((hall) => hall.hallId);
+    assert.deepEqual(ids, [...ids].sort(), `第 ${pages} 页应按 hallId 升序`);
+    for (const id of ids) {
+      assert.equal(id > lastId, true, `跨页应严格升序：${lastId} → ${id}`);
+      lastId = id;
+    }
+    halls.push(...body.halls);
+    cursor = body.nextCursor;
+    pages += 1;
+    assert.equal(pages <= 12, true, "游标页数失控（防死循环守卫）");
+  } while (cursor);
+  return { halls, pages };
+}
+
+// 轻量性能记录（指示性，不作门禁）：600+ 夹具下真实浏览器首交互/可见星群数。
+// best-effort：dev 首访要把页面与全部客户端 chunk 现场编译（本机观测 /zh/garden
+// 首次 200 用时 ~38s），首等窗可能赶不上水合——失败后 reload 重试一次（此时已
+// 全部编译完，二次加载 <100ms 级）。两次都失败只记录跳过，绝不判失败。
+async function perfProbeWithFixture() {
+  if (process.env.STARSEA_SKIP_PERF === "1") return;
+  let browser;
+  let page;
+  const errors = [];
+  try {
+    const { chromium } = await import("playwright");
+    browser = await chromium.launch();
+    page = await browser.newPage();
+    page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+    const startedAt = Date.now();
+    await page.goto(`${baseUrl}/zh/garden`, { waitUntil: "domcontentloaded", timeout: 90_000 });
+    // dev 首编译竞态兜底（同 tests/e2e/helpers.ts gotoStable 坑）：Next 16 dev 偶发
+    // 页面级运行时错浮层（内部 JSON.parse），识别到错误 dialog 立即重载一次
+    if (await page.getByRole("dialog").first().isVisible().catch(() => false)) {
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
+    }
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        await page.waitForFunction(() => {
+          const m = window.__starseaMetrics;
+          return Boolean(m && typeof m.firstInteractiveMs === "number");
+        }, undefined, { timeout: 120_000 });
+        break;
+      } catch (error) {
+        if (attempt === 2) throw error;
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
+      }
+    }
+    const metrics = await page.evaluate(() => window.__starseaMetrics ?? null);
+    const counts = await page.evaluate(() => ({
+      clusters: document.querySelectorAll(".starsea-cluster").length,
+      halos: document.querySelectorAll(".starsea-halo").length,
+      cards: document.querySelectorAll(".starsea-card").length,
+    }));
+    console.log(`PERF probe(fixture=${SCALE_HALLS}+) ${JSON.stringify({ wallMs: Date.now() - startedAt, ...metrics, ...counts })}`);
+    if (errors.length) console.log(`PERF probe page errors: ${JSON.stringify(errors.slice(0, 3))}`);
+  } catch (error) {
+    console.log(`PERF probe skipped (not a failure): ${error && error.message ? error.message.split("\n")[0] : error}`);
+    try {
+      const html = page ? await page.content() : "";
+      console.log(`PERF probe diag: pageErrors=${JSON.stringify(errors.slice(0, 3))} htmlHead=${JSON.stringify(html.slice(0, 400))}`);
+    } catch {
+      // 页面已不可读：无法补充诊断
+    }
+  } finally {
+    await browser?.close().catch(() => {});
+  }
+}
+
 async function main() {
   const migrationPath = path.join(root, "migrations", "025_garden_canonical.sql");
   check("025 migration exists", () => assert.equal(fs.existsSync(migrationPath), true));
@@ -491,6 +622,91 @@ async function main() {
     );
   });
 
+  // ---- Task 8：规模夹具 + bbox/游标/稳定排序证明 ----
+  let scaleBaselineCount = 0;
+  {
+    const db = new Database(dbPath, { readonly: true });
+    scaleBaselineCount = db.prepare(STARSEA_GROUND_TRUTH_SQL).get().n;
+    db.close();
+  }
+
+  await checkAsync("scale fixture seeds 600+ public halls with published memorials", async () => {
+    const db = new Database(dbPath);
+    try {
+      const seeded = seedScaleFixture(db);
+      assert.equal(seeded >= 600, true, `夹具应插入 ≥600 座馆，实际 ${seeded}`);
+      const dbCount = db.prepare(STARSEA_GROUND_TRUTH_SQL).get().n;
+      assert.equal(dbCount, scaleBaselineCount + seeded, "夹具馆应全部进入星海数据源");
+      const onBoundary = db.prepare(
+        "SELECT COUNT(*) AS n FROM halls WHERE id LIKE ? AND (garden_x = 0.5 OR garden_y = 0.5)"
+      ).get(`hall_${SCALE_RUN}%`).n;
+      assert.equal(onBoundary, 0, "夹具坐标应避开 0.5 共享边界精确值");
+    } finally {
+      db.close();
+    }
+  });
+
+  await checkAsync("cursor walk serves the full 600+ set with no silent truncation", async () => {
+    const first = await (await fetch(`${baseUrl}/api/garden/starsea?bbox=0,0,1,1&limit=500`)).json();
+    assert.equal(first.halls.length, 500, "首页应打满 500 上限");
+    assert.equal(typeof first.nextCursor, "string", ">500 结果集必须暴露 nextCursor（不得静默截断）");
+    const { halls, pages } = await walkStarsea("0,0,1,1", 500);
+    const idsSeen = halls.map((hall) => hall.hallId);
+    assert.equal(new Set(idsSeen).size, idsSeen.length, "游标走全量不得重复");
+    const db = new Database(dbPath, { readonly: true });
+    const groundTruth = db.prepare(STARSEA_GROUND_TRUTH_SQL).get().n;
+    db.close();
+    assert.equal(idsSeen.length, groundTruth, `游标应覆盖全部 ${groundTruth} 座馆`);
+    assert.equal(groundTruth >= 600, true, "夹具规模应达 600+");
+    assert.equal(pages >= 2, true, "应至少分两页");
+  });
+
+  await checkAsync("adjacent bbox requests lose and duplicate zero halls at the shared boundary", async () => {
+    const left = await walkStarsea("0,0,0.5,1", 500);
+    const right = await walkStarsea("0.5,0,1,1", 500);
+    const full = await walkStarsea("0,0,1,1", 500);
+    const leftIds = new Set(left.halls.map((hall) => hall.hallId));
+    const rightIds = new Set(right.halls.map((hall) => hall.hallId));
+    const fullMap = new Map(full.halls.map((hall) => [hall.hallId, hall]));
+    // 恰好压在共享边界上的馆（x=0.5）按 BETWEEN 含闭区间语义允许双侧出现；
+    // 除此之外任何馆都不得重复，也不得从两侧并集中消失
+    const onBoundary = full.halls.filter((hall) => hall.x === 0.5).map((hall) => hall.hallId);
+    for (const id of leftIds) {
+      if (onBoundary.includes(id)) continue;
+      assert.equal(rightIds.has(id), false, `非边界馆 ${id} 不应同时出现在两侧`);
+    }
+    assert.equal(
+      left.halls.length + right.halls.length,
+      full.halls.length + onBoundary.length,
+      "左右分片总数应等于全集 + 精确边界馆数（零丢失/零重复）"
+    );
+    const union = new Set([...leftIds, ...rightIds]);
+    for (const id of fullMap.keys()) {
+      assert.equal(union.has(id), true, `全集馆 ${id} 必须被相邻分片之一覆盖（零丢失）`);
+    }
+    assert.equal(union.size, full.halls.length, "相邻 bbox 并集应恰好等于全集");
+  });
+
+  await checkAsync("identical repeated requests return the identical stable order", async () => {
+    const url = `${baseUrl}/api/garden/starsea?bbox=0,0,1,1&limit=500`;
+    const one = await (await fetch(url)).text();
+    const two = await (await fetch(url)).text();
+    assert.equal(one, two, "同参数重复请求应返回逐字节一致的有序结果");
+  });
+
+  await perfProbeWithFixture();
+
+  check("scale fixture is fully cleaned up by run prefix", () => {
+    const db = new Database(dbPath);
+    try {
+      scaleFixtureCleanup(db);
+      const after = db.prepare(STARSEA_GROUND_TRUTH_SQL).get().n;
+      assert.equal(after, scaleBaselineCount, "清理后星海数据源应回到夹具前基线");
+    } finally {
+      db.close();
+    }
+  });
+
   check("formal test never writes root Next configuration sources", () => {
     const source = formalTestSource();
     const writeCall = ["write", "File", "Sync"].join("");
@@ -505,6 +721,23 @@ async function main() {
     assert.match(source, /child\.once\("exit"/);
     assert.match(source, /child\.once\("close"/);
   });
+}
+
+// Task 8（携项 a）：Windows 下 Next 子进程退出后仍可能有句柄延迟释放（EBUSY），
+// rmSync 重试后仍失败会把全绿的运行翻成非零退出。清理做有界重试 + 退避，
+// 全部失败只告警留目录，绝不计入 failures / 翻转退出码。
+async function removeTempRootWithRetry() {
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    try {
+      fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+      return;
+    } catch (error) {
+      const code = error && error.code ? error.code : "UNKNOWN";
+      console.warn(`WARN temp cleanup attempt ${attempt}/6 failed (${code}); retrying…`);
+      await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+    }
+  }
+  console.warn(`WARN could not remove temp dir (Windows file lock): ${tempRoot} — not counted as a test failure`);
 }
 
 try {
@@ -535,7 +768,7 @@ try {
       clearTimeout(shutdownTimer);
     }
   }
-  fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3 });
+  await removeTempRootWithRetry();
 }
 
 console.log(`Formal StarSea: ${passes} passed, ${failures} failed`);

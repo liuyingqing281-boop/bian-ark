@@ -22,8 +22,13 @@
 //   409 建议位可一键确认吸附；403 公开权限/无权提示；网络错误弹回原位可重试；
 //   发送中锁定星群但 Esc 仍可退出（序号守卫丢弃迟到响应）。访客永远看不到
 //   择位 UI（激活仅靠显式 placing 参数，写入鉴权在服务端）。
+// - Task 8（性能/动效/规模）：动效档位 full/simplified/static（默认尊重系统
+//   prefers-reduced-motion，控制条循环按钮 + localStorage 用户可恢复）；低性能
+//   设备（deviceMemory/hardwareConcurrency ≤2）默认静态且不创建 Three.js；
+//   游标翻页走全量（>500 不静默截断）；镜头持久化按 rAF 合并；调试指标
+//   window.__starseaMetrics 只含聚合计数与耗时（无馆访问量/热度，PRD 红线）。
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DEFAULT_GARDEN_CAMERA,
@@ -41,7 +46,8 @@ import { roundPlacementPoint, stableHallOrder } from "../../lib/garden-sea";
 import type { GardenSeaHall, GardenZone, PlacementState } from "../../lib/garden-sea";
 import StarSeaScene from "./StarSeaScene";
 import StarSea3D, { StarSeaDomOverlay } from "./StarSea3D";
-import StarSeaControls from "./StarSeaControls";
+import StarSeaControls, { MOTION_STORAGE_KEY, MOTION_TIERS } from "./StarSeaControls";
+import type { MotionTier } from "./StarSeaControls";
 import StarSeaDrawer from "./StarSeaDrawer";
 import type { HallMember, OfferItemOption, OfferStatus } from "./StarSeaDrawer";
 
@@ -115,6 +121,11 @@ const ZH_LABELS = {
   placementUpdated: "位置已更新",
   viewFallback: "当前环境暂不支持 3D 渲染，已切换到 2.5D 视图",
   candidatesTitle: "请选择星群",
+  lodSummary: (n: number) => `远景视图：星海共 ${n} 座纪念馆，放大后显示星群与名牌`,
+  view3dDisabledReason: "低性能设备已停用 3D，2.5D 视图不受影响",
+  motionTierName: { full: "完整", simplified: "简化", static: "静态" },
+  motionButtonLabel: (tier: MotionTier) =>
+    `动效：${tier === "full" ? "完整" : tier === "simplified" ? "简化" : "静态"}，点击切换到下一档`,
 };
 
 const EN_LABELS = {
@@ -176,6 +187,11 @@ const EN_LABELS = {
   placementUpdated: "Position updated",
   viewFallback: "3D rendering is unavailable here; switched to the 2.5D view",
   candidatesTitle: "Choose a star cluster",
+  lodSummary: (n: number) => `Far view: ${n} memorial halls in the star sea; zoom in for clusters and nameplates`,
+  view3dDisabledReason: "3D is disabled on low-performance devices; the 2.5D view is unaffected",
+  motionTierName: { full: "Full", simplified: "Reduced", static: "Static" },
+  motionButtonLabel: (tier: MotionTier) =>
+    `Motion: ${tier === "full" ? "full" : tier === "simplified" ? "reduced" : "static"}, click to switch to the next tier`,
 };
 
 const ZH_ITEM_NAMES: Record<string, string> = {
@@ -325,6 +341,54 @@ function readGardenSnapshot(key: string): GardenSnapshot | null {
   }
 }
 
+// ---- 调试指标（Task 8 Step 5，轻量 + 隐私安全） ----
+// 只记聚合计数与耗时：首次可交互 / 首次 bbox 请求耗时 / 当前可见星群数 /
+// 3D 回退次数 / API 失败次数。经 window.__starseaMetrics + performance.mark +
+// console.debug 暴露（本地调试用），绝无馆访问量/热度/排序数据（PRD 红线），
+// 也不接任何外部分析。
+export interface StarseaDebugMetrics {
+  firstInteractiveMs: number | null;
+  firstBboxMs: number | null;
+  visibleClusters: number;
+  fallback3dCount: number;
+  apiFailureCount: number;
+}
+
+function createMetrics(): StarseaDebugMetrics {
+  return { firstInteractiveMs: null, firstBboxMs: null, visibleClusters: 0, fallback3dCount: 0, apiFailureCount: 0 };
+}
+
+// ---- 动效档位（Task 8，规格 §6：完整/简化/静态；默认尊重系统偏好，用户可恢复） ----
+// 读档顺序：localStorage 用户显式选择 > 低性能设备（静态默认）> prefers-reduced-motion
+// （静态默认）> 完整。SSR 与客户端首帧统一渲染 "full"，挂载后再校正，避免注水错配。
+function readStoredMotionTier(): MotionTier | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(MOTION_STORAGE_KEY);
+    return raw === "full" || raw === "simplified" || raw === "static" ? raw : null;
+  } catch {
+    return null; // 隐私模式/配额异常：视作未选择，走系统默认
+  }
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+// 低性能设备探测（仅用于「降默认值」，用户仍可通过动效控制恢复；性能闸门
+// 额外阻止 Three.js 创建——规格 §6「低性能设备只保留静态星点和 CSS opacity」）
+function detectLowPerformance(): boolean {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const memory = typeof nav.deviceMemory === "number" ? nav.deviceMemory : 8;
+  const cores = typeof navigator.hardwareConcurrency === "number" ? navigator.hardwareConcurrency : 8;
+  return memory <= 2 || cores <= 2;
+}
+
 export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   const router = useRouter();
   const labels = lang === "en" ? EN_LABELS : ZH_LABELS;
@@ -382,6 +446,46 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   // 并以 role=status 播报；抽屉/控制条/其余浏览状态原样保留。用户主动切换视图即清除提示。
   const [fallback3dNotice, setFallback3dNotice] = useState(false);
 
+  // ---- 动效档位 + 低性能闸门（Task 8 Step 4）----
+  // SSR/首帧恒 "full"/false，挂载后在效应里探测实际环境再校正——若直接
+  // useState(detectLowPerformance)，客户端初值（true）与 SSR HTML（false）会
+  // 产生注水属性错配（React 不回写错配属性，disabled/data-* 滞留服务端值）。
+  const [motionTier, setMotionTier] = useState<MotionTier>("full");
+  const [lowPerformance, setLowPerformance] = useState(false);
+  useEffect(() => {
+    // 只置性能闸门旗标（3D 分段禁用 / 动效默认静态）；view=3d 的归一在
+    // URL 水合效应内完成（那里才是「URL → 状态」的权威时点，见下）
+    if (detectLowPerformance()) setLowPerformance(true);
+  }, []);
+  useEffect(() => {
+    const stored = readStoredMotionTier();
+    setMotionTier(stored ?? (lowPerformance || prefersReducedMotion() ? "static" : "full"));
+  }, [lowPerformance]);
+  function cycleMotionTier() {
+    const next = MOTION_TIERS[(MOTION_TIERS.indexOf(motionTier) + 1) % MOTION_TIERS.length];
+    setMotionTier(next);
+    try {
+      window.localStorage.setItem(MOTION_STORAGE_KEY, next); // 规格 §6：动效偏好写 localStorage
+    } catch {
+      // 隐私模式：本次会话内仍生效，只是不持久化
+    }
+  }
+
+  // ---- 调试指标（Task 8 Step 5）：挂载即挂到 window，卸载摘除 ----
+  const metricsRef = useRef<StarseaDebugMetrics>(createMetrics());
+  useEffect(() => {
+    const metrics = createMetrics();
+    metricsRef.current = metrics;
+    const holder = window as unknown as { __starseaMetrics?: StarseaDebugMetrics };
+    holder.__starseaMetrics = metrics;
+    return () => {
+      if (holder.__starseaMetrics === metrics) delete holder.__starseaMetrics;
+    };
+  }, []);
+  const handleVisibleClusters = useCallback((count: number) => {
+    metricsRef.current.visibleClusters = count; // 只改计数，不触发重渲染
+  }, []);
+
   const cameraKey = gardenCameraStorageKey(lang);
 
   function send(action: GardenSeaAction) {
@@ -429,6 +533,13 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
       };
       setPlacement({ hallId: placingHallId, active: true });
     }
+    // 低性能设备（Task 8）：深链/快照带 view=3d 也在挂载时归一回 2.5D——这里是
+    // 「URL → 状态」的权威时点（性能闸门不创建 Three.js；StarSea3D 的异步导入
+    // 有 disposed 守卫，不会创建 WebGLRenderer）。复用 WebGL 回退播报。
+    if (detectLowPerformance() && next.view === "3d") {
+      next = { ...next, view: "2d" };
+      setFallback3dNotice(true);
+    }
     setState(next);
     setUrlReady(true);
     function onPopState() {
@@ -465,14 +576,33 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   }, [state, urlReady]);
 
   // ---- 镜头持久化（sessionStorage，按 lang；跳过首帧） ----
+  // Task 8 携项 d：pointermove 平移/捏合会逐帧提交镜头，原先每次提交都同步写
+  // sessionStorage；现按 rAF 合并（每帧至多一次落盘），卸载时兜底冲刷末帧。
   const cameraPristine = useRef(true);
+  const cameraFlushPendingRef = useRef<GardenSeaCamera | null>(null);
+  const cameraFlushRafRef = useRef(0);
   useEffect(() => {
     if (cameraPristine.current) {
       cameraPristine.current = false;
       return;
     }
-    saveGardenCamera(cameraKey, { scale: state.scale, offset: state.offset });
+    cameraFlushPendingRef.current = { scale: state.scale, offset: { x: state.offset.x, y: state.offset.y } };
+    if (cameraFlushRafRef.current) return; // 已排队：本帧只刷新待写值
+    cameraFlushRafRef.current = requestAnimationFrame(() => {
+      cameraFlushRafRef.current = 0;
+      const pending = cameraFlushPendingRef.current;
+      cameraFlushPendingRef.current = null;
+      if (pending) saveGardenCamera(cameraKey, pending);
+    });
   }, [cameraKey, state.scale, state.offset.x, state.offset.y]);
+  useEffect(() => {
+    return () => {
+      if (cameraFlushRafRef.current) cancelAnimationFrame(cameraFlushRafRef.current);
+      const pending = cameraFlushPendingRef.current;
+      cameraFlushPendingRef.current = null;
+      if (pending) saveGardenCamera(cameraKey, pending); // 卸载兜底：末帧镜头不丢
+    };
+  }, [cameraKey]);
 
   // 挂载后恢复本语言上次镜头
   useEffect(() => {
@@ -507,6 +637,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         const params = new URLSearchParams({ bbox: bbox.map((v) => v.toFixed(4)).join(",") });
         if (zone) params.set("zone", zone);
         if (cursor) params.set("cursor", cursor);
+        const requestStartedAt = performance.now();
         const response = await fetch(`/api/garden/starsea?${params.toString()}`, {
           signal: controller.signal,
           cache: "no-store",
@@ -514,15 +645,27 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         if (!response.ok) throw new Error(`starsea_http_${response.status}`);
         const body = (await response.json()) as { halls: Array<GardenSeaHall>; nextCursor: string | null };
         if (seq !== fetchSeqRef.current || controller.signal.aborted) return;
+        if (pages === 0 && metricsRef.current.firstBboxMs === null) {
+          // 调试指标：首次 bbox 请求耗时（本会话首次分片响应到达）
+          metricsRef.current.firstBboxMs = Math.round(performance.now() - requestStartedAt);
+          try {
+            performance.mark("starsea:first-bbox");
+          } catch {
+            // mark 不可用（极旧环境）：跳过
+          }
+        }
         for (const hall of body.halls || []) hallsRef.current.set(hall.hallId, hall);
         cursor = body.nextCursor;
         pages += 1;
-      } while (cursor && pages < 3);
+        // Task 8：>500 结果集必须走完游标（每页 ≤500，25 页 = 12500 馆安全帽，
+        // 防异常 nextCursor 死循环；600+ 夹具 = 4 页）
+      } while (cursor && pages < 25);
       if (seq !== fetchSeqRef.current || controller.signal.aborted) return;
       loadedBboxRef.current = unionBbox(freshZone ? null : loadedBboxRef.current, bbox);
       setHalls(stableHallOrder([...hallsRef.current.values()]));
     } catch (err) {
       if (controller.signal.aborted || seq !== fetchSeqRef.current) return;
+      metricsRef.current.apiFailureCount += 1; // 调试指标：API 失败计数（聚合计数，无馆 id）
       setError(err instanceof Error ? err.message : "starsea_failed");
     } finally {
       if (seq === fetchSeqRef.current) setLoading(false);
@@ -560,6 +703,19 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  // 调试指标：首次星海可交互 = 首批馆渲染且不在加载态（一次性记录）
+  useEffect(() => {
+    if (loading || halls.length === 0) return;
+    if (metricsRef.current.firstInteractiveMs !== null) return;
+    metricsRef.current.firstInteractiveMs = Math.round(performance.now());
+    try {
+      performance.mark("starsea:first-interactive");
+    } catch {
+      // mark 不可用：跳过
+    }
+    console.debug("[starsea] first interactive", metricsRef.current.firstInteractiveMs);
+  }, [loading, halls.length]);
 
   function retryLoad() {
     loadedBboxRef.current = null;
@@ -615,6 +771,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   // 3D 致命错误（WebGL 不可用 / three 加载失败 / 上下文丢失）：回退 2.5D + 播报。
   // 只改 view（scene renderer 归属），抽屉/控制条/选中/搜索/星域全部不动。
   function handle3dFatalError() {
+    metricsRef.current.fallback3dCount += 1; // 调试指标：3D 回退计数（Task 8 Step 5）
     setFallback3dNotice(true);
     setState((prev) => (prev.view === "3d" ? { ...prev, view: "2d" } : prev));
   }
@@ -622,6 +779,8 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   function handleViewChange(view: "2d" | "3d") {
     // 择位任务态锁定 2.5D（择位拖拽是 2D DOM 交互，Task 7 裁定）
     if (placement.active && view === "3d") return;
+    // 低性能设备：性能闸门不创建 Three.js（Task 8；控制条 3D 分段同步禁用）
+    if (lowPerformance && view === "3d") return;
     setFallback3dNotice(false);
     send({ type: "setView", view });
   }
@@ -847,10 +1006,11 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   // 3D 渐进增强（Task 7）：view=3d 时渲染 StarSea3D（canvas + 独立 DOM overlay），
   // 其余情况（默认 2.5D / 择位任务态 / 3D 回退后）渲染 2.5D 场景。
   // .starsea-scene-2d 是 2.5D 场景的语义包裹层（降级/测试识别钩子）。
-  const scene3d = state.view === "3d" && !placement.active;
+  // Task 8：低性能设备性能闸门——即使 view=3d 也不挂 StarSea3D（不创建 Three.js）。
+  const scene3d = state.view === "3d" && !placement.active && !lowPerformance;
 
   return (
-    <>
+    <div className="starsea-motion-root" data-motion={motionTier}>
       {scene3d ? (
         <StarSea3D
           halls={halls}
@@ -867,6 +1027,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
           onRetry={retryLoad}
           overlay={<StarSeaDomOverlay halls={halls} />}
           onFatalError={handle3dFatalError}
+          onVisibleCountChange={handleVisibleClusters}
         />
       ) : (
         <div className="starsea-scene-2d">
@@ -887,6 +1048,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
             onPlacementDrag={handlePlacementDrag}
             onPlacementDrop={handlePlacementDrop}
             onCameraChange={handleSceneCameraChange}
+            onVisibleCountChange={handleVisibleClusters}
           />
         </div>
       )}
@@ -897,140 +1059,46 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
       )}
       {placement.active && (
         // 择位横幅（馆主专属；访客的 placement 永远 inactive，整块不渲染）。
-        // 样式内联：globals.css 不在本任务改动清单内，token 归拢交后续任务。
-        <div
-          className="starsea-placement-bar"
-          role="status"
-          data-status={placementPhase}
-          style={{
-            position: "fixed",
-            top: "calc(env(safe-area-inset-top, 0px) + 68px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 25,
-            display: "flex",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "8px 12px",
-            maxWidth: "min(92vw, 720px)",
-            padding: "8px 14px",
-            borderRadius: 12,
-            border: "1px solid rgba(252, 211, 77, 0.35)",
-            background: "rgba(10, 13, 26, 0.92)",
-            backdropFilter: "blur(6px)",
-            color: "#cdd5e5",
-            fontSize: 13,
-          }}
-        >
-          <p className="starsea-placement-hint" style={{ margin: 0, color: "#cdd5e5" }}>
-            {labels.placementHint}
-          </p>
-          {placementPhase === "sending" && (
-            <p style={{ margin: 0, color: "#8b94a8" }}>{labels.placementSending}</p>
-          )}
+        // 样式归拢 globals.css starsea token（Task 8 携项 b）。
+        <div className="starsea-placement-bar" role="status" data-status={placementPhase}>
+          <p className="starsea-placement-hint">{labels.placementHint}</p>
+          {placementPhase === "sending" && <p className="starsea-placement-muted">{labels.placementSending}</p>}
           {placementPhase === "conflict" && (
-            <div className="starsea-placement-conflict" role="alert" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ color: "#fcd34d" }}>{labels.placementConflict}</span>
-              <button
-                type="button"
-                className="starsea-placement-suggest"
-                onClick={confirmSuggested}
-                style={{
-                  border: "1px solid rgba(252, 211, 77, 0.9)",
-                  background: "transparent",
-                  color: "#fcd34d",
-                  borderRadius: 8,
-                  padding: "4px 12px",
-                  fontSize: 13,
-                  cursor: "pointer",
-                }}
-              >
+            <div className="starsea-placement-conflict" role="alert">
+              <span>{labels.placementConflict}</span>
+              <button type="button" className="starsea-placement-suggest" onClick={confirmSuggested}>
                 {labels.placementSuggest}
               </button>
-              <button
-                type="button"
-                className="starsea-placement-dismiss"
-                onClick={() => setPlacementPhase("idle")}
-                style={{
-                  border: "1px solid rgba(205, 213, 229, 0.25)",
-                  background: "transparent",
-                  color: "#8b94a8",
-                  borderRadius: 8,
-                  padding: "4px 12px",
-                  fontSize: 13,
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" className="starsea-placement-dismiss" onClick={() => setPlacementPhase("idle")}>
                 {labels.placementDismiss}
               </button>
             </div>
           )}
           {(placementPhase === "visibility" || placementPhase === "forbidden") && (
-            <p role="alert" style={{ margin: 0, color: "#fcd34d" }}>
+            <p className="starsea-placement-alert" role="alert">
               {placementPhase === "visibility" ? labels.placementVisibility : labels.placementForbidden}
             </p>
           )}
           {placementPhase === "error" && (
-            <div role="alert" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ color: "#fcd34d" }}>{labels.placementError}</span>
+            <div className="starsea-placement-alert" role="alert">
+              <span>{labels.placementError}</span>
               <button
                 type="button"
                 className="starsea-placement-retry"
                 disabled={!placementLastPoint}
                 onClick={() => placementLastPoint && void commitPlacement(placementLastPoint)}
-                style={{
-                  border: "1px solid rgba(252, 211, 77, 0.9)",
-                  background: "transparent",
-                  color: "#fcd34d",
-                  borderRadius: 8,
-                  padding: "4px 12px",
-                  fontSize: 13,
-                  cursor: "pointer",
-                }}
               >
                 {labels.placementRetry}
               </button>
             </div>
           )}
-          <button
-            type="button"
-            className="starsea-placement-exit"
-            onClick={exitPlacement}
-            style={{
-              border: "1px solid rgba(205, 213, 229, 0.25)",
-              background: "transparent",
-              color: "#8b94a8",
-              borderRadius: 8,
-              padding: "4px 12px",
-              fontSize: 13,
-              cursor: "pointer",
-              marginLeft: "auto",
-            }}
-          >
+          <button type="button" className="starsea-placement-exit" onClick={exitPlacement}>
             {labels.placementExit}（Esc）
           </button>
         </div>
       )}
       {toast && (
-        <div
-          className="starsea-toast"
-          role="status"
-          style={{
-            position: "fixed",
-            bottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 40,
-            padding: "10px 18px",
-            borderRadius: 12,
-            border: "1px solid rgba(252, 211, 77, 0.5)",
-            background: "rgba(10, 13, 26, 0.94)",
-            color: "#fcd34d",
-            fontSize: 14,
-            letterSpacing: "0.08em",
-            pointerEvents: "none",
-          }}
-        >
+        <div className="starsea-toast" role="status">
           {toast}
         </div>
       )}
@@ -1039,6 +1107,9 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         totalHalls={halls.length}
         matchedCount={matchedCount}
         labels={labels}
+        motionTier={motionTier}
+        onMotionCycle={cycleMotionTier}
+        view3dDisabled={lowPerformance}
         onQueryChange={(query) => send({ type: "setQuery", query })}
         onZoneChange={(zone) => send({ type: "setZone", zone: zone || null })}
         onViewChange={handleViewChange}
@@ -1065,6 +1136,6 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         onBack={() => send({ type: "back" })}
         onSubmitOffer={submitOffer}
       />
-    </>
+    </div>
   );
 }

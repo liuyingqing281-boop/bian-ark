@@ -556,13 +556,14 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 }
 .starsea-retry:hover { background: rgba(252, 211, 77, 0.12); }
 
-/* ---- 星群（馆）：热区 ≥44×44，位置只认 left/top 百分比 ---- */
+/* ---- 星群（馆）：热区屏幕有效尺寸 ≥44px（Task 8 反向缩放），位置只认 left/top 百分比 ---- */
+/* 注：不再用 min-width/min-height 44——2.5D 按钮处于 camera transform 内，
+   CSS 最小值反而会顶破高倍放大下 96px 屏幕帽；有效热区由内联
+   hotZoneCssPx(scale)（StarCluster）与 3D overlay 的 buttonSize 钳制保证。 */
 .starsea-cluster {
   position: absolute;
   width: 48px;
   height: 48px;
-  min-width: 44px;
-  min-height: 44px;
   padding: 0;
   transform: translate(-50%, -50%);
   background: transparent;
@@ -585,6 +586,13 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   background: var(--st-star-cold);
   box-shadow: 0 0 6px rgba(197, 208, 229, 0.35);
   transition: background var(--st-micro) ease, box-shadow var(--st-micro) ease;
+  /* 星光微闪烁（完整档默认；相位由组件内联 animationDelay 确定性推导）。
+     简化档放慢、静态档/系统 reduced-motion 由下方规则关闭。 */
+  animation: starsea-twinkle 2.8s ease-in-out infinite;
+}
+@keyframes starsea-twinkle {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
 }
 /* 明灭语义：24h 内有祭扫 = 暖橙高亮；否则低亮冷白（无热度文案/排序） */
 .starsea-cluster.is-lit .starsea-dot {
@@ -610,6 +618,68 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   pointer-events: none;
 }
 .starsea-cluster.is-dimmed .starsea-name { opacity: 0.45; }
+
+/* ---- 远景 LOD（Task 8，规格 §8.5：远处星群合并为光晕粒子，不渲染个体名牌） ---- */
+.starsea-halo {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: 0;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--st-star-cold);
+  box-shadow: 0 0 8px rgba(197, 208, 229, 0.35);
+  pointer-events: none; /* 远景不交互：找馆走搜索 + 抽屉卡片流（§8.5 不变） */
+}
+.starsea-halo.is-lit {
+  background: var(--st-star-warm);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.7), 0 0 24px rgba(251, 191, 36, 0.25);
+}
+.starsea-halo.is-dimmed { opacity: 0.22; }
+/* 远景聚合数量：视觉隐藏但留在无障碍树（同 .starsea-count 规则，不 display:none） */
+.starsea-lod-summary {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  margin: 0;
+}
+
+/* ---- 动效档位（Task 8，规格 §6：完整/简化/静态；默认尊重系统偏好，用户可恢复） ----
+   .starsea-motion-root 由 GardenSea 包裹（display:contents，不改布局）；
+   data-motion 覆盖语义时序 token + 关闭无限动画。系统级 prefers-reduced-motion
+   兜底规则在文件既有 @media 块（JS 挂载前的首帧静态）。 */
+.starsea-motion-root { display: contents; }
+.starsea-motion-root[data-motion="simplified"] { --st-focus: 300ms; }
+.starsea-motion-root[data-motion="simplified"] .starsea-dot { animation-duration: 7s; }
+.starsea-motion-root[data-motion="static"] {
+  --st-micro: 80ms;
+  --st-drawer: 100ms;
+  --st-focus: 80ms;
+}
+.starsea-motion-root[data-motion="static"] .starsea-dot,
+.starsea-motion-root[data-motion="static"] .garden-sea-skeleton,
+.starsea-motion-root[data-motion="static"] .starsea-loading,
+.starsea-motion-root[data-motion="static"] .starsea-halo { animation: none; }
+
+/* ---- 动效档位控制（Task 8）：控制条循环按钮，键盘可达 ---- */
+.starsea-motion {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(205, 213, 229, 0.24);
+  background: transparent;
+  color: var(--st-ink, #cdd5e5);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--st-micro) ease;
+}
+.starsea-motion:hover { background: rgba(205, 213, 229, 0.12); }
+.starsea-segment button:disabled { opacity: 0.35; cursor: default; }
 
 /* ---- 顶部控件（Task 2 已定位；此处补内容样式） ---- */
 .starsea-controls-inner {
@@ -966,12 +1036,29 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   .starsea-zone-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 }
 
-/* prefers-reduced-motion：静态或 0–100ms（规格 §6） */
+/* prefers-reduced-motion：静态或 0–100ms（规格 §6）。
+   注意：这里只做 JS 挂载前的首帧兜底；挂载后动效档位由
+   .starsea-motion-root[data-motion] 接管。用户显式恢复「完整」档时，
+   下方更高优先级的覆盖规则必须赢过本块（规格 §6「用户可恢复」） */
 @media (prefers-reduced-motion: reduce) {
   .garden-sea *,
   .garden-sea,
   .starsea-drawer,
   .starsea-cluster { transition-duration: 80ms !important; animation: none !important; }
+  /* 用户显式选择完整档 = 覆盖系统偏好：星光动画与常规时序恢复
+     （选择器特异性 0-3-0 + !important > 上面 0-1-0 + !important） */
+  .starsea-motion-root[data-motion="full"] .starsea-dot {
+    animation: starsea-twinkle 2.8s ease-in-out infinite !important;
+  }
+  .starsea-motion-root[data-motion="full"] .starsea-cluster {
+    transition: opacity var(--st-micro) ease, filter var(--st-focus) ease, transform var(--st-focus) ease !important;
+  }
+  .starsea-motion-root[data-motion="full"] .starsea-cluster .starsea-dot {
+    transition: background var(--st-micro) ease, box-shadow var(--st-micro) ease !important;
+  }
+  .starsea-motion-root[data-motion="full"] .starsea-drawer {
+    transition: height var(--st-drawer) ease !important;
+  }
 }
 
 
@@ -1035,8 +1122,109 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   font-size: 13px;
   letter-spacing: 0.04em;
   backdrop-filter: blur(6px);
+  /* 纯播报不改布局/不抢交互：移动端控件行换行后会延伸到横幅下方，
+     不放掉指针会永久挡住动效档位按钮（Task 8 修复） */
+  pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .starsea-3d-overlay .starsea-cluster,
   .starsea-3d-candidates button { transition: none !important; animation: none !important; }
+}
+
+/* ================= 择位模式与 toast（Task 6 交互，Task 8 携项 b 样式归拢） =================
+   原 StarSeaScene/StarSeaScene 内联样式迁入，token 化；定位（left/top 百分比）
+   仍由组件内联承载（数据非主题）。 */
+.starsea-placement-bar {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 68px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  max-width: min(92vw, 720px);
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(252, 211, 77, 0.35);
+  background: var(--st-panel, rgba(10, 13, 26, 0.92));
+  backdrop-filter: blur(6px);
+  color: var(--st-ink, #cdd5e5);
+  font-size: 13px;
+}
+.starsea-placement-bar p { margin: 0; }
+.starsea-placement-hint { color: var(--st-ink, #cdd5e5); }
+.starsea-placement-muted { color: var(--st-ink-dim, #8b94a8); }
+.starsea-placement-conflict,
+.starsea-placement-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--st-gold, #fcd34d);
+}
+.starsea-placement-conflict span,
+.starsea-placement-alert span { color: var(--st-gold, #fcd34d); }
+.starsea-placement-suggest,
+.starsea-placement-retry {
+  border: 1px solid rgba(252, 211, 77, 0.9);
+  background: transparent;
+  color: var(--st-gold, #fcd34d);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.starsea-placement-dismiss,
+.starsea-placement-exit {
+  border: 1px solid rgba(205, 213, 229, 0.25);
+  background: transparent;
+  color: var(--st-ink-dim, #8b94a8);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.starsea-placement-exit { margin-left: auto; }
+/* 44px 目标环 + 实时坐标（馆主专属，挂 camera 层随镜头变换） */
+.starsea-placement-ring {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  border: 2px dashed rgba(252, 211, 77, 0.85);
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: rgba(252, 211, 77, 0.08);
+  pointer-events: none;
+}
+.starsea-placement-ring .starsea-placement-coords {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--st-panel, rgba(10, 13, 26, 0.92));
+  color: var(--st-ink, #cdd5e5);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+/* 择位成功 toast（≤1.2s 仪式反馈区间） */
+.starsea-toast {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(252, 211, 77, 0.5);
+  background: rgba(10, 13, 26, 0.94);
+  color: var(--st-gold, #fcd34d);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  pointer-events: none;
 }

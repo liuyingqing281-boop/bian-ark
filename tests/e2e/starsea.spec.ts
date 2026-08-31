@@ -1106,6 +1106,183 @@ test.describe("正式 2.5D 星海", () => {
     await expect.poll(() => readFrames(), { timeout: 5_000 }).toBeGreaterThan(still);
   });
 
+  // ---------- 性能、动效档与规模（Task 8，规格 §6/§8.5） ----------
+  // 滚轮缩放辅助：与既有 3D 测试同款 dispatchEvent（真实滚轮在移动端模拟下锚点不可靠）
+  const wheelZoom = (page: Page, deltaY: number) =>
+    page.evaluate(
+      (deltaY) => {
+        const target = document.querySelector(".garden-sea");
+        target?.dispatchEvent(
+          new WheelEvent("wheel", {
+            deltaY,
+            clientX: window.innerWidth / 2,
+            clientY: window.innerHeight / 2,
+            bubbles: true,
+            cancelable: true,
+          })
+        );
+      },
+      deltaY
+    );
+  const dotAnimation = (locator: Locator) =>
+    locator.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { name: cs.animationName, duration: cs.animationDuration };
+    });
+  const animationOff = (a: { name: string; duration: string }) =>
+    a.name === "none" || parseFloat(a.duration) <= 0.1;
+
+  test("远景 LOD：缩小镜头只渲染光晕与聚合数量，放大后星群与名牌回归（Task 8）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await gotoStable(page, "/zh/garden");
+    const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+    await expect(cluster).toBeVisible({ timeout: 30_000 });
+    const beforeIds = await page
+      .locator(".starsea-cluster")
+      .evaluateAll((els) => els.map((el) => el.getAttribute("data-hall-id")));
+    expect(beforeIds.length, "应至少有一座全量星群").toBeGreaterThan(0);
+
+    // 中心锚定缩小到 0.5 倍（exp(-462*0.0015)=0.5）→ 远景档
+    await wheelZoom(page, 462);
+    await expect(page.locator(".starsea-cluster")).toHaveCount(0, { timeout: 5_000 });
+    // 远景光晕覆盖全部此前可见馆（不丢馆、不重复；并集断言容忍并行 worker 追加种子）
+    const haloIds = await page
+      .locator(".starsea-halo")
+      .evaluateAll((els) => els.map((el) => el.getAttribute("data-hall-id")));
+    expect(haloIds.length, "远景应渲染光晕表示").toBeGreaterThan(0);
+    expect(haloIds.length, "远景光晕数不应少于此前可见星群数").toBeGreaterThanOrEqual(beforeIds.length);
+    expect(new Set(haloIds).size, "远景光晕不得重复渲染同一馆").toBe(haloIds.length);
+    for (const id of beforeIds) {
+      expect(haloIds, `远景不得丢馆：${id}`).toContain(id);
+    }
+    await expect(page.locator(".starsea-cluster .starsea-name"), "远景不渲染个体名牌").toHaveCount(0);
+    // 聚合数量对读屏可达（不 display:none，留在无障碍树）
+    const summary = page.locator(".starsea-lod-summary");
+    await expect(summary).toBeAttached();
+    expect(await summary.evaluate((el) => getComputedStyle(el).display), "聚合数量不得 display:none").not.toBe("none");
+    await expect(summary).toContainText(/\d+ 座纪念馆/);
+
+    // 放大回 1.0 倍（exp(462*0.0015)=2 → 0.5*2）：星群与名牌回归，光晕退场
+    await wheelZoom(page, -462);
+    await expect(cluster).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".starsea-halo")).toHaveCount(0);
+    await expect(cluster.locator(".starsea-name")).toBeVisible();
+  });
+
+  test("热区反向缩放：约 0.61 倍镜头下星群热区仍 ≥44px（2.5D 与 3D overlay）（Task 8）", async ({ page }) => {
+    test.setTimeout(120_000);
+    await gotoStable(page, "/zh/garden");
+    const cluster = page.locator(`.starsea-cluster[data-hall-id='${seededHallId}']`);
+    await expect(cluster).toBeVisible({ timeout: 30_000 });
+    // 中心锚定缩小到 ≈0.61 倍（exp(-329*0.0015)=0.610）：处于 0.6–0.92 反向缩放带
+    await wheelZoom(page, 329);
+    const box = await cluster.boundingBox();
+    expect(box, "星群应有尺寸").toBeTruthy();
+    expect(Math.min(box!.width, box!.height), "2.5D 缩小镜头下热区有效尺寸最小 44×44px").toBeGreaterThanOrEqual(44);
+
+    // 3D overlay：热区按屏幕像素直接钳制 ≥44。
+    // 注意：上一段 2.5D 的 0.61 倍镜头已存 sessionStorage，复位镜头后再缩，避免叠加成远景档
+    await gotoStable(page, "/zh/garden?view=3d");
+    const cluster3d = page.locator(`.starsea-3d-cluster[data-hall-id='${seededHallId}']`);
+    await expect(cluster3d).toBeVisible({ timeout: 30_000 });
+    await page.locator(".starsea-reset").click();
+    await page.waitForTimeout(300);
+    await wheelZoom(page, 329);
+    const box3d = await cluster3d.boundingBox();
+    expect(box3d, "3D overlay 热区应有尺寸").toBeTruthy();
+    expect(Math.min(box3d!.width, box3d!.height), "3D overlay 缩小镜头下热区最小 44×44px").toBeGreaterThanOrEqual(44);
+  });
+
+  test("reduced-motion 默认静态档：无限动画关闭，动效可手动恢复（Task 8）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await gotoStable(page, "/zh/garden");
+    const cluster = page.locator(".starsea-cluster").first();
+    await expect(cluster).toBeVisible({ timeout: 30_000 });
+    // 默认尊重系统偏好：静态档
+    await expect(page.locator(".starsea-motion-root")).toHaveAttribute("data-motion", "static");
+    expect(animationOff(await dotAnimation(cluster.locator(".starsea-dot").first())), "星光无限动画应关闭").toBe(true);
+    // 用户可恢复完整动效（本地设置覆盖系统偏好）
+    await page.getByRole("button", { name: /^动效：静态/ }).click();
+    await expect(page.locator(".starsea-motion-root")).toHaveAttribute("data-motion", "full");
+    expect(await page.evaluate(() => localStorage.getItem("starsea:motion"))).toBe("full");
+    const recovered = await dotAnimation(cluster.locator(".starsea-dot").first());
+    expect(recovered.name, "恢复完整档后星光动画应运行").not.toBe("none");
+  });
+
+  test("动效档位控制键盘可达：完整→简化→静态循环并写入 localStorage（Task 8）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await gotoStable(page, "/zh/garden");
+    // 清掉历史偏好后重载：默认档必须来自系统偏好（无偏好 → 完整）
+    await page.evaluate(() => localStorage.removeItem("starsea:motion"));
+    await gotoStable(page, "/zh/garden");
+    const cluster = page.locator(".starsea-cluster").first();
+    await expect(cluster).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".starsea-motion-root")).toHaveAttribute("data-motion", "full");
+    expect((await dotAnimation(cluster.locator(".starsea-dot").first())).name, "完整档星光动画应运行").not.toBe("none");
+
+    // 键盘可达：focus + Enter 完整 → 简化
+    const fullBtn = page.getByRole("button", { name: /^动效：完整/ });
+    await fullBtn.focus();
+    expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? "")).toMatch(/^动效：完整/);
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".starsea-motion-root")).toHaveAttribute("data-motion", "simplified");
+    expect(await page.evaluate(() => localStorage.getItem("starsea:motion"))).toBe("simplified");
+
+    // 简化 → 静态：无限动画关闭
+    await page.getByRole("button", { name: /^动效：简化/ }).click();
+    await expect(page.locator(".starsea-motion-root")).toHaveAttribute("data-motion", "static");
+    expect(animationOff(await dotAnimation(cluster.locator(".starsea-dot").first())), "静态档星光动画应关闭").toBe(true);
+    expect(await page.evaluate(() => localStorage.getItem("starsea:motion"))).toBe("static");
+
+    // 静态 → 完整：循环回完整
+    await page.getByRole("button", { name: /^动效：静态/ }).click();
+    await expect(page.locator(".starsea-motion-root")).toHaveAttribute("data-motion", "full");
+  });
+
+  test("低性能档：不创建 Three.js，默认静态星点，动效可恢复但 3D 保持关闭（Task 8）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "deviceMemory", { get: () => 2, configurable: true });
+    });
+    await gotoStable(page, "/zh/garden?view=3d");
+    // 深链 view=3d 也不创建 Three.js：2.5D 场景承担渲染
+    await expect(page.locator(".starsea-scene-2d")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".starsea-scene-3d canvas")).toHaveCount(0);
+    await expect(page.locator(".starsea-scene-2d .starsea-cluster").first()).toBeVisible({ timeout: 30_000 });
+    // 低性能默认动效 = 静态（只保留静态星点与 CSS opacity）
+    await expect(page.locator(".starsea-motion-root")).toHaveAttribute("data-motion", "static");
+    // 3D 分段按钮禁用（不可激活，防止意外创建 WebGL 上下文）
+    await expect(page.locator(".starsea-segment button").filter({ hasText: "3D" })).toBeDisabled();
+    // 动效可恢复（用户偏好），但性能闸门不放行 3D
+    await page.getByRole("button", { name: /^动效：静态/ }).click();
+    await expect(page.locator(".starsea-motion-root")).toHaveAttribute("data-motion", "full");
+    await expect(page.locator(".starsea-scene-3d canvas")).toHaveCount(0);
+  });
+
+  test("隐私安全调试指标：首交互/首请求耗时/可见星群数可读且无馆级访问计数（Task 8）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await gotoStable(page, "/zh/garden");
+    await expect(page.locator(".starsea-cluster").first()).toBeVisible({ timeout: 30_000 });
+    const metricsHandle = await page.waitForFunction(() => {
+      const m = (window as unknown as { __starseaMetrics?: Record<string, unknown> }).__starseaMetrics;
+      return m && typeof m.firstInteractiveMs === "number" ? m : null;
+    }, undefined, { timeout: 15_000 });
+    const metrics = (await metricsHandle.jsonValue()) as Record<string, number | null>;
+    expect(Object.keys(metrics).sort(), "指标只含聚合计数与耗时，无任何馆 id/访问量").toEqual([
+      "apiFailureCount",
+      "fallback3dCount",
+      "firstBboxMs",
+      "firstInteractiveMs",
+      "visibleClusters",
+    ]);
+    expect(metrics.firstInteractiveMs as number).toBeGreaterThanOrEqual(0);
+    expect(metrics.firstBboxMs as number).toBeGreaterThanOrEqual(0);
+    expect(metrics.visibleClusters as number).toBeGreaterThan(0);
+    expect(metrics.apiFailureCount).toBe(0);
+  });
+
   test("择位模式锁定 2.5D：placing 激活不渲染 3D canvas（择位为 2D DOM 交互）", async ({ browser }) => {
     test.setTimeout(120_000);
     const { ctx, page } = await ownerPage(browser);

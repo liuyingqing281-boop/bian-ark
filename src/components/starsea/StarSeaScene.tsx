@@ -11,12 +11,16 @@
 //   pointer capture 拖拽（草稿位经控制器，松开提交 PATCH）；普通浏览
 //   pointer down/up 只处理点击（点星群聚焦 / 拖空白平移），绝不移动星群。
 //   拖拽期间显示 44px 目标环 + 实时坐标（馆主专属；访客永远看不到）。
+// - LOD（Task 8，规格 §8.5）：镜头缩放 < LOD_FAR_SCALE 进入远景档——只渲染
+//   光晕粒子和读屏可达的聚合数量，不挂星群按钮与名牌；全量档也只挂载
+//   可视区（扩边距）内的星群，屏外一律不渲染（可见区域虚拟化）。择位是
+//   馆主专注任务态，强制全量档（目标星群必须可见可拖）。
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GardenSeaHall } from "../../lib/garden-sea";
 import { roundPlacementPoint } from "../../lib/garden-sea";
 import type { GardenSeaState } from "../../lib/garden-sea-state";
-import StarCluster from "./StarCluster";
+import StarCluster, { LOD_FAR_SCALE, hotZoneCssPx } from "./StarCluster";
 import type { StarClusterLabels } from "./StarCluster";
 
 export interface StarSeaSceneLabels extends StarClusterLabels {
@@ -25,6 +29,8 @@ export interface StarSeaSceneLabels extends StarClusterLabels {
   errorTitle: string;
   retry: string;
   scene: string;
+  /** 远景档聚合数量（读屏可达；n = 当前数据集馆数） */
+  lodSummary: (n: number) => string;
 }
 
 interface StarSeaSceneProps {
@@ -41,6 +47,8 @@ interface StarSeaSceneProps {
   loading: boolean;
   error: string | null;
   labels: StarSeaSceneLabels;
+  /** 当前渲染的可见星群数（含远景光晕）→ 控制器调试指标（Task 8 Step 5） */
+  onVisibleCountChange?: (count: number) => void;
   onRetry: () => void;
   onSelectHall: (hallId: string) => void;
   onEnterHall: (hallId: string) => void;
@@ -65,6 +73,8 @@ interface PlacementDrag {
 
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 4;
+/** 可视区剔除边距（px）：热区半宽 + 视觉余量，屏外星群/光晕一律不渲染 */
+const CULL_MARGIN_PX = 120;
 
 export default function StarSeaScene({
   halls,
@@ -77,6 +87,7 @@ export default function StarSeaScene({
   loading,
   error,
   labels,
+  onVisibleCountChange,
   onRetry,
   onSelectHall,
   onEnterHall,
@@ -89,6 +100,19 @@ export default function StarSeaScene({
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const camera = useRef({ scale: state.scale, x: state.offset.x, y: state.offset.y });
   camera.current = { scale: state.scale, x: state.offset.x, y: state.offset.y };
+
+  // 视口尺寸：屏外剔除与 LOD 判定的基准（场景 inset 0 = 视口）
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    function update() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setViewport((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   function commit(next: { scale: number; x: number; y: number }) {
     const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next.scale));
@@ -110,6 +134,26 @@ export default function StarSeaScene({
   const placingHall = placementHallId ? halls.find((hall) => hall.hallId === placementHallId) || null : null;
   const placementBase =
     placementHallId ? (placementDraft || (placingHall ? { x: placingHall.x, y: placingHall.y } : null)) : null;
+
+  // ---- LOD（Task 8）：远景档判定 + 可视区剔除 ----
+  // 远景 = 镜头拉出低于阈值（且非择位任务态）；全量档只挂可视区（扩边距）内星群。
+  const farView = state.scale < LOD_FAR_SCALE && !placementHallId;
+  const hotZonePx = hotZoneCssPx(state.scale);
+  const visibleHalls = useMemo(() => {
+    if (viewport.w <= 0 || viewport.h <= 0) return halls; // 视口未测得（首帧/SSR）：保守全量
+    const margin = CULL_MARGIN_PX + hotZonePx;
+    const w = viewport.w;
+    const h = viewport.h;
+    return halls.filter((hall) => {
+      const sx = hall.x * w * state.scale + state.offset.x;
+      const sy = hall.y * h * state.scale + state.offset.y;
+      return sx >= -margin && sx <= w + margin && sy >= -margin && sy <= h + margin;
+    });
+  }, [halls, viewport.w, viewport.h, state.scale, state.offset.x, state.offset.y, hotZonePx]);
+
+  useEffect(() => {
+    onVisibleCountChange?.(visibleHalls.length);
+  }, [visibleHalls.length, onVisibleCountChange]);
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (placementHallId) {
@@ -228,6 +272,7 @@ export default function StarSeaScene({
       ref={sceneRef}
       inert={inert}
       data-placing={placementHallId || undefined}
+      data-lod={farView ? "far" : "full"}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -237,65 +282,52 @@ export default function StarSeaScene({
         className="starsea-camera"
         style={{ transform: `translate(${state.offset.x}px, ${state.offset.y}px) scale(${state.scale})` }}
       >
-        {halls.map((hall) => {
-          // 择位草稿不改 halls 节点数组（搜索空间不变性红线）：仅渲染层克隆覆盖坐标
-          const isPlacing = placementHallId === hall.hallId;
-          const renderHall =
-            isPlacing && placementDraft ? { ...hall, x: placementDraft.x, y: placementDraft.y } : hall;
-          return (
-            <StarCluster
-              key={hall.hallId}
-              hall={renderHall}
-              matched={!matchedHallIds || matchedHallIds.has(hall.hallId)}
-              focused={focusedHallId === hall.hallId}
-              labels={labels}
-              onSelect={onSelectHall}
-              onEnter={onEnterHall}
-            />
-          );
-        })}
+        {farView
+          ? visibleHalls.map((hall) => (
+              // 远景档：光晕粒子（规格 §8.5「远处星群合并为光晕粒子，不渲染个体名牌」）。
+              // 交互与语义由下方聚合数量 + 抽屉卡片流承担（§8.5 找馆通道不变）。
+              <span
+                key={hall.hallId}
+                className={`starsea-halo ${hall.candleLit ? "is-lit" : "is-cold"}${
+                  matchedHallIds && !matchedHallIds.has(hall.hallId) ? " is-dimmed" : ""
+                }`}
+                data-hall-id={hall.hallId}
+                aria-hidden="true"
+                style={{ left: `${hall.x * 100}%`, top: `${hall.y * 100}%` }}
+              />
+            ))
+          : visibleHalls.map((hall) => {
+              // 择位草稿不改 halls 节点数组（搜索空间不变性红线）：仅渲染层克隆覆盖坐标
+              const isPlacing = placementHallId === hall.hallId;
+              const renderHall =
+                isPlacing && placementDraft ? { ...hall, x: placementDraft.x, y: placementDraft.y } : hall;
+              return (
+                <StarCluster
+                  key={hall.hallId}
+                  hall={renderHall}
+                  matched={!matchedHallIds || matchedHallIds.has(hall.hallId)}
+                  focused={focusedHallId === hall.hallId}
+                  sizePx={hotZonePx}
+                  labels={labels}
+                  onSelect={onSelectHall}
+                  onEnter={onEnterHall}
+                />
+              );
+            })}
         {placementHallId && placementBase && (
-          // 44px 目标环 + 实时坐标（馆主专属）：挂 camera 层用归一化百分比定位，
-          // 随镜头变换；样式内联（globals.css 不在本任务改动清单内，Task 8/9 归拢 token）
+          // 44px 目标环 + 实时坐标（馆主专属）：挂 camera 层用归一化百分比定位，随镜头变换
           <div
             className="starsea-placement-ring"
             aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: `${placementBase.x * 100}%`,
-              top: `${placementBase.y * 100}%`,
-              width: "44px",
-              height: "44px",
-              margin: 0,
-              transform: "translate(-50%, -50%)",
-              border: "2px dashed rgba(252, 211, 77, 0.85)",
-              borderRadius: "50%",
-              boxSizing: "border-box",
-              background: "rgba(252, 211, 77, 0.08)",
-              pointerEvents: "none",
-            }}
+            style={{ left: `${placementBase.x * 100}%`, top: `${placementBase.y * 100}%` }}
           >
-            <span
-              className="starsea-placement-coords"
-              style={{
-                position: "absolute",
-                left: "50%",
-                top: "calc(100% + 6px)",
-                transform: "translateX(-50%)",
-                padding: "2px 8px",
-                borderRadius: "8px",
-                background: "rgba(10, 13, 26, 0.92)",
-                color: "#cdd5e5",
-                fontSize: "11px",
-                letterSpacing: "0.06em",
-                whiteSpace: "nowrap",
-              }}
-            >
+            <span className="starsea-placement-coords">
               {placementBase.x.toFixed(3)}, {placementBase.y.toFixed(3)}
             </span>
           </div>
         )}
       </div>
+      {farView && <p className="starsea-lod-summary">{labels.lodSummary(halls.length)}</p>}
       {loading && halls.length === 0 && <div className="garden-sea-skeleton" aria-hidden="true" />}
       {!loading && !error && halls.length === 0 && (
         <p className="starsea-empty">{labels.empty}</p>

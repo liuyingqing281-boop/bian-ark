@@ -33,6 +33,7 @@ import type { ReactNode } from "react";
 import type { PerspectiveCamera, Points, PointsMaterial, Scene, WebGLRenderer } from "three";
 import type { GardenSeaHall } from "../../lib/garden-sea";
 import { starOffsets } from "../../lib/garden-sea";
+import { LOD_FAR_SCALE } from "./StarCluster";
 
 // ---- 共享镜头 ↔ 3D 相机（纯函数，overlay 投影与 three 相机同源） ----
 
@@ -50,6 +51,8 @@ export interface StarSea3DLabels {
   retry: string;
   membersUnit: string;
   candidatesTitle: string;
+  /** 远景档聚合数量（读屏可达；Task 8 LOD，与 2.5D 同文案） */
+  lodSummary: (n: number) => string;
 }
 
 const FOV_DEG = 55;
@@ -264,6 +267,28 @@ function StarSeaOverlayBody({ ctx, halls }: { ctx: StarSeaProjection; halls: Arr
     ? visible.find((entry) => entry.hall.hallId === candidates.ids[0]) || null
     : null;
 
+  // 远景档（Task 8 LOD，规格 §8.5）：canvas 星点继续渲染（GPU 侧廉价），
+  // overlay 只渲染投影光晕 + 读屏聚合数量，不挂按钮/名牌/方向键导航；
+  // 找馆通道 = 搜索 + 抽屉卡片流（§8.5 不变）。
+  if (ctx.camera.scale < LOD_FAR_SCALE) {
+    return (
+      <div className="starsea-3d-overlay">
+        {visible.map(({ hall, x, y }) => (
+          <span
+            key={hall.hallId}
+            className={`starsea-halo ${hall.candleLit ? "is-lit" : "is-cold"}${
+              ctx.matchedHallIds && !ctx.matchedHallIds.has(hall.hallId) ? " is-dimmed" : ""
+            }`}
+            data-hall-id={hall.hallId}
+            aria-hidden="true"
+            style={{ left: `${x}px`, top: `${y}px` }}
+          />
+        ))}
+        <p className="starsea-lod-summary">{ctx.labels.lodSummary(halls.length)}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="starsea-3d-overlay">
       {visible.map(({ hall, x, y }) => {
@@ -373,6 +398,8 @@ interface StarSea3DProps {
   overlay: ReactNode;
   /** WebGL 不可用 / three 加载失败 / 上下文丢失 → 控制器 fallback2d */
   onFatalError: () => void;
+  /** 当前投影在屏的星群数 → 控制器调试指标（Task 8 Step 5） */
+  onVisibleCountChange?: (count: number) => void;
 }
 
 export default function StarSea3D({
@@ -390,6 +417,7 @@ export default function StarSea3D({
   onRetry,
   overlay,
   onFatalError,
+  onVisibleCountChange,
 }: StarSea3DProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const holderRef = useRef<HTMLDivElement | null>(null);
@@ -749,6 +777,10 @@ export default function StarSea3D({
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [halls, camera.scale, camera.x, camera.y, viewport.w, viewport.h, buttonSize]);
+
+  useEffect(() => {
+    onVisibleCountChange?.(onscreen.length);
+  }, [onscreen.length, onVisibleCountChange]);
 
   const ctxValue = useMemo<StarSeaProjection>(
     () => ({

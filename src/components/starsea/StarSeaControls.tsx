@@ -4,11 +4,20 @@
 // - 搜索框：真实 <label for>、清除按钮、结果数 aria-live=polite；输入防抖 400ms
 //   才进入状态（300–500ms 区间），搜索只降亮星群、不改坐标（由场景实现）。
 // - 复位只改镜头（scale=1 offset=0），不清浏览状态。
+// - 动效档位（Task 8，规格 §6「完整/简化/静态；低性能只降默认值，用户可恢复」）：
+//   控制条一枚循环按钮，键盘可达（原生 button），档位写 localStorage，默认尊重
+//   系统 prefers-reduced-motion（默认值推导在控制器 GardenSea）。
+// - 低性能设备（Task 8）：3D 分段禁用——性能闸门只拦 Three.js 创建，动效档仍可恢复。
 
 import { useEffect, useRef, useState } from "react";
 import type { GardenSeaState } from "../../lib/garden-sea-state";
 
 const SEARCH_DEBOUNCE_MS = 400;
+
+// ---- 动效档位（Task 8，规格 §6）----
+export type MotionTier = "full" | "simplified" | "static";
+export const MOTION_STORAGE_KEY = "starsea:motion";
+export const MOTION_TIERS: ReadonlyArray<MotionTier> = ["full", "simplified", "static"];
 
 export interface StarSeaControlsLabels {
   back: string;
@@ -24,7 +33,12 @@ export interface StarSeaControlsLabels {
   view2d: string;
   view3d: string;
   viewSegmentLabel: string;
+  /** 3D 分段禁用原因（低性能设备，title 展示） */
+  view3dDisabledReason: string;
   reset: string;
+  motionTierName: Record<MotionTier, string>; // 完整/简化/静态
+  /** 动效档位按钮 aria-label（当前档 + 点击切换语义） */
+  motionButtonLabel: (tier: MotionTier) => string;
 }
 
 interface StarSeaControlsProps {
@@ -32,6 +46,12 @@ interface StarSeaControlsProps {
   totalHalls: number;
   matchedCount: number;
   labels: StarSeaControlsLabels;
+  /** 当前动效档位（Task 8） */
+  motionTier: MotionTier;
+  /** 循环切换动效档：完整 → 简化 → 静态 → 完整 */
+  onMotionCycle: () => void;
+  /** 低性能设备：3D 分段禁用（不创建 Three.js） */
+  view3dDisabled: boolean;
   onQueryChange: (query: string) => void;
   onZoneChange: (zone: "" | "public" | "family" | "official") => void;
   onViewChange: (view: "2d" | "3d") => void;
@@ -44,6 +64,9 @@ export default function StarSeaControls({
   totalHalls,
   matchedCount,
   labels,
+  motionTier,
+  onMotionCycle,
+  view3dDisabled,
   onQueryChange,
   onZoneChange,
   onViewChange,
@@ -140,11 +163,21 @@ export default function StarSeaControls({
             type="button"
             className={state.view === "3d" ? "is-active" : ""}
             aria-pressed={state.view === "3d"}
+            disabled={view3dDisabled}
+            title={view3dDisabled ? labels.view3dDisabledReason : undefined}
             onClick={() => onViewChange("3d")}
           >
             {labels.view3d}
           </button>
         </div>
+        <button
+          type="button"
+          className="starsea-motion"
+          onClick={onMotionCycle}
+          aria-label={labels.motionButtonLabel(motionTier)}
+        >
+          {labels.motionTierName[motionTier]}
+        </button>
         <button type="button" className="starsea-reset" onClick={onResetCamera} aria-label={labels.reset}>
           ⟳
         </button>
