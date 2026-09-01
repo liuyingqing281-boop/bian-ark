@@ -1443,6 +1443,47 @@ test.describe("正式 2.5D 星海", () => {
     }
   });
 
+  // ---------- 传输层脱敏（收尾评审 Important）：GET /api/halls/[id] 非馆主不下发原文 ----------
+  // 红线是访客侧脱敏，不能只靠 UI 打码：响应体本身不得携带任何成员/馆原始名。
+  // 馆主保持原文（馆内编辑流均馆主鉴权，与馆级页角色规则同口径）。
+  test("GET /api/halls/[id] 传输层脱敏：访客只有脱敏名，馆主得原文", async ({ page, browser }) => {
+    test.setTimeout(90_000);
+    const rawNames = [`${TAG}星海三口之家`, `${TAG}成员甲`, `${TAG}成员乙`];
+
+    // 访客（无会话）：响应体不含任何原始名（成员名 + 单人馆馆名=首位逝者名）
+    const visitorRes = await page.request.get(`/api/halls/${seededHallId}`);
+    expect(visitorRes.ok(), "公开馆访客应 200").toBeTruthy();
+    const visitorText = await visitorRes.text();
+    for (const raw of rawNames) {
+      expect(visitorText, `访客响应不得含原始名「${raw}」`).not.toContain(raw);
+    }
+    const visitorBody = JSON.parse(visitorText) as {
+      hall: { name: string };
+      isOwner: boolean;
+      members: Array<{ name: string; nameMasked: string }>;
+    };
+    expect(visitorBody.isOwner).toBe(false);
+    expect(visitorBody.members.length, "种子馆应有 3 位成员").toBe(3);
+    for (const member of visitorBody.members) {
+      expect(member.name, "访客成员 name 必须为脱敏形态（首字+**，单字=*）").toMatch(/^[^*]\*\*$|^\*$/);
+    }
+    expect(visitorBody.hall.name, "访客馆名必须为脱敏形态").toMatch(/^[^*]\*\*$|^\*$/);
+
+    // 馆主：传输层下发原文（成员名 + 馆名）
+    const ownerCtx = await browser.newContext();
+    await ownerCtx.addCookies(ownerCookies);
+    try {
+      const ownerRes = await ownerCtx.request.get(`/api/halls/${seededHallId}`);
+      expect(ownerRes.ok(), "馆主应 200").toBeTruthy();
+      const ownerText = await ownerRes.text();
+      for (const raw of rawNames) {
+        expect(ownerText, `馆主响应应含原文「${raw}」`).toContain(raw);
+      }
+    } finally {
+      await ownerCtx.close();
+    }
+  });
+
   test("择位模式锁定 2.5D：placing 激活不渲染 3D canvas（择位为 2D DOM 交互）", async ({ browser }) => {
     test.setTimeout(120_000);
     const { ctx, page } = await ownerPage(browser);

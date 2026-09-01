@@ -327,17 +327,9 @@ const zh = {
     biographyPlaceholder: "生平简介",
   },
   garden: {
-    title: "公共墓园",
-    subtitle: "安息于此的每一位，都可被任何人缅怀",
-    searchPlaceholder: "按姓名搜索…",
-    search: "搜索",
-    randomWalk: "随机漫步",
-    newToday: "今日新归",
-    view3d: "3D 视图",
-    view2d: "2D 视图",
-    hint3d: "拖拽旋转 · 滚轮缩放 · 点击墓碑进入",
-    empty: "公共墓园尚空，静待第一位归人",
-    sections: ["松涛", "柏荫", "兰沼", "蓠篱"],
+    // 旧墓园页文案（title/subtitle/search/randomWalk/view3d… 等）已随 GardenViewSwitch
+    // 删除（收尾评审）；正式 /garden 为星海页，文案内联于 GardenSea。本块仅保留
+    // me/page.tsx 供养的放入/移出/需公开三键。
     place: "放入公共墓园",
     remove: "移出公共墓园",
     needPublic: "请先将可见性设为公开",
@@ -706,17 +698,9 @@ const en = {
     biographyPlaceholder: "Biography",
   },
   garden: {
-    title: "Public Garden",
-    subtitle: "Everyone resting here can be remembered by anyone",
-    searchPlaceholder: "Search by name...",
-    search: "Search",
-    randomWalk: "Visit at random",
-    newToday: "New arrivals today",
-    view3d: "3D view",
-    view2d: "2D view",
-    hint3d: "Drag to orbit · scroll to zoom · click a tombstone to enter",
-    empty: "The public garden is empty, awaiting its first resident",
-    sections: ["Pine Whisper", "Cypress Shade", "Orchid Marsh", "Aster Hedge"],
+    // Legacy garden page copy was removed with GardenViewSwitch (final review);
+    // the formal /garden is the starsea view with labels inlined in GardenSea.
+    // Only the trio consumed by me/page.tsx remains.
     place: "Place in public garden",
     remove: "Remove from public garden",
     needPublic: "Set visibility to public first",

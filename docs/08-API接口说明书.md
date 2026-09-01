@@ -407,6 +407,7 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 }
 ```
 - `lamps` 1~6 盏；`nameMasked` 按 `viewerRole` 装配（馆主原文/访客打码）。
+- **传输层脱敏（2026-09-01 收尾评审 Important）**：`members[].name` 与顶层 `hall.name` 在服务端按同一角色规则装配——**馆主得原文；其余视角（group 成员/未登录访客）一律得脱敏值（首字 + `**`，单字 → `*`）**，响应体不向非馆主携带任何原始名（访客侧 UI 二次打码幂等：首字 + `**` 再打码不变）。回归：e2e starsea.spec.ts「GET /api/halls/[id] 传输层脱敏」。
 - 人物详情仍走既有 `GET /api/memorials/[id]` 等接口（按 `memorialId`），本接口不下发内容数据。
 - `404 not_found`：不存在/无权可见。
 
@@ -432,7 +433,7 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
   ]
 }
 ```
-- 仅 `in_garden=1` 且 public 的馆；搜索仍走既有 `GET /api/garden?q=` ✅。
+- 仅 `in_garden=1` 且 public 的馆。正式 `/[lang]/garden` 页的搜索为**客户端过滤**：只匹配 `nameMasked`（多人馆=打码馆名、单人馆=首位逝者名）与 `epitaph`，因此**多人馆完整馆名不可整名命中**（脱敏红线下的已知限制；首字可命中）；服务端 `GET /api/garden?q=` 仍保留为历史客户端的既有搜索接口，正式页不调用。
 - 短缓存 `private, max-age=15`；清明脉冲期可静态化快照。
 - `constellationOf`（家族星座连线）M4 祠堂上线前恒 `null`——这是明确限制，前端不渲染连线，**不把该能力写成已实现**。
 
@@ -446,7 +447,7 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 
 **3D 渐进增强与降级（正式前端 Task 7）**：`view=3d` 为渐进层，canvas `aria-hidden`、热区/键盘/语义全部走独立 DOM overlay；WebGL 不可用 / three 动态导入失败 / 上下文丢失 / 低性能设备（deviceMemory 阈值）/ `prefers-reduced-motion` 任一条件触发时自动回退 2.5D 并以 `role=status` 播报，URL 摘除 `view=3d`，抽屉与控制条不受影响。
 
-**已知差异（记录，不视为缺陷）**：星海接口的馆名脱敏对**所有视角**生效（馆主在星海中也只见 `nameMasked`，`lampCount>1` 打码馆名、单人馆打码逝者名）；而 `GET /api/halls/[id]` 与馆级页按 `viewerRole` 对馆主下发原文——两侧口径不同属有意设计（星海永远不向任何客户端泄露可搜索的全名）。
+**已知差异（记录，不视为缺陷）**：星海接口的馆名脱敏对**所有视角**生效（馆主在星海中也只见 `nameMasked`，`lampCount>1` 打码馆名、单人馆打码逝者名）；而 `GET /api/halls/[id]` 与馆级页对**馆主**下发原文（2026-09-01 起前者传输层同样只对馆主给原文，非馆主一律脱敏值）——两侧口径不同属有意设计（星海永远不向任何客户端泄露可搜索的全名）。
 
 **正式测试入口**：`node --experimental-strip-types tools/test-starsea-formal.mjs`（API/迁移/路由契约冒烟，自起临时服务器）；端到端 `npx playwright test tests/e2e/starsea.spec.ts --project=desktop-chromium --project=mobile-chromium`（正式页主旅程/移动端/无障碍/择位错误分支）；视觉基线 `node tools/visual-garden.mjs`（产物 `docs/shots/garden-starsea-*.png`）。
 

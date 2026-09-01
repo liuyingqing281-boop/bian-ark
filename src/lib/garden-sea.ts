@@ -23,7 +23,7 @@ export interface GardenSeaHall {
 }
 
 // 星群成员相对馆坐标的固定偏移预设（归一化坐标；|dx|,|dy| ≤ 0.02，
-// 与相邻馆最小间距 0.04 的二半匹配，成员星不越入邻馆星域）。
+// 与相邻馆最小间距 0.04 的一半匹配，成员星不越入邻馆星域）。
 // 6 套手定星形：环形 / 弧线 / 直线 / 三角 / 密簇 / 北斗。
 const STAR_OFFSET_PRESETS: Array<Array<{ x: number; y: number }>> = [
   [

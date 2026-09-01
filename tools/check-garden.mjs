@@ -1,4 +1,6 @@
-// 发现页（园中园）收尾冒烟：页面 / API / 与 hall 新页互通 / 真实供奉接线
+// 发现页（星海）收尾冒烟：沉浸壳契约 / 星海 API / 我的页 hall 链接 / 真实供奉接线
+// 2026-09-01 正式化改造：旧版断言 GardenViewSwitch 墓园卡片语义（组件已随星海上线
+// 删除，读取即 ENOENT）；现对齐正式 /zh/garden 语义，口径与 smoke-p2 星海段一致。
 import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 
@@ -38,22 +40,18 @@ try {
   const page = await fetch(`${BASE}/zh/garden`);
   const html = await page.text();
   check("GET /zh/garden 200", page.status === 200);
-  check("页面含公共墓园标题", html.includes("公共墓园"));
-  check("全局导航一级入口为「发现」", html.includes(`>发现<`));
+  check("页面含沉浸星海壳（starsea-shell + garden-sea）",
+    html.includes("starsea-shell") && html.includes("garden-sea"));
+  check("旧墓园卡片标记已移除", /garden-card|tombstone|garden-card-rail|garden-nav/.test(html) === false);
 
-  const api = await fetch(`${BASE}/api/garden`);
-  const data = await api.json().catch(() => ({}));
-  check("GET /api/garden 200 返回列表", api.status === 200 && Array.isArray(data.memorials));
-
-  const q = await fetch(`${BASE}/api/garden?q=${encodeURIComponent("王老")}`);
-  const qd = await q.json().catch(() => ({}));
-  check("搜索可按名字过滤", qd.memorials?.some((m) => m.name.includes("王老")), `命中=${qd.memorials?.length}`);
+  const sea = await fetch(`${BASE}/api/garden/starsea?bbox=0,0,1,1&limit=500`);
+  const seaData = await sea.json().catch(() => ({}));
+  check("GET /api/garden/starsea 200 返回馆数组", sea.status === 200 && Array.isArray(seaData.halls));
+  check("星海分片只下发脱敏名", seaData.halls?.every((h) => typeof h.nameMasked === "string" && !("name" in h)) === true);
 
   // 源码级接线断言（detail/offer 均为 client 渲染，SSR HTML 不含）
-  const src = fs.readFileSync("src/components/GardenViewSwitch.tsx", "utf8");
-  check("详情链接指向新版 hall 页", src.includes("/hall/${row.id}") && !src.includes("/memorial/${row.id}"));
-  check("园内供奉接真实 /api/tribute", src.includes("'/api/tribute'") && src.includes("GARDEN_OFFER_ITEMS"));
-  check("供奉选项映射真实祭品 id", src.includes("'candle'") && src.includes("'flower_white'") && src.includes("'flower_lily'"));
+  const gsSrc = fs.readFileSync("src/components/starsea/GardenSea.tsx", "utf8");
+  check("园内供奉接真实 /api/tribute", gsSrc.includes("/api/tribute"));
 
   const meSrc = fs.readFileSync("src/components/MePanels.tsx", "utf8");
   check("我的页查看链接指向 hall 页", meSrc.includes("/hall/${memorial.id}") && !meSrc.includes("/memorial/${memorial.id}"));

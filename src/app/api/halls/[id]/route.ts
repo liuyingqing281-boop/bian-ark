@@ -64,15 +64,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const lit = new Set(litRows.map((r) => r.memorial_id));
 
   const isOwner = !!user && hall.owner_user_id === user.id;
-  // nameMasked 按视角装配（docs/08 §3.13 F7 / FR-04）：馆主原文，访客首字 + **
+  // 传输层脱敏（docs/08 §3.13 F7 / FR-04，收尾评审 Important）：馆主原文；
+  // 其余视角（group 成员/未登录访客）一律首字 + **（单字 → *），与馆级页角色规则
+  // 同口径。访客侧 UI 二次打码幂等（首字 + ** 再打码不变）。nameMasked 保持既有
+  // 装配语义（馆主=原文）。
   const maskName = (name: string) => (name.length <= 1 ? "*" : name[0] + "**");
 
   return NextResponse.json({
-    hall: { id: hall.id, name: hall.name, motto: hall.motto, skin: hall.skin, visibility: hall.visibility, inGarden: hall.in_garden === 1, gardenX: hall.garden_x, gardenY: hall.garden_y },
+    hall: { id: hall.id, name: isOwner ? hall.name : maskName(hall.name), motto: hall.motto, skin: hall.skin, visibility: hall.visibility, inGarden: hall.in_garden === 1, gardenX: hall.garden_x, gardenY: hall.garden_y },
     isOwner,
     members: members.map((m) => ({
       id: m.id,
-      name: m.name,
+      name: isOwner ? m.name : maskName(m.name),
       nameMasked: isOwner ? m.name : maskName(m.name),
       appellation: m.appellation || "",
       birthDate: m.birth_date,
