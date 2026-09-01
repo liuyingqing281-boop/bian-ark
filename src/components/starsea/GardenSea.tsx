@@ -577,10 +577,18 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
     saveGardenSnapshot(gardenSnapshotStorageKey(lang), search, { scale: state.scale, offset: state.offset });
     if (skipUrlWriteRef.current) {
       skipUrlWriteRef.current = false;
+      // push 意图随本次未发生的写入一并消费：意图只属于「下一次 URL 写入」，
+      // 提前 return 时留在 ref 里会泄漏到后续无关的 replace 类变更（Task 9 修复）
+      pushIntentRef.current = false;
       return;
     }
     const current = window.location.search.replace(/^\?/, "");
-    if (search === current) return;
+    if (search === current) {
+      // 未产生 URL 变化的 push（如防抖前清空搜索词）就地消费，不得让下一次
+      // replace 类变更（setView/back）凭空多出一条历史记录（Task 9 修复）
+      pushIntentRef.current = false;
+      return;
+    }
     const url = `${window.location.pathname}${search ? `?${search}` : ""}`;
     if (pushIntentRef.current) {
       window.history.pushState(window.history.state, "", url);
@@ -1049,6 +1057,23 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
 
   return (
     <div className="starsea-motion-root" data-motion={motionTier}>
+      {/* 控件条在 DOM 中先于场景（Task 9，规格 §6 焦点顺序 控件 → 星群 → 抽屉）：
+          三块均为 fixed + 显式 z-index，DOM 顺序不影响绘制与交互，只决定 Tab 序。
+          场景在 detail/offer 态 inert，焦点圈禁在抽屉内，不受此顺序影响。 */}
+      <StarSeaControls
+        state={state}
+        totalHalls={halls.length}
+        matchedCount={matchedCount}
+        labels={labels}
+        motionTier={motionTier}
+        onMotionCycle={cycleMotionTier}
+        view3dDisabled={lowPerformance}
+        onQueryChange={(query) => send({ type: "setQuery", query })}
+        onZoneChange={(zone) => send({ type: "setZone", zone: zone || null })}
+        onViewChange={handleViewChange}
+        onBack={() => send({ type: "back" })}
+        onResetCamera={handleResetCamera}
+      />
       {scene3d ? (
         <StarSea3D
           halls={halls}
@@ -1140,20 +1165,6 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
           {toast}
         </div>
       )}
-      <StarSeaControls
-        state={state}
-        totalHalls={halls.length}
-        matchedCount={matchedCount}
-        labels={labels}
-        motionTier={motionTier}
-        onMotionCycle={cycleMotionTier}
-        view3dDisabled={lowPerformance}
-        onQueryChange={(query) => send({ type: "setQuery", query })}
-        onZoneChange={(zone) => send({ type: "setZone", zone: zone || null })}
-        onViewChange={handleViewChange}
-        onBack={() => send({ type: "back" })}
-        onResetCamera={handleResetCamera}
-      />
       <StarSeaDrawer
         lang={lang}
         state={state}
@@ -1172,6 +1183,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         onSelectHall={handleSelectHall}
         onOpenOffer={handleOpenOffer}
         onBack={() => send({ type: "back" })}
+        onDrawerChange={(drawer) => send({ type: "setDrawer", drawer })}
         onSubmitOffer={submitOffer}
       />
     </div>

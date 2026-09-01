@@ -8,6 +8,7 @@
 - [x] Playwright 桌面/移动公开旅程通过。
 - [x] production CSP、安全响应头、同源写请求校验和 request id 生效。
 - [x] 用户数据导出与删除申请 API 可用。
+- [x] 正式星海验证（2026-09-01）：/zh/garden 与 /hall/[hallId] canonical 的桌面/移动 Playwright（110 通过/0 失败）、视觉基线 docs/shots/garden-starsea-*.png、formal 冒烟 30 项全过；家族星座连线 M4 前恒 null，不视为已上线能力。
 
 ## 外部上线条件
 

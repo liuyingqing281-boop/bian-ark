@@ -340,10 +340,22 @@ function StarSeaOverlayBody({ ctx, halls }: { ctx: StarSeaProjection; halls: Arr
               closeCandidates(true);
             }
           }}
+          onBlur={(event) => {
+            // Task 9：焦点移出菜单（Tab 到别处/点到菜单外）即关闭陈旧菜单，
+            // 不回焦——焦点是用户主动移走的（Esc 才回焦到触发星群）
+            const next = event.relatedTarget as HTMLElement | null;
+            if (next && next.closest(".starsea-3d-candidates")) return;
+            setCandidates(null);
+          }}
         >
           {candidates.ids.map((hallId) => {
+            // Task 9：菜单项数据源用全量 halls 而非 onscreen 派生的 visible——
+            // overlay 投影在视口测量/镜头收敛期可能瞬时剔除目标馆，菜单项 return null
+            // 会把「已聚焦的 menuitem」从 DOM 移除（焦点静默落到 body，Pixel 7 实测）。
+            // 菜单只在打开期间存在（≤ 数项），用全量数据源保证项不卸载；定位仍走 menuAnchor。
             const entry = visible.find((item) => item.hall.hallId === hallId);
-            if (!entry) return null;
+            const hall = entry?.hall || halls.find((item) => item.hallId === hallId);
+            if (!hall) return null;
             return (
               <button
                 key={hallId}
@@ -351,13 +363,13 @@ function StarSeaOverlayBody({ ctx, halls }: { ctx: StarSeaProjection; halls: Arr
                 type="button"
                 role="menuitem"
                 data-hall-id={hallId}
-                aria-label={`${entry.hall.nameMasked}，${entry.hall.lampCount} ${ctx.labels.membersUnit}`}
+                aria-label={`${hall.nameMasked}，${hall.lampCount} ${ctx.labels.membersUnit}`}
                 onClick={() => {
                   ctx.onSelectHall(hallId);
                   setCandidates(null);
                 }}
               >
-                {entry.hall.nameMasked} · {entry.hall.lampCount} {ctx.labels.membersUnit}
+                {hall.nameMasked} · {hall.lampCount} {ctx.labels.membersUnit}
               </button>
             );
           })}

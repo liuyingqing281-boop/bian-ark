@@ -416,7 +416,9 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 
 #### `PATCH /api/halls/[id]/garden-pos` ✅（星海择位）
 
-**请求**：`{ "x": 0.63, "y": 0.41 }`；隐式置 `in_garden=1`。仅馆主；前置校验馆可见性 public（否则 `403 forbidden`）；空位冲突检测 `409 position_conflict`（响应附建议邻近空位）。移出星海：`{ "x": null, "y": null }` → `in_garden=0`。埋点 `garden_place`。
+**请求**：`{ "x": 0.63, "y": 0.41 }`；隐式置 `in_garden=1`。仅馆主；前置校验馆可见性 public（否则 `403 forbidden, reason: "visibility_required"`；非馆主 `403 forbidden` 无 reason——前端按 reason 分「先去公开」与「无权」两种提示）；空位冲突检测 `409 position_conflict`（响应附建议邻近空位）。移出星海：`{ "x": null, "y": null }` → `in_garden=0`。埋点 `garden_place`。
+
+**馆可见性同步（迁移 025 配套）**：`PATCH /api/memorials/[id]` 改 `visibility` 时**同事务**同步 `halls.visibility`（馆 id 取 `memorials.hall_id`，空串回落 `hall_<memorialId>`），保证星海/馆级路由按馆可见性判断不与人物脱节；`in_garden` 不随之下线——星海查询层恒以 `halls.visibility='public'` 过滤兜底，转私馆即时从星海消失。
 
 #### `GET /api/garden/starsea?zone=&bbox=` ✅（F8 GardenSeaView）
 
@@ -432,7 +434,21 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 ```
 - 仅 `in_garden=1` 且 public 的馆；搜索仍走既有 `GET /api/garden?q=` ✅。
 - 短缓存 `private, max-age=15`；清明脉冲期可静态化快照。
-- `constellationOf`（家族星座连线）M4 祠堂上线前恒 `null`。
+- `constellationOf`（家族星座连线）M4 祠堂上线前恒 `null`——这是明确限制，前端不渲染连线，**不把该能力写成已实现**。
+
+**分片参数细则（正式前端 Task 8 固化）**：
+- `limit`：默认 `200`，服务端硬帽 `500`（>500 一律按 500 执行）；非法值 `400 invalid_limit`。正式前端首屏全量走查（`bbox=0,0,1,1`）**每页显式 `limit=500`**——默认 200 会让 >500 馆的集合多翻一倍页数、更快撞客户端页帽。
+- `cursor`：keyset 翻页（`h.id > cursor`，`ORDER BY h.id ASC`），响应带 `nextCursor`（null=尾页）；排序以馆 id 稳定，不受写入时序影响。
+- `bbox`：四位小数 `x1,y1,x2,y2`（0–1 归一化视口框）；非法格式/越界 `400 invalid_bbox`；`zone` 非法 `400 invalid_zone`。
+- **页帽耗尽语义**：客户端安全帽 25 页 × 500 = 12500 馆；帽耗尽仍有 `nextCursor` 时进入**显式可重试错误态**（已得数据保持可见，错误横幅与场景共存），绝不静默截断。
+
+**馆级 canonical 路由（正式前端 Task 5 起）**：`/[lang]/hall/[hallId]` 为唯一规范地址（`hallId` = `halls.id`；存量单人馆 `hall_<memorialId>` 一一对应）。旧 `/[lang]/hall/[memorialId]` 链接服务端 `permanentRedirect`（308）到 `/[lang]/hall/[hallId]?p=[memorialId]`（落地即聚焦该人物；`from=garden` 透传）。解析顺序 halls.id 优先、memorials.id 兜底；**权限校验先于重定向**——private/group 馆对无权视角（含旧人物 id 探测）一律 404，旧 id 不构成绕过。`?p=` 只在命中本馆成员时聚焦，多人馆缺省馆级公共层；`from=garden` 仅用于「返回星海」浏览状态恢复，**不参与任何权限判断**。
+
+**3D 渐进增强与降级（正式前端 Task 7）**：`view=3d` 为渐进层，canvas `aria-hidden`、热区/键盘/语义全部走独立 DOM overlay；WebGL 不可用 / three 动态导入失败 / 上下文丢失 / 低性能设备（deviceMemory 阈值）/ `prefers-reduced-motion` 任一条件触发时自动回退 2.5D 并以 `role=status` 播报，URL 摘除 `view=3d`，抽屉与控制条不受影响。
+
+**已知差异（记录，不视为缺陷）**：星海接口的馆名脱敏对**所有视角**生效（馆主在星海中也只见 `nameMasked`，`lampCount>1` 打码馆名、单人馆打码逝者名）；而 `GET /api/halls/[id]` 与馆级页按 `viewerRole` 对馆主下发原文——两侧口径不同属有意设计（星海永远不向任何客户端泄露可搜索的全名）。
+
+**正式测试入口**：`node --experimental-strip-types tools/test-starsea-formal.mjs`（API/迁移/路由契约冒烟，自起临时服务器）；端到端 `npx playwright test tests/e2e/starsea.spec.ts --project=desktop-chromium --project=mobile-chromium`（正式页主旅程/移动端/无障碍/择位错误分支）；视觉基线 `node tools/visual-garden.mjs`（产物 `docs/shots/garden-starsea-*.png`）。
 
 #### `POST /api/halls/[id]/offer-all` 🟡（合祭「为全家点灯」）
 

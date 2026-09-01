@@ -807,6 +807,7 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   background: rgba(205, 213, 229, 0.28);
   cursor: pointer;
   transition: background var(--st-micro) ease;
+  touch-action: none; /* Task 9：把手拖拽（规格 §3），拖动不触发页面滚动 */
 }
 .starsea-handle:hover { background: rgba(205, 213, 229, 0.45); }
 .starsea-handle:focus-visible { outline: 2px solid #fcd34d; outline-offset: 2px; }
@@ -1023,6 +1024,10 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 @media (max-width: 640px) {
   .starsea-controls-inner { gap: 6px; padding: 8px 10px; }
   .starsea-search { flex: 1 1 130px; }
+  /* 详情双主操作纵向堆叠（Task 9，规格 §3）：412px 视口下 2×180px 基线
+     仍并排（372px < 380px 可用宽），改为整行堆叠保证可读与 44px 级热区 */
+  .starsea-enter,
+  .starsea-offer-open { flex-basis: 100%; }
   .starsea-search-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
   .starsea-count {
     position: absolute;

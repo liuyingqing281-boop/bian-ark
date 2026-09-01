@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { GardenSeaHall } from "../../lib/garden-sea";
-import type { GardenSeaState } from "../../lib/garden-sea-state";
+import type { GardenDrawer, GardenSeaState } from "../../lib/garden-sea-state";
 
 export interface HallMember {
   id: string;
@@ -68,6 +68,8 @@ interface StarSeaDrawerProps {
   onSelectHall: (hallId: string) => void;
   onOpenOffer: () => void;
   onBack: () => void;
+  /** 把手拖拽/列表态点击切换抽屉档位（规格 §3「支持把手、按钮、拖拽和键盘操作」） */
+  onDrawerChange?: (drawer: GardenDrawer) => void;
   onSubmitOffer: (payload: { memorialId: string; itemId: string; message: string }) => void;
 }
 
@@ -100,6 +102,7 @@ export default function StarSeaDrawer({
   onSelectHall,
   onOpenOffer,
   onBack,
+  onDrawerChange,
   onSubmitOffer,
 }: StarSeaDrawerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -189,6 +192,55 @@ export default function StarSeaDrawer({
     onSubmitOffer({ memorialId: memberId, itemId, message });
   }
 
+  // ---- 把手拖拽（Task 9，规格 §3：collapsed/half/full 三档，上拖升档/下拖降档） ----
+  // 阈值 32px：小于它视为点按（click 语义不变）；拖拽收尾触发的 click 被吞掉。
+  // click 语义：详情/供奉态 = 层级回退 onBack（既有）；列表态 = 收起↔半开切换
+  //（back 在列表态是无操作，把手 aria-label「展开」必须兑现）。
+  const HANDLE_DRAG_THRESHOLD_PX = 32;
+  const handleDragRef = useRef<{ startY: number; from: GardenDrawer } | null>(null);
+  const handleDragMovedRef = useRef(false);
+  const suppressClickRef = useRef(false);
+  const drawerOrder: ReadonlyArray<GardenDrawer> = ["collapsed", "half", "full"];
+
+  function onHandlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!onDrawerChange) return;
+    handleDragRef.current = { startY: event.clientY, from: state.drawer };
+    handleDragMovedRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function onHandlePointerMove(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = handleDragRef.current;
+    if (drag && Math.abs(drag.startY - event.clientY) > 8) handleDragMovedRef.current = true;
+  }
+
+  function onHandlePointerUp(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = handleDragRef.current;
+    handleDragRef.current = null;
+    suppressClickRef.current = handleDragMovedRef.current;
+    handleDragMovedRef.current = false;
+    if (!drag || !onDrawerChange) return;
+    const dy = drag.startY - event.clientY; // 正值 = 上拖（展开方向）
+    const idx = drawerOrder.indexOf(drag.from);
+    if (dy > HANDLE_DRAG_THRESHOLD_PX && idx < drawerOrder.length - 1) {
+      onDrawerChange(drawerOrder[idx + 1]);
+    } else if (dy < -HANDLE_DRAG_THRESHOLD_PX && idx > 0) {
+      onDrawerChange(drawerOrder[idx - 1]);
+    }
+  }
+
+  function onHandleClick() {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return; // 拖拽收尾的合成 click 不再触发回退/切换
+    }
+    if (state.panel === "list" && onDrawerChange) {
+      onDrawerChange(state.drawer === "collapsed" ? "half" : "collapsed");
+      return;
+    }
+    onBack();
+  }
+
   const railHalls = matchedHallIds ? halls.filter((hall) => matchedHallIds.has(hall.hallId)) : halls;
   const offerStatusText =
     offerStatus === "pending"
@@ -209,7 +261,11 @@ export default function StarSeaDrawer({
         ref={handleRef}
         aria-label={labels.handleExpand}
         aria-expanded={state.drawer !== "collapsed"}
-        onClick={() => onBack()}
+        onClick={onHandleClick}
+        onPointerDown={onDrawerChange ? onHandlePointerDown : undefined}
+        onPointerMove={onDrawerChange ? onHandlePointerMove : undefined}
+        onPointerUp={onDrawerChange ? onHandlePointerUp : undefined}
+        onPointerCancel={onDrawerChange ? onHandlePointerUp : undefined}
       />
       <div className="starsea-drawer-inner">
         {state.panel === "list" && (

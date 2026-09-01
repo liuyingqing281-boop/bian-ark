@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { apiLogin, createMemorialViaApi, emailOf, patchMemorialViaApi, RUN } from "./helpers";
+import { apiLogin, createMemorialViaApi, emailOf, gotoStable, patchMemorialViaApi, RUN } from "./helpers";
 
 // 北极星旅程：匿名访客对公开纪念馆完成一次祭奠（PRD 3.0 D4 匿名献祭）
 test.describe("匿名祭奠旅程", () => {
@@ -16,7 +16,8 @@ test.describe("匿名祭奠旅程", () => {
 
   test("匿名选择祭品、留言并完成供奉（含审核上墙）", async ({ page }) => {
     test.setTimeout(60_000);
-    await page.goto(`/zh/memorial/${memorialId}`);
+    // gotoStable：dev 冷编译竞态兜底（错误浮层则重载一次，与 starsea 套件同轨）
+    await gotoStable(page, `/zh/memorial/${memorialId}`);
     await expect(page.getByText(memorialName)).toBeVisible();
 
     // 选择官方祭品（白菊），填留言，提交供奉

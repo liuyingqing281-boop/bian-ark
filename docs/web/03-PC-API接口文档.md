@@ -22,8 +22,8 @@
 | `/family` 亲友共同纪念 | `groups` 族（见 08 §3.10） | — |
 | `/me` 我的页 | `GET /api/me`、`GET /api/me/memorials`、`GET /api/me/orders?limit=&cursor=` ★（🟡→落地） | F1 / F6 |
 | `/discover` 发现（后续） | `garden` 族（见 08 §3.11） | — |
-| 纪念园「星海」 `/garden`（2026-08-23） | `GET /api/garden/starsea?zone=&bbox=`、`GET /api/garden?q=`、`PATCH /api/halls/[id]/garden-pos`（择位）★（🟡，08 §3.13） | F8 |
-| 馆内灯阵（多人馆 `/hall/[id]`，2026-08-23） | `GET /api/halls/[id]`、`PATCH /api/halls/[id]/layout`（摆位）、`POST /api/halls/[id]/offer-all`（合祭）★（🟡，08 §3.13）；人物详情复用既有 memorials 族 | F7 + F1–F6 |
+| 纪念园「星海」 `/garden`（2026-08-23 契约，2026-09-01 正式前端上线） | `GET /api/garden/starsea?zone=&bbox=&limit=&cursor=`（✅ 分片/游标细则见 08 §3.13）、`GET /api/garden?q=`、`PATCH /api/halls/[id]/garden-pos`（择位 ✅）★（offer-all 仍 🟡，08 §3.13） | F8 |
+| 馆内灯阵（多人馆 `/hall/[hallId]` 规范地址，2026-08-23；2026-09-01 canonical 路由 + `?p=` 聚焦上线，旧 memorial URL 308 重定向） | `GET /api/halls/[id]`、`PATCH /api/halls/[id]/layout`（摆位）、`POST /api/halls/[id]/offer-all`（合祭）★（🟡，08 §3.13）；人物详情复用既有 memorials 族 | F7 + F1–F6 |
 | 鉴权 | `POST /api/auth/request-code`、`POST /api/auth/verify`（`intent` 分流 ✅ + 注册 `password` ✅）、`POST /api/auth/login-password`（✅）、`POST /api/auth/reset-password`（✅，均 08 §3.0，2026-08-25 已实施）、`POST /api/auth/wechat/qrcode`/回调（✅ 含 intent）、`POST/DELETE /api/auth/bind`（✅）；PC 消费注意见 §3.7 | — |
 | 申诉 | `POST /api/moderation/appeals` | — |
 
@@ -120,15 +120,18 @@
 | 接口 | 新增响应字段 | 说明 |
 |---|---|---|
 | 分页三接口 | `nextCursor` | §二 |
-| `halls` 族 / `garden/starsea`（🟡） | 整接口新增（F7/F8） | 08 §3.13，随 M4 落地；PC 无独占字段 |
+| `halls` 族 / `garden/starsea` | 整接口新增（F7/F8；starsea/择位/摆位 ✅ 已上线，合祭 offer-all 随 M4） | 08 §3.13；PC 无独占字段 |
 | 其余全部 | 无 | PC 端不加任何独占字段 |
 
-### 3.5 星海/灯阵 PC 消费注意（2026-08-23）
+### 3.5 星海/灯阵 PC 消费注意（2026-08-23；2026-09-01 正式前端上线增补）
 
-1. `GET /api/garden/starsea` 分片拉取：按当前视口 `bbox` 请求，滚动/缩放时增量补片；LOD 远端光晕只渲染 `x/y/candleLit/lampCount`。
-2. 择位 `409 position_conflict` 时用响应附带的建议空位做引导微移动画，不让用户自己猜。
+1. `GET /api/garden/starsea` 分片拉取：按当前视口 `bbox` 请求，滚动/缩放时增量补片；LOD 远端光晕只渲染 `x/y/candleLit/lampCount`。**全量走查（首屏 `bbox=0,0,1,1`）每页显式 `limit=500`**（服务端默认 200、硬帽 500）；`cursor` 为 keyset（`h.id` 升序稳定）；客户端页帽 25 页耗尽仍见 `nextCursor` 时进入**显式可重试错误态**，绝不静默截断（细则见 08 §3.13）。
+2. 择位 `409 position_conflict` 时用响应附带的建议空位做引导微移动画，不让用户自己猜；`403` 按 `reason` 分流——`visibility_required` 提示先去「我的」改公开，无 reason（非馆主）提示无权。
 3. 合祭 `offer-all` 提交中防重复点击；成功反馈 ≤1.2s（墓园规格 §6 上限）后刷新全馆灯态。
 4. 摆位/择位拖拽仅在「布阵/择位模式」下发起 PATCH，普通浏览零写请求。
+5. 馆级 canonical：`/hall/[hallId]`（`hall_<memorialId>` 一一对应）为规范地址；旧 memorial URL 服务端 308 到 `/hall/[hallId]?p=[memorialId]`；`?p=` 只在命中本馆成员时聚焦；`from=garden` 仅浏览状态恢复，非权限输入。PC 前端生成馆级链接一律用 `hallId`。
+6. 3D 为渐进增强：WebGL 不可用/导入失败/上下文丢失/低性能/reduced-motion 自动回退 2.5D 并 `role=status` 播报，PC 消费不得把 3D 当作可用性前提；`constellationOf` M4 前恒 `null`，PC 不渲染星座连线。
+7. 星海接口馆名对所有视角脱敏（馆主也只见 `nameMasked`），与馆级页按 `viewerRole` 原文的口径不同属有意设计（08 §3.13 已知差异）。
 
 ### 3.6 语音接口 PC 消费注意（2026-08-23，08 §3.14）
 
@@ -169,4 +172,4 @@
 3. orders：金额单位为分、四种状态枚举、`401` 游客。
 4. 回归 08 文档全部 ✅ 冒烟（hall/messages/memories/chat/family-gift/garden/me-memorials），PC 消费不得破坏既有断言。
 5. 红线扫描：接口与字段层面无虚拟币/充值/礼包/打榜/倒计时促销字样。
-6. §3.13 接口落地后：starsea 分片/bbox 参数、择位 409 冲突与建议空位、摆位仅馆主、合祭事务回滚，四项冒烟。
+6. 星海正式回归（✅ 2026-09-01）：starsea 分片/bbox/游标参数、择位 409 建议位与 403 分流、canonical 路由重定向，统一走 `node --experimental-strip-types tools/test-starsea-formal.mjs` + `npx playwright test tests/e2e/starsea.spec.ts --project=desktop-chromium --project=mobile-chromium`（契约与旅程双轨，08 §3.13）。
