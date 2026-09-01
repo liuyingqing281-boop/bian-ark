@@ -358,6 +358,12 @@ function createMetrics(): StarseaDebugMetrics {
   return { firstInteractiveMs: null, firstBboxMs: null, visibleClusters: 0, fallback3dCount: 0, apiFailureCount: 0 };
 }
 
+// Fix Round 1：与 route.ts 的 devLog 同语义——开发环境才输出，生产零控制台噪声
+function devLog(...args: unknown[]): void {
+  if (process.env.NODE_ENV === "production") return;
+  console.debug(...args);
+}
+
 // ---- 动效档位（Task 8，规格 §6：完整/简化/静态；默认尊重系统偏好，用户可恢复） ----
 // 读档顺序：localStorage 用户显式选择 > 低性能设备（静态默认）> prefers-reduced-motion
 // （静态默认）> 完整。SSR 与客户端首帧统一渲染 "full"，挂载后再校正，避免注水错配。
@@ -488,10 +494,20 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
 
   const cameraKey = gardenCameraStorageKey(lang);
 
-  function send(action: GardenSeaAction) {
+  // Fix Round 1（Important）：最新 state / placement.active 的 ref 镜像——
+  // send/focusThen/handleSelectHall/handleEnterHall 改用 useCallback 固定身份：
+  // 它们经 StarSeaScene 传给 memo 化的 StarCluster（并进 3D overlay 的 ctx），
+  // 身份不稳会让 memo 浅比较永远失效（每次镜头提交全量重渲染可见星群）。
+  // 闭包内改读 ref，镜头/浏览态变化不再换身份。
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const placementActiveRef = useRef(placement.active);
+  placementActiveRef.current = placement.active;
+
+  const send = useCallback((action: GardenSeaAction) => {
     if (PUSH_ACTIONS.has(action.type)) pushIntentRef.current = true;
     setState((prev) => gardenSeaReducer(prev, action));
-  }
+  }, []);
 
   // ---- 挂载：URL 水合 + 未决快照恢复 + popstate 监听 ----
   useEffect(() => {
@@ -634,7 +650,12 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
       let cursor: string | null = null;
       let pages = 0;
       do {
-        const params = new URLSearchParams({ bbox: bbox.map((v) => v.toFixed(4)).join(",") });
+        // Fix Round 1：每页显式 limit=500（路由默认 200 会让 >500 的集合
+        // 多翻一倍页数、更快撞上页帽）；bbox 固定 4 位小数与既有契约一致
+        const params = new URLSearchParams({
+          bbox: bbox.map((v) => v.toFixed(4)).join(","),
+          limit: "500",
+        });
         if (zone) params.set("zone", zone);
         if (cursor) params.set("cursor", cursor);
         const requestStartedAt = performance.now();
@@ -657,12 +678,18 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
         for (const hall of body.halls || []) hallsRef.current.set(hall.hallId, hall);
         cursor = body.nextCursor;
         pages += 1;
-        // Task 8：>500 结果集必须走完游标（每页 ≤500，25 页 = 12500 馆安全帽，
-        // 防异常 nextCursor 死循环；600+ 夹具 = 4 页）
+        // 25 页 × 500 = 12500 馆安全帽（防异常 nextCursor 死循环）；帽耗尽
+        // 仍有下一页时下方显式进入错误态，绝不静默停走（Task 8 Step 2 红线）
       } while (cursor && pages < 25);
       if (seq !== fetchSeqRef.current || controller.signal.aborted) return;
-      loadedBboxRef.current = unionBbox(freshZone ? null : loadedBboxRef.current, bbox);
       setHalls(stableHallOrder([...hallsRef.current.values()]));
+      if (cursor) {
+        // 页帽耗尽仍有下一页：已得数据保持可见（场景与错误横幅共存），
+        // 进入可重试错误态且不标记 loadedBbox（镜头变化/重试都会重新全量拉取）
+        setError("starsea_page_cap_exhausted");
+        return;
+      }
+      loadedBboxRef.current = unionBbox(freshZone ? null : loadedBboxRef.current, bbox);
     } catch (err) {
       if (controller.signal.aborted || seq !== fetchSeqRef.current) return;
       metricsRef.current.apiFailureCount += 1; // 调试指标：API 失败计数（聚合计数，无馆 id）
@@ -714,7 +741,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
     } catch {
       // mark 不可用：跳过
     }
-    console.debug("[starsea] first interactive", metricsRef.current.firstInteractiveMs);
+    devLog("[starsea] first interactive", metricsRef.current.firstInteractiveMs);
   }, [loading, halls.length]);
 
   function retryLoad() {
@@ -722,34 +749,45 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
     void fetchStarsea([0, 0, 1, 1], state.zone);
   }
 
-  // ---- 聚焦时序：先可见聚焦，再执行选中/进馆 ----
-  function focusThen(hallId: string, action: () => void) {
-    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    setFocusedHallId(hallId);
-    focusTimerRef.current = setTimeout(() => {
-      focusTimerRef.current = null;
-      setFocusedHallId(null);
-      action();
-    }, focusMs);
-  }
+  // ---- 聚焦时序：先可见聚焦，再执行选中/进馆（useCallback 固定身份，见上） ----
+  const focusThen = useCallback(
+    (hallId: string, action: () => void) => {
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+      setFocusedHallId(hallId);
+      focusTimerRef.current = setTimeout(() => {
+        focusTimerRef.current = null;
+        setFocusedHallId(null);
+        action();
+      }, focusMs);
+    },
+    [focusMs]
+  );
 
-  function handleSelectHall(hallId: string) {
-    if (placement.active) return; // 择位任务态：点击不进入详情（含被择位星群自身的误触 click）
-    focusThen(hallId, () => send({ type: "selectHall", hallId }));
-  }
+  const handleSelectHall = useCallback(
+    (hallId: string) => {
+      if (placementActiveRef.current) return; // 择位任务态：点击不进入详情（含被择位星群自身的误触 click）
+      focusThen(hallId, () => send({ type: "selectHall", hallId }));
+    },
+    [focusThen, send]
+  );
 
-  function handleEnterHall(hallId: string) {
-    if (placement.active) return; // 择位任务态：双击/Enter 不进馆
-    focusThen(hallId, () => {
-      // 进馆前再兜底落一次快照（聚焦动画期间状态未变时 URL 同步效应已存）；
-      // from=garden 只用于返回状态恢复语义，绝不参与权限判断
-      saveGardenSnapshot(gardenSnapshotStorageKey(lang), serializeGardenUrl(state).toString(), {
-        scale: state.scale,
-        offset: state.offset,
+  const handleEnterHall = useCallback(
+    (hallId: string) => {
+      if (placementActiveRef.current) return; // 择位任务态：双击/Enter 不进馆
+      focusThen(hallId, () => {
+        // 进馆前再兜底落一次快照（聚焦动画期间状态未变时 URL 同步效应已存）；
+        // from=garden 只用于返回状态恢复语义，绝不参与权限判断。
+        // 快照读 stateRef.current：聚焦 500ms 内浏览态若变化，以离馆前最新为准
+        const current = stateRef.current;
+        saveGardenSnapshot(gardenSnapshotStorageKey(lang), serializeGardenUrl(current).toString(), {
+          scale: current.scale,
+          offset: current.offset,
+        });
+        router.push(`/${lang}/hall/${encodeURIComponent(hallId)}?from=garden`);
       });
-      router.push(`/${lang}/hall/${encodeURIComponent(hallId)}?from=garden`);
-    });
-  }
+    },
+    [focusThen, lang, router]
+  );
 
   function handleResetCamera() {
     // 复位只改镜头，不清浏览状态（墓园规格 §5）

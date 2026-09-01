@@ -9,7 +9,10 @@
 // - 名牌只显示 nameMasked；全景下不逐灯渲染姓名。
 // - 完整动效档星光微闪烁（Task 8 规格 §6；相位由索引/馆 id 长度确定性推导，
 //   无随机源；简化/静态档由 .starsea-motion-root[data-motion] 关闭）。
-// - memo：镜头平移/缩放只改场景层，星群 props 不变时跳过重渲染（Task 8 性能）。
+// - memo：镜头平移时（scale 不变 → sizePx 不变）场景层重渲染、星群 props
+//   全部稳定（hall 引用来自未变的 halls 状态、labels 是模块常量、
+//   onSelect/onEnter 是 GardenSea 的 useCallback 固定身份，Fix Round 1 修复），
+//   浅比较命中 → 平移零星群重渲染；缩放只重渲染必要的 sizePx 变化。
 
 import { memo } from "react";
 import type { GardenSeaHall } from "../../lib/garden-sea";

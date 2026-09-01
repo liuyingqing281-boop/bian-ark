@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getDb } from "../../../../lib/db";
 
 // GET /api/garden/starsea?zone=&bbox= —— 星海分片数据源（docs/08 §3.13 F8 GardenSeaView）
 // 仅 in_garden=1 且 public 的馆；bbox=x1,y1,x2,y2 视口分片；zone=public|family|official。
 // constellationOf 恒 null（家族星座连线待 M4 祠堂由族谱推导）。
 // 红线：无访问量/热度/排行字段；名人星域仅"略亮"由平台后台写入 zone。
-// 日志卫生（Task 8 Step 5）：生产环境零日志；开发环境仅输出错误码或
-// {毫秒耗时, 返回条数, 是否有下一页}——不含任何用户/馆标识。
+// 日志卫生（Task 8 Step 5 / Fix Round 1 收紧）：生产环境零日志；开发环境字段
+// 枚举 = request id（UUID 前 8 位）/ 耗时 ms / 错误码（仅失败路径），
+// 不含用户/馆标识，不携带返回条数等额外诊断。
 function devLog(fields: Record<string, unknown>): void {
   if (process.env.NODE_ENV === "production") return;
   console.debug("[starsea]", JSON.stringify(fields));
@@ -14,9 +16,10 @@ function devLog(fields: Record<string, unknown>): void {
 
 export async function GET(req: NextRequest) {
   const startedAt = Date.now();
+  const reqId = randomUUID().slice(0, 8);
   const zoneRaw = req.nextUrl.searchParams.get("zone");
   if (zoneRaw !== null && !["public", "family", "official"].includes(zoneRaw)) {
-    devLog({ code: "invalid_zone" });
+    devLog({ req: reqId, ms: Date.now() - startedAt, code: "invalid_zone" });
     return NextResponse.json({ error: "invalid_zone" }, { status: 400 });
   }
   const zone = zoneRaw || null;
@@ -25,7 +28,7 @@ export async function GET(req: NextRequest) {
   if (bboxRaw !== null) {
     const values = bboxRaw.split(",").map(Number);
     if (values.length !== 4 || !values.every(Number.isFinite) || values[0] < 0 || values[0] > values[2] || values[2] > 1 || values[1] < 0 || values[1] > values[3] || values[3] > 1) {
-      devLog({ code: "invalid_bbox" });
+      devLog({ req: reqId, ms: Date.now() - startedAt, code: "invalid_bbox" });
       return NextResponse.json({ error: "invalid_bbox" }, { status: 400 });
     }
     bbox = values as [number, number, number, number];
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
   const limitRaw = req.nextUrl.searchParams.get("limit");
   const parsedLimit = limitRaw === null ? 200 : Number(limitRaw);
   if (!Number.isInteger(parsedLimit) || parsedLimit <= 0) {
-    devLog({ code: "invalid_limit" });
+    devLog({ req: reqId, ms: Date.now() - startedAt, code: "invalid_limit" });
     return NextResponse.json({ error: "invalid_limit" }, { status: 400 });
   }
   const limit = Math.min(parsedLimit, 500);
@@ -85,6 +88,6 @@ export async function GET(req: NextRequest) {
     })),
     nextCursor: rows.length > limit ? emitted.at(-1)?.hall_id ?? null : null,
   };
-  devLog({ ms: Date.now() - startedAt, halls: emitted.length, hasCursor: body.nextCursor !== null });
+  devLog({ req: reqId, ms: Date.now() - startedAt });
   return NextResponse.json(body, { headers: { "Cache-Control": "private, max-age=15" } });
 }

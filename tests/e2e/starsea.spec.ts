@@ -1283,6 +1283,27 @@ test.describe("正式 2.5D 星海", () => {
     expect(metrics.apiFailureCount).toBe(0);
   });
 
+  test("全量分片请求显式 limit=500：游标走全量不静默受默认 200 拖累（Fix Round 1）", async ({ page }) => {
+    test.setTimeout(90_000);
+    const seen: string[] = [];
+    page.on("request", (req) => {
+      const url = req.url();
+      if (url.includes("/api/garden/starsea")) seen.push(url);
+    });
+    await gotoStable(page, "/zh/garden");
+    await expect(page.locator(".starsea-cluster").first()).toBeVisible({ timeout: 30_000 });
+    // 首屏全量 bbox=0,0,1,1 的每一页都必须显式 limit=500（默认 200 会让
+    // >500 的集合多翻一倍页数、更快撞上客户端页帽——Step 2 静默截断红线）
+    const fullWalk = seen.filter((url) => {
+      const bbox = new URL(url).searchParams.get("bbox") || "";
+      return bbox === "0.0000,0.0000,1.0000,1.0000" || bbox === "0,0,1,1";
+    });
+    expect(fullWalk.length, "应发出首屏全量分片请求").toBeGreaterThan(0);
+    for (const url of fullWalk) {
+      expect(url, `全量分片请求必须显式 limit=500：${url}`).toContain("limit=500");
+    }
+  });
+
   test("择位模式锁定 2.5D：placing 激活不渲染 3D canvas（择位为 2D DOM 交互）", async ({ browser }) => {
     test.setTimeout(120_000);
     const { ctx, page } = await ownerPage(browser);
