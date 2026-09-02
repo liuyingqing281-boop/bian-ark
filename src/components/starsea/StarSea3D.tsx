@@ -253,7 +253,8 @@ function webglSupported(): boolean {
 
 // ---- D 档星光贴图（2026-09-02，与 2.5D 星点同观感；canvas 确定性绘制，无随机） ----
 
-/** 光晕精灵：白核 + 多层衰减光晕 + 极淡星尘环（白色，由顶点色/材质色着色；叠加混合） */
+/** 光晕精灵：白核 + 多层衰减光晕（白色，由顶点色/材质色着色；叠加混合）。
+ *  2026-09-02 二次拍板：撤「星尘环」，与 2.5D C 档同观感。 */
 function makeAuraTexture(THREE: ThreeNS) {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
@@ -265,30 +266,6 @@ function makeAuraTexture(THREE: ThreeNS) {
     grad.addColorStop(0.14, "rgba(255,255,255,0.95)");
     grad.addColorStop(0.32, "rgba(255,255,255,0.38)");
     grad.addColorStop(0.62, "rgba(255,255,255,0.12)");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 64, 64);
-    // 星尘环（2.5D D 档同款）：~72% 半径处的极淡细环
-    ctx.strokeStyle = "rgba(255,255,255,0.10)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(32, 32, 23, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  return new THREE.CanvasTexture(canvas);
-}
-
-/** 大光晕精灵（仅 24h 明灭暖星）：无白核的纯柔光衰减盘，暖色由材质色给 */
-function makeHaloTexture(THREE: ThreeNS) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    grad.addColorStop(0, "rgba(255,255,255,0.5)");
-    grad.addColorStop(0.25, "rgba(255,255,255,0.28)");
-    grad.addColorStop(0.55, "rgba(255,255,255,0.1)");
     grad.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 64, 64);
@@ -572,11 +549,8 @@ interface ThreeStack {
   lampMat: PointsMaterial;
   glintPoints: Points;
   glintMat: PointsMaterial;
-  litHaloPoints: Points;
-  litHaloMat: PointsMaterial;
   auraTex: CanvasTexture;
   glintTex: CanvasTexture;
-  haloTex: CanvasTexture;
 }
 
 interface StarSea3DProps {
@@ -816,22 +790,6 @@ export default function StarSea3D({
         const glintPoints = new THREE.Points(new THREE.BufferGeometry(), glintMat);
         scene.add(glintPoints);
 
-        // 大光晕层（D 档，2026-09-02）：仅明灭暖星的纯柔光衰减盘（无白核），
-        // 暖橙材质色 + 低透明度叠加——对应 2.5D 暖星的多层大 box-shadow
-        const haloTex = makeHaloTexture(THREE);
-        const litHaloMat = new THREE.PointsMaterial({
-          size: 4,
-          sizeAttenuation: true,
-          color: 0xfbbf24,
-          map: haloTex,
-          transparent: true,
-          opacity: 0.34,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-        });
-        const litHaloPoints = new THREE.Points(new THREE.BufferGeometry(), litHaloMat);
-        scene.add(litHaloPoints);
-
         const onContextLost = (event: Event) => {
           event.preventDefault();
           contextLost = true;
@@ -866,11 +824,8 @@ export default function StarSea3D({
           lampMat,
           glintPoints,
           glintMat,
-          litHaloPoints,
-          litHaloMat,
           auraTex,
           glintTex,
-          haloTex,
         };
         setPhase("ready");
         applyViewport();
@@ -888,11 +843,8 @@ export default function StarSea3D({
           lampMat.dispose();
           glintPoints.geometry.dispose();
           glintMat.dispose();
-          litHaloPoints.geometry.dispose();
-          litHaloMat.dispose();
           auraTex.dispose();
           glintTex.dispose();
-          haloTex.dispose();
           for (const layer of skyLayers) {
             layer.geo.dispose();
             layer.mat.dispose();
@@ -943,12 +895,11 @@ export default function StarSea3D({
     stack.camera.updateProjectionMatrix();
     stack.camera.updateMatrixWorld(true); // 投影前更新（overlay 用 camera.project 同帧取值）
     // 星点世界尺寸：three 的 sizeAttenuation 是 gl_PointSize = size × (vh/2) / dist
-    // （注意分母没有 tan(fov/2) 因子），因此要与 2.5D 的 D 档星光观感对齐
-    // （2026-09-02：光晕精灵盘约 20px 视觉外径），需 size = 20 × worldH / (tanHalf × scale × vh)；
-    // 大光晕层（暖星）≈ 2.8 倍；十字光芒层 ≈ 2.4 倍。
-    const lampPx = (20 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
+    // （注意分母没有 tan(fov/2) 因子），因此要与 2.5D 的 C 档星光观感对齐
+    // （2026-09-02 二次拍板：光晕精灵盘约 18px 视觉外径），需 size = 18 × worldH / (tanHalf × scale × vh)；
+    // 十字光芒层 ≈ 2.4 倍。
+    const lampPx = (18 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
     stack.lampMat.size = lampPx;
-    stack.litHaloMat.size = lampPx * 2.8;
     stack.glintMat.size = lampPx * 2.4;
   };
 
@@ -1015,10 +966,9 @@ export default function StarSea3D({
     stack.lampPoints.geometry.dispose();
     stack.lampPoints.geometry = geo;
 
-    // 十字光芒 + 大光晕缓冲（D 档）：仅 candleLit 暖星的馆锚点（z=0），两层同点位
+    // 十字光芒缓冲（C 档）：仅 candleLit 暖星的馆锚点（z=0）
     const litHalls = list.filter((hall) => hall.candleLit);
     stack.glintPoints.visible = litHalls.length > 0;
-    stack.litHaloPoints.visible = litHalls.length > 0;
     const litPos = new Float32Array(litHalls.length * 3);
     litHalls.forEach((hall, i) => {
       litPos[i * 3] = (hall.x - 0.5) * worldW;
@@ -1029,10 +979,6 @@ export default function StarSea3D({
     glintGeo.setAttribute("position", new stack.THREE.BufferAttribute(litPos, 3));
     stack.glintPoints.geometry.dispose();
     stack.glintPoints.geometry = glintGeo;
-    const haloGeo = new stack.THREE.BufferGeometry();
-    haloGeo.setAttribute("position", new stack.THREE.BufferAttribute(litPos.slice(), 3));
-    stack.litHaloPoints.geometry.dispose();
-    stack.litHaloPoints.geometry = haloGeo;
   };
 
   // ---- 相机放置 + overlay 投影（camera.project：旋转/平移/缩放同源同果） ----
