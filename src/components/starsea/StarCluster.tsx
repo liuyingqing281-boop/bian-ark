@@ -88,17 +88,24 @@ const StarCluster = memo(function StarCluster({
       }}
     >
       <span className="starsea-starfield" aria-hidden="true">
-        {offsets.map((point, index) => (
-          <span
-            key={index}
-            className="starsea-dot"
-            style={{
-              left: `calc(50% + ${(point.x * STAR_SPREAD_PX).toFixed(1)}px)`,
-              top: `calc(50% + ${(point.y * STAR_SPREAD_PX).toFixed(1)}px)`,
-              animationDelay: `${(((index * 0.73 + hall.hallId.length * 0.11) % 2.8)).toFixed(2)}s`,
-            }}
-          />
-        ))}
+        {offsets.map((point, index) => {
+          const delay = `${(((index * 0.73 + hall.hallId.length * 0.11) % 5)).toFixed(2)}s`;
+          return (
+            <span
+              key={index}
+              className="starsea-dot"
+              style={{
+                left: `calc(50% + ${(point.x * STAR_SPREAD_PX).toFixed(1)}px)`,
+                top: `calc(50% + ${(point.y * STAR_SPREAD_PX).toFixed(1)}px)`,
+                animationDelay: delay,
+              }}
+            >
+              {/* 十字光芒（D 档 2026-09-02）：纯装饰，仅暖星/聚焦态由 CSS 显现；相位与星体同源 */}
+              <i className="sd-glint h" style={{ animationDelay: delay }} />
+              <i className="sd-glint v" style={{ animationDelay: delay }} />
+            </span>
+          );
+        })}
       </span>
       <span className="starsea-name">{hall.nameMasked}</span>
     </button>

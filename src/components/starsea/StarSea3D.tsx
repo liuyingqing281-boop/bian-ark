@@ -617,9 +617,10 @@ export default function StarSea3D({
     stack.camera.far = d.dist + 2400; // 覆盖星穹半径（880–1100）
     stack.camera.updateProjectionMatrix();
     // 星点世界尺寸：three 的 sizeAttenuation 是 gl_PointSize = size × (vh/2) / dist
-    // （注意分母没有 tan(fov/2) 因子），因此要与 2.5D 的 7px .starsea-dot 同观感，
-    // 需 size = 7px × dist×2/vh ÷ tanHalf = 7 × worldH / (tanHalf × scale × vh)
-    stack.lampMat.size = (7 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
+    // （注意分母没有 tan(fov/2) 因子），因此要与 2.5D 的 D 档星光观感对齐
+    // （2026-09-02：光晕盘外径约 18px、白核 3px，点精灵等效取 9px），
+    // 需 size = 9px × dist×2/vh ÷ tanHalf = 9 × worldH / (tanHalf × scale × vh)
+    stack.lampMat.size = (9 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
   };
 
   // ---- 数据 → 重建星点缓冲 + 单帧 ----

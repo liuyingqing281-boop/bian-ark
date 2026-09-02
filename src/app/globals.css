@@ -403,6 +403,8 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   inset: 0;
   overflow: hidden;
   background:
+    radial-gradient(130% 80% at 50% -10%, rgba(38, 50, 88, 0.38), transparent 55%),
+    linear-gradient(115deg, transparent 30%, rgba(96, 104, 150, 0.07) 45%, rgba(150, 122, 88, 0.05) 55%, transparent 70%),
     radial-gradient(1200px 700px at 18% 12%, rgba(37, 47, 84, 0.5), transparent 60%),
     radial-gradient(900px 600px at 82% 78%, rgba(51, 38, 66, 0.42), transparent 65%),
     radial-gradient(1.2px 1.2px at 12% 22%, rgba(205, 213, 229, 0.5), transparent),
@@ -415,6 +417,38 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   color: var(--st-ink);
   touch-action: none; /* 平移/捏合由场景接管 */
   cursor: grab;
+}
+/* 环境氛围（D 档）：远景微星点阵（多层非同步长平铺出非周期感）+ 四角暗角。
+   均为纯装饰层：pointer-events none，z-index 0（低于 z-20 控制条 / z-30 抽屉）。
+   微星呼吸 9s；静态档/reduced-motion 关闭（见动效档位块）。 */
+.garden-sea::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 22px 34px, rgba(255, 255, 255, 0.3), transparent 60%),
+    radial-gradient(1px 1px at 118px 66px, rgba(255, 255, 255, 0.2), transparent 60%),
+    radial-gradient(1.5px 1.5px at 205px 130px, rgba(255, 255, 255, 0.26), transparent 60%),
+    radial-gradient(1px 1px at 271px 22px, rgba(255, 255, 255, 0.16), transparent 60%),
+    radial-gradient(1px 1px at 66px 205px, rgba(205, 216, 245, 0.22), transparent 60%),
+    radial-gradient(1.5px 1.5px at 174px 262px, rgba(255, 255, 255, 0.18), transparent 60%),
+    radial-gradient(1px 1px at 298px 190px, rgba(255, 255, 255, 0.24), transparent 60%);
+  background-size: 320px 320px;
+  animation: starsea-sky-breathe 9s ease-in-out infinite;
+}
+@keyframes starsea-sky-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.9; }
+}
+.garden-sea::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 120% 120% at 50% 45%, transparent 55%, rgba(2, 3, 8, 0.65) 100%);
 }
 .garden-sea:active { cursor: grabbing; }
 .garden-sea:focus-visible { outline: none; }
@@ -514,27 +548,86 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   border-radius: 10px;
 }
 .starsea-starfield { position: absolute; inset: 0; pointer-events: none; }
+/* 星点（D 档·择定 2026-09-02）：本体 = 光晕盘（径向渐变 + 多层辉光），
+   ::before = 高亮白核，::after = 极淡星尘环，子元素 .sd-glint = 十字光芒
+   （仅 24h 明灭暖星与聚焦态显现）。呼吸动画只动 transform/filter（合成器友好），
+   相位由组件内联 animationDelay 确定性推导；简化档放慢、静态档/reduced-motion 关闭。 */
 .starsea-dot {
   position: absolute;
-  width: 7px;
-  height: 7px;
+  width: 18px;
+  height: 18px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: var(--st-star-cold);
-  box-shadow: 0 0 6px rgba(197, 208, 229, 0.35);
-  transition: background var(--st-micro) ease, box-shadow var(--st-micro) ease;
-  /* 星光微闪烁（完整档默认；相位由组件内联 animationDelay 确定性推导）。
-     简化档放慢、静态档/系统 reduced-motion 由下方规则关闭。 */
-  animation: starsea-twinkle 2.8s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(197, 208, 229, 0.34) 0%, transparent 72%);
+  box-shadow: 0 0 14px rgba(197, 208, 229, 0.34), 0 0 34px rgba(197, 208, 229, 0.16);
+  animation: starsea-twinkle 5s ease-in-out infinite;
+}
+.starsea-dot::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #f0f4fd;
+  box-shadow: 0 0 5px 1px rgba(240, 244, 253, 0.95);
+}
+.starsea-dot::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 1px solid rgba(197, 208, 229, 0.1);
+}
+.starsea-dot .sd-glint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(238, 242, 251, 0.8), transparent);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  pointer-events: none;
+}
+.starsea-dot .sd-glint.v {
+  width: 1px;
+  height: 34px;
+  background: linear-gradient(180deg, transparent, rgba(238, 242, 251, 0.8), transparent);
 }
 @keyframes starsea-twinkle {
-  0%, 100% { opacity: 0.72; }
-  50% { opacity: 1; }
+  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  50% { transform: translate(-50%, -50%) scale(1.1); filter: brightness(1.15); }
 }
-/* 明灭语义：24h 内有祭扫 = 暖橙高亮；否则低亮冷白（无热度文案/排序） */
+@keyframes starsea-glint {
+  0%, 100% { transform: translate(-50%, -50%) scaleX(0.82); }
+  50% { transform: translate(-50%, -50%) scaleX(1.12); }
+}
+@keyframes starsea-glint-v {
+  0%, 100% { transform: translate(-50%, -50%) scaleY(0.82); }
+  50% { transform: translate(-50%, -50%) scaleY(1.12); }
+}
+/* 明灭语义：24h 内有祭扫 = 暖橙高亮（大光晕 + 金色十字光芒）；否则低亮冷白（无热度文案/排序） */
 .starsea-cluster.is-lit .starsea-dot {
-  background: var(--st-star-warm);
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.75), 0 0 22px rgba(251, 191, 36, 0.3);
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.5) 0%, transparent 72%);
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.75), 0 0 44px rgba(251, 191, 36, 0.34), 0 0 80px rgba(251, 191, 36, 0.14);
+}
+.starsea-cluster.is-lit .starsea-dot::before {
+  background: #fff8e2;
+  box-shadow: 0 0 7px 2.5px rgba(252, 211, 77, 1);
+}
+.starsea-cluster.is-lit .starsea-dot::after { border-color: rgba(251, 191, 36, 0.16); }
+.starsea-cluster.is-lit .sd-glint {
+  opacity: 0.7;
+  background: linear-gradient(90deg, transparent, rgba(253, 230, 138, 0.9), transparent);
+  animation: starsea-glint 5s ease-in-out infinite;
+}
+.starsea-cluster.is-lit .sd-glint.v {
+  background: linear-gradient(180deg, transparent, rgba(253, 230, 138, 0.9), transparent);
+  animation-name: starsea-glint-v;
 }
 /* 名人星域：只改一个亮度 token，不改位置/尺寸/排序 */
 .starsea-cluster.is-official .starsea-dot { filter: brightness(1.3); }
@@ -542,7 +635,8 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 .starsea-cluster.is-dimmed { opacity: 0.22; }
 /* 聚焦（400–700ms 可见状态） */
 .starsea-cluster.is-focused { transform: translate(-50%, -50%) scale(1.5); }
-.starsea-cluster.is-focused .starsea-dot { filter: brightness(1.8); }
+.starsea-cluster.is-focused .starsea-dot { filter: brightness(1.65); }
+.starsea-cluster.is-focused .sd-glint { opacity: 0.95; }
 .starsea-name {
   position: absolute;
   left: 50%;
@@ -559,19 +653,19 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 /* ---- 远景 LOD（Task 8，规格 §8.5：远处星群合并为光晕粒子，不渲染个体名牌） ---- */
 .starsea-halo {
   position: absolute;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   margin: 0;
   padding: 0;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: var(--st-star-cold);
-  box-shadow: 0 0 8px rgba(197, 208, 229, 0.35);
+  background: radial-gradient(circle, rgba(197, 208, 229, 0.42) 0%, transparent 70%);
+  box-shadow: 0 0 12px rgba(197, 208, 229, 0.4), 0 0 28px rgba(197, 208, 229, 0.18);
   pointer-events: none; /* 远景不交互：找馆走搜索 + 抽屉卡片流（§8.5 不变） */
 }
 .starsea-halo.is-lit {
-  background: var(--st-star-warm);
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.7), 0 0 24px rgba(251, 191, 36, 0.25);
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.55) 0%, transparent 70%);
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.7), 0 0 38px rgba(251, 191, 36, 0.3), 0 0 64px rgba(251, 191, 36, 0.12);
 }
 .starsea-halo.is-dimmed { opacity: 0.22; }
 /* 远景聚合数量：视觉隐藏但留在无障碍树（同 .starsea-count 规则，不 display:none） */
@@ -593,12 +687,16 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
 .starsea-motion-root { display: contents; }
 .starsea-motion-root[data-motion="simplified"] { --st-focus: 300ms; }
 .starsea-motion-root[data-motion="simplified"] .starsea-dot { animation-duration: 7s; }
+.starsea-motion-root[data-motion="simplified"] .starsea-cluster.is-lit .sd-glint { animation-duration: 7s; }
+.starsea-motion-root[data-motion="simplified"] .garden-sea::before { animation-duration: 16s; }
 .starsea-motion-root[data-motion="static"] {
   --st-micro: 80ms;
   --st-drawer: 100ms;
   --st-focus: 80ms;
 }
 .starsea-motion-root[data-motion="static"] .starsea-dot,
+.starsea-motion-root[data-motion="static"] .starsea-cluster.is-lit .sd-glint,
+.starsea-motion-root[data-motion="static"] .garden-sea::before,
 .starsea-motion-root[data-motion="static"] .garden-sea-skeleton,
 .starsea-motion-root[data-motion="static"] .starsea-loading,
 .starsea-motion-root[data-motion="static"] .starsea-halo { animation: none; }
@@ -990,7 +1088,16 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
   /* 用户显式选择完整档 = 覆盖系统偏好：星光动画与常规时序恢复
      （选择器特异性 0-3-0 + !important > 上面 0-1-0 + !important） */
   .starsea-motion-root[data-motion="full"] .starsea-dot {
-    animation: starsea-twinkle 2.8s ease-in-out infinite !important;
+    animation: starsea-twinkle 5s ease-in-out infinite !important;
+  }
+  .starsea-motion-root[data-motion="full"] .starsea-cluster.is-lit .sd-glint {
+    animation: starsea-glint 5s ease-in-out infinite !important;
+  }
+  .starsea-motion-root[data-motion="full"] .starsea-cluster.is-lit .sd-glint.v {
+    animation-name: starsea-glint-v !important;
+  }
+  .starsea-motion-root[data-motion="full"] .garden-sea::before {
+    animation: starsea-sky-breathe 9s ease-in-out infinite !important;
   }
   .starsea-motion-root[data-motion="full"] .starsea-cluster {
     transition: opacity var(--st-micro) ease, filter var(--st-focus) ease, transform var(--st-focus) ease !important;
