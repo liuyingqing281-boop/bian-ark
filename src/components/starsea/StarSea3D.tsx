@@ -6,12 +6,14 @@
 //   共享同一份 GardenSeaHall[]，投影直接取 three 相机的真实投影矩阵——
 //   旋转到任何角度热区都钉在星点上。
 // - 镜头：共享镜头（scale/offset）仍由 deriveCamera3D 纯函数放置（与 2.5D 逐像素
-//   对齐，双向切换保留快照）；3D 额外持有「环绕旋转」自由度（arcball 四元数，
-//   2026-09-02 用户拍板：绕相机屏幕轴累积，无天顶极点退化，视点高度护栏防翻底）
-//   ——只活在组件内存：不进 URL/sessionStorage 白名单，切回 2.5D / 卸载即归零；
-//   复位按钮经 cameraResetNonce 一并归零。手势：单指/左键拖拽 = 旋转，
-//   Shift+拖拽 = 平移，双指 = 捏合缩放 + 中点平移，滚轮 = 光标锚定缩放
-//   （平移/缩放经 onCameraChange 回流共享镜头）。
+//   对齐，双向切换保留快照）；3D 额外持有「环绕旋转」自由度（轨迹球四元数，
+//   2026-09-02 用户拍板+反馈迭代：拖拽向量直接给轴，内容跟手，无天顶极点退化，
+//   视点仰角护栏防翻底）——只活在组件内存：不进 URL/sessionStorage 白名单，
+//   切回 2.5D / 卸载即归零；复位按钮经 cameraResetNonce 一并归零。
+//   手势：单指/左键拖拽 = 旋转，Shift+拖拽 = 平移，双指 = 捏合缩放 + 中点平移，
+//   滚轮 = 光标锚定缩放（平移/缩放经 onCameraChange 回流共享镜头）。
+//   背景为全天球星场（远星两层 + 银河带 + 星座团簇连线，确定性生成）：
+//   旋转到任何角度天空都有内容。
 // - 渐进加载：three 只在本组件挂载后 await import("three")——2.5D 路径（默认视图）
 //   永不支付 three 的包体；顶部 import type 仅类型引用，编译期擦除。
 // - 降级：WebGL 探测失败 / three 导入失败 / WebGLRenderer 创建失败 /
@@ -36,7 +38,9 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import type {
+  BufferGeometry,
   CanvasTexture,
+  Material,
   PerspectiveCamera,
   Points,
   PointsMaterial,
@@ -75,10 +79,11 @@ const WORLD_HEIGHT = 100;
 const LAMP_DEPTH = 6;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 4;
-/** 环绕（arcball）灵敏度（弧度/像素）：80px 拖拽 ≈ 23°，与地图应用同族 */
+/** 环绕（轨迹球）灵敏度（弧度/像素）：200px 拖拽 ≈ 57°，与地图应用同族 */
 const ORBIT_K = 0.005;
-/** 相机高度护栏：视点到海面的 z 不低于 0.25×dist（≈15° 仰角）——不钻到海面下方/不翻底 */
-const MIN_ELEV_RATIO = 0.25;
+/** 相机高度护栏：视点到海面的 z 不低于 0.12×dist（≈7° 仰角）——可贴近地平线看星海，
+ *  但不钻到海面下方/不翻底；被拦截的增量减半重试一次，避免硬粘滞 */
+const MIN_ELEV_RATIO = 0.12;
 
 export interface DerivedCamera3D {
   worldW: number;
@@ -130,20 +135,111 @@ function fnv1aLocal(text: string): number {
   return hash >>> 0;
 }
 
-const DOME_COUNT = 260;
-function domePositions(): Float32Array {
-  const out = new Float32Array(DOME_COUNT * 3);
-  for (let i = 0; i < DOME_COUNT; i += 1) {
-    const h1 = fnv1aLocal(`starsea-dome:${i}:a`);
-    const h2 = fnv1aLocal(`starsea-dome:${i}:b`);
-    const theta = ((h1 % 4096) / 4096) * Math.PI * 2;
-    const phi = ((h2 % 1000) / 1000) * (Math.PI / 2) * 0.94;
-    const r = 880 + (h1 % 220);
-    out[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    out[i * 3 + 1] = r * Math.cos(phi);
-    out[i * 3 + 2] = -Math.abs(r * Math.sin(phi) * Math.sin(theta)); // 只留镜头前方（z < 0）
+// ---- 全天球星场（2026-09-02 用户拍板：360° 各角度都有星系/星座背景）----
+// 全部由 fnv1aLocal 确定性生成，无随机源；位置为完整球面（不再只留镜头前方）。
+
+/** 球面上确定性取点：黄金角螺旋（近似均匀）+ 确定性抖动 */
+function spherePoint(i: number, total: number, jitter: number, radius: number): [number, number, number] {
+  const h1 = fnv1aLocal(`sky:${i}:${total}:a`);
+  const h2 = fnv1aLocal(`sky:${i}:${total}:b`);
+  const h3 = fnv1aLocal(`sky:${i}:${total}:c`);
+  // 斐波那契球分布
+  const y = 1 - (2 * (i + ((h1 % 1000) / 1000) * jitter)) / total;
+  const r = Math.sqrt(Math.max(0, 1 - y * y));
+  const theta = i * 2.399963229728653 + ((h2 % 1000) / 1000) * jitter * Math.PI; // 黄金角
+  const rr = radius * (1 + ((h3 % 1000) / 1000 - 0.5) * 0.22);
+  return [rr * r * Math.cos(theta), y * rr, rr * r * Math.sin(theta)];
+}
+
+/** 基础远星：两层（暗层量大 / 亮层量少带冷暖色偏） */
+export interface SkyfarLayers {
+  dimPositions: Float32Array;
+  brightPositions: Float32Array;
+  brightColors: Float32Array;
+  bandPositions: Float32Array;
+  bandColors: Float32Array;
+  clumpPositions: Float32Array;
+  clumpColors: Float32Array;
+  linePositions: Float32Array;
+}
+const SKY_RADIUS = 950;
+const BAND_TILT = (60 * Math.PI) / 180; // 银河带倾角：与海面成 60°，旋转时更有空间感
+function buildSkyfield(): SkyfarLayers {
+  // 暗层 340 + 亮层 120（黄金角全球）
+  const dimPositions = new Float32Array(340 * 3);
+  for (let i = 0; i < 340; i += 1) {
+    const [x, y, z] = spherePoint(i, 340, 0.6, SKY_RADIUS);
+    dimPositions.set([x, y, z], i * 3);
   }
-  return out;
+  const brightPositions = new Float32Array(120 * 3);
+  const brightColors = new Float32Array(120 * 3);
+  for (let i = 0; i < 120; i += 1) {
+    const [x, y, z] = spherePoint(i, 120, 0.8, SKY_RADIUS);
+    brightPositions.set([x, y, z], i * 3);
+    const t = (fnv1aLocal(`sky-bright:${i}`) % 1000) / 1000;
+    const warm = t > 0.72; // 少量暖星（暖白偏金），其余冷白偏蓝
+    brightColors.set(warm ? [1, 0.92, 0.78] : [0.82, 0.88, 1], i * 3);
+  }
+  // 银河带：260 点集中于一条倾斜大圆 ±14° 纬带（暖蓝渐变，旋转到任何角度都可见）
+  const bandPositions = new Float32Array(260 * 3);
+  const bandColors = new Float32Array(260 * 3);
+  const cosT = Math.cos(BAND_TILT);
+  const sinT = Math.sin(BAND_TILT);
+  for (let i = 0; i < 260; i += 1) {
+    const h1 = fnv1aLocal(`band:${i}:a`);
+    const h2 = fnv1aLocal(`band:${i}:b`);
+    const lon = ((h1 % 4096) / 4096) * Math.PI * 2;
+    const lat = (((h2 % 1000) / 1000 - 0.5) * 28 * Math.PI) / 180; // ±14°
+    const r = SKY_RADIUS * 1.06;
+    // 大圆坐标（赤道系）→ 绕 x 轴倾斜 BAND_TILT
+    const bx = r * Math.cos(lat) * Math.cos(lon);
+    const by0 = r * Math.sin(lat);
+    const bz0 = r * Math.cos(lat) * Math.sin(lon);
+    bandPositions.set([bx, by0 * cosT - bz0 * sinT, by0 * sinT + bz0 * cosT], i * 3);
+    const warm = Math.cos(lon) > 0.3; // 沿带渐变：半圈偏暖、半圈偏冷蓝
+    bandColors.set(warm ? [0.95, 0.9, 0.82] : [0.78, 0.84, 1], i * 3);
+  }
+  // 星座团簇：7 组，每组 16 星围绕簇心小角度散布；组内按序连线（折线星座感）
+  const clumpCenters: Array<[number, number, number]> = [];
+  for (let c = 0; c < 7; c += 1) {
+    const [x, y, z] = spherePoint(500 + c, 507, 0.9, SKY_RADIUS * 0.98);
+    clumpCenters.push([x, y, z]);
+  }
+  const clumpPositions = new Float32Array(7 * 16 * 3);
+  const clumpColors = new Float32Array(7 * 16 * 3);
+  const linePositions: number[] = [];
+  for (let c = 0; c < 7; c += 1) {
+    const [cx, cy, cz] = clumpCenters[c];
+    const spread = SKY_RADIUS * 0.055;
+    const prev: Array<[number, number, number]> = [];
+    for (let s = 0; s < 16; s += 1) {
+      const h1 = fnv1aLocal(`clump:${c}:${s}:a`);
+      const h2 = fnv1aLocal(`clump:${c}:${s}:b`);
+      const h3 = fnv1aLocal(`clump:${c}:${s}:c`);
+      const p: [number, number, number] = [
+        cx + (((h1 % 1000) / 1000 - 0.5) * 2 - 0) * spread,
+        cy + (((h2 % 1000) / 1000 - 0.5) * 2) * spread,
+        cz + (((h3 % 1000) / 1000 - 0.5) * 2) * spread,
+      ];
+      clumpPositions.set(p, (c * 16 + s) * 3);
+      clumpColors.set([0.92, 0.94, 1], (c * 16 + s) * 3);
+      // 连线：每 2 星连一条折线（s 偶数位与前一星相连）——稀疏的星座连线感
+      if (s > 0 && s % 2 === 0 && prev[s - 1]) {
+        linePositions.push(...prev[s - 1], ...p);
+      }
+      prev[s] = p;
+    }
+  }
+  return {
+    dimPositions,
+    brightPositions,
+    brightColors,
+    bandPositions,
+    bandColors,
+    clumpPositions,
+    clumpColors,
+    linePositions: new Float32Array(linePositions),
+  };
 }
 
 function webglSupported(): boolean {
@@ -157,7 +253,7 @@ function webglSupported(): boolean {
 
 // ---- D 档星光贴图（2026-09-02，与 2.5D 星点同观感；canvas 确定性绘制，无随机） ----
 
-/** 光晕精灵：白核 + 多层衰减光晕（白色，由顶点色/材质色着色；叠加混合） */
+/** 光晕精灵：白核 + 多层衰减光晕 + 极淡星尘环（白色，由顶点色/材质色着色；叠加混合） */
 function makeAuraTexture(THREE: ThreeNS) {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
@@ -169,6 +265,30 @@ function makeAuraTexture(THREE: ThreeNS) {
     grad.addColorStop(0.14, "rgba(255,255,255,0.95)");
     grad.addColorStop(0.32, "rgba(255,255,255,0.38)");
     grad.addColorStop(0.62, "rgba(255,255,255,0.12)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    // 星尘环（2.5D D 档同款）：~72% 半径处的极淡细环
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(32, 32, 23, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+/** 大光晕精灵（仅 24h 明灭暖星）：无白核的纯柔光衰减盘，暖色由材质色给 */
+function makeHaloTexture(THREE: ThreeNS) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, "rgba(255,255,255,0.5)");
+    grad.addColorStop(0.25, "rgba(255,255,255,0.28)");
+    grad.addColorStop(0.55, "rgba(255,255,255,0.1)");
     grad.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 64, 64);
@@ -452,8 +572,11 @@ interface ThreeStack {
   lampMat: PointsMaterial;
   glintPoints: Points;
   glintMat: PointsMaterial;
+  litHaloPoints: Points;
+  litHaloMat: PointsMaterial;
   auraTex: CanvasTexture;
   glintTex: CanvasTexture;
+  haloTex: CanvasTexture;
 }
 
 interface StarSea3DProps {
@@ -585,18 +708,81 @@ export default function StarSea3D({
         const scene = new THREE.Scene();
         const camera3 = new THREE.PerspectiveCamera(FOV_DEG, 1, 0.1, 3000);
 
-        // 背景星穹（确定性位置，无随机源）
-        const domeGeo = new THREE.BufferGeometry();
-        domeGeo.setAttribute("position", new THREE.BufferAttribute(domePositions(), 3));
-        const domeMat = new THREE.PointsMaterial({
-          color: 0xc5d0e5,
-          size: 1.6,
-          sizeAttenuation: false,
+        // 全天球背景星场（2026-09-02 用户拍板，确定性生成，无随机源）：
+        // 远星两层 + 银河带（倾斜大圆 ±14° 纬带）+ 7 组星座团簇（含极淡连线）。
+        // 旋转到任何角度背景都有内容；点/线全部静态（无动画，reduced-motion 天然合规）。
+        const sky = buildSkyfield();
+        const skyLayers: Array<{ geo: BufferGeometry; mat: Material }> = [];
+        const addSkyLayer = (
+          positions: Float32Array,
+          mat: Material,
+          colors?: Float32Array
+        ): BufferGeometry => {
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+          if (colors) geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+          scene.add(new THREE.Points(geo, mat));
+          skyLayers.push({ geo, mat });
+          return geo;
+        };
+        addSkyLayer(
+          sky.dimPositions,
+          new THREE.PointsMaterial({
+            color: 0xc5d0e5,
+            size: 1.5,
+            sizeAttenuation: false,
+            transparent: true,
+            opacity: 0.45,
+            depthWrite: false,
+          })
+        );
+        addSkyLayer(
+          sky.brightPositions,
+          new THREE.PointsMaterial({
+            size: 2.2,
+            sizeAttenuation: false,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.75,
+            depthWrite: false,
+          }),
+          sky.brightColors
+        );
+        addSkyLayer(
+          sky.bandPositions,
+          new THREE.PointsMaterial({
+            size: 1.3,
+            sizeAttenuation: false,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.55,
+            depthWrite: false,
+          }),
+          sky.bandColors
+        );
+        addSkyLayer(
+          sky.clumpPositions,
+          new THREE.PointsMaterial({
+            size: 2,
+            sizeAttenuation: false,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            depthWrite: false,
+          }),
+          sky.clumpColors
+        );
+        // 星座连线：极淡折线（ additive 感由透明度控制）
+        const lineGeo = new THREE.BufferGeometry();
+        lineGeo.setAttribute("position", new THREE.BufferAttribute(sky.linePositions, 3));
+        const lineMat = new THREE.LineBasicMaterial({
+          color: 0xaebadd,
           transparent: true,
-          opacity: 0.5,
+          opacity: 0.12,
           depthWrite: false,
         });
-        scene.add(new THREE.Points(domeGeo, domeMat));
+        scene.add(new THREE.LineSegments(lineGeo, lineMat));
+        skyLayers.push({ geo: lineGeo, mat: lineMat });
 
         // 星点（灯）：位置/颜色与 2.5D 同数据同语义（candleLit 暖橙、official 只提亮、
         // 搜索不匹配只降亮），z 向浮动提供透视深度。D 档贴图（2026-09-02）：
@@ -630,6 +816,22 @@ export default function StarSea3D({
         const glintPoints = new THREE.Points(new THREE.BufferGeometry(), glintMat);
         scene.add(glintPoints);
 
+        // 大光晕层（D 档，2026-09-02）：仅明灭暖星的纯柔光衰减盘（无白核），
+        // 暖橙材质色 + 低透明度叠加——对应 2.5D 暖星的多层大 box-shadow
+        const haloTex = makeHaloTexture(THREE);
+        const litHaloMat = new THREE.PointsMaterial({
+          size: 4,
+          sizeAttenuation: true,
+          color: 0xfbbf24,
+          map: haloTex,
+          transparent: true,
+          opacity: 0.34,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        });
+        const litHaloPoints = new THREE.Points(new THREE.BufferGeometry(), litHaloMat);
+        scene.add(litHaloPoints);
+
         const onContextLost = (event: Event) => {
           event.preventDefault();
           contextLost = true;
@@ -655,7 +857,21 @@ export default function StarSea3D({
         };
         document.addEventListener("visibilitychange", onVisibility);
 
-        threeRef.current = { THREE, scene, camera: camera3, renderer, lampPoints, lampMat, glintPoints, glintMat, auraTex, glintTex };
+        threeRef.current = {
+          THREE,
+          scene,
+          camera: camera3,
+          renderer,
+          lampPoints,
+          lampMat,
+          glintPoints,
+          glintMat,
+          litHaloPoints,
+          litHaloMat,
+          auraTex,
+          glintTex,
+          haloTex,
+        };
         setPhase("ready");
         applyViewport();
         applyCameraRef.current();
@@ -672,10 +888,15 @@ export default function StarSea3D({
           lampMat.dispose();
           glintPoints.geometry.dispose();
           glintMat.dispose();
+          litHaloPoints.geometry.dispose();
+          litHaloMat.dispose();
           auraTex.dispose();
           glintTex.dispose();
-          domeGeo.dispose();
-          domeMat.dispose();
+          haloTex.dispose();
+          for (const layer of skyLayers) {
+            layer.geo.dispose();
+            layer.mat.dispose();
+          }
           // 显式释放 WebGL 上下文：2D↔3D 每次切换都新建上下文，浏览器对活跃
           // 上下文有上限（Chrome ~16 个）——只 dispose 的话，脱离文档的旧 canvas
           // 在 GC 前仍占名额，密集切换可能把活上下文挤掉导致误降级。上下文已
@@ -724,9 +945,10 @@ export default function StarSea3D({
     // 星点世界尺寸：three 的 sizeAttenuation 是 gl_PointSize = size × (vh/2) / dist
     // （注意分母没有 tan(fov/2) 因子），因此要与 2.5D 的 D 档星光观感对齐
     // （2026-09-02：光晕精灵盘约 20px 视觉外径），需 size = 20 × worldH / (tanHalf × scale × vh)；
-    // 十字光芒层 ≈ 光晕的 2.4 倍。
+    // 大光晕层（暖星）≈ 2.8 倍；十字光芒层 ≈ 2.4 倍。
     const lampPx = (20 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
     stack.lampMat.size = lampPx;
+    stack.litHaloMat.size = lampPx * 2.8;
     stack.glintMat.size = lampPx * 2.4;
   };
 
@@ -793,19 +1015,24 @@ export default function StarSea3D({
     stack.lampPoints.geometry.dispose();
     stack.lampPoints.geometry = geo;
 
-    // 十字光芒缓冲（D 档）：仅 candleLit 暖星的馆锚点（z=0）
+    // 十字光芒 + 大光晕缓冲（D 档）：仅 candleLit 暖星的馆锚点（z=0），两层同点位
     const litHalls = list.filter((hall) => hall.candleLit);
     stack.glintPoints.visible = litHalls.length > 0;
-    const glintPos = new Float32Array(litHalls.length * 3);
+    stack.litHaloPoints.visible = litHalls.length > 0;
+    const litPos = new Float32Array(litHalls.length * 3);
     litHalls.forEach((hall, i) => {
-      glintPos[i * 3] = (hall.x - 0.5) * worldW;
-      glintPos[i * 3 + 1] = (0.5 - hall.y) * worldH;
-      glintPos[i * 3 + 2] = 0;
+      litPos[i * 3] = (hall.x - 0.5) * worldW;
+      litPos[i * 3 + 1] = (0.5 - hall.y) * worldH;
+      litPos[i * 3 + 2] = 0;
     });
     const glintGeo = new stack.THREE.BufferGeometry();
-    glintGeo.setAttribute("position", new stack.THREE.BufferAttribute(glintPos, 3));
+    glintGeo.setAttribute("position", new stack.THREE.BufferAttribute(litPos, 3));
     stack.glintPoints.geometry.dispose();
     stack.glintPoints.geometry = glintGeo;
+    const haloGeo = new stack.THREE.BufferGeometry();
+    haloGeo.setAttribute("position", new stack.THREE.BufferAttribute(litPos.slice(), 3));
+    stack.litHaloPoints.geometry.dispose();
+    stack.litHaloPoints.geometry = haloGeo;
   };
 
   // ---- 相机放置 + overlay 投影（camera.project：旋转/平移/缩放同源同果） ----
@@ -907,27 +1134,35 @@ export default function StarSea3D({
       commit({ scale: cameraRef.current.scale, x: cameraRef.current.x + dx, y: cameraRef.current.y + dy });
       return;
     }
-    // 单指/左键拖拽 = 环绕旋转（arcball，仅 3D 层内存；不进 URL/sessionStorage/共享镜头）。
-    // 绕「当前相机屏幕轴」累积四元数：水平拖绕屏幕 up 轴、垂直拖绕屏幕 right 轴——
-    // 无天顶极点退化；护栏：视点 z 不低于 0.25×dist（不钻海面/不翻底）。
+    // 单指/左键拖拽 = 环绕旋转（轨迹球，2026-09-02 用户反馈迭代：拖拽向量直接给出
+    // 旋转轴，「抓住场景拖」——内容跟随光标；仅 3D 层内存，不进 URL/sessionStorage/共享镜头）。
+    // 轴（相机系→世界系）= 屏幕右轴×(-dy) + 屏幕上轴×(-dx)，角 = K×拖拽距离；
+    // 护栏 MIN_ELEV_RATIO：低于仰角时减半重试一次再放弃（防「拖不动」的粘滞感）。
     const stack = threeRef.current;
     if (!stack) return;
     const { w: vw, h: vh } = viewportRef.current;
     if (vw <= 0 || vh <= 0) return;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.5) return;
     stack.camera.updateMatrixWorld(true);
     const right = new stack.THREE.Vector3().setFromMatrixColumn(stack.camera.matrixWorld, 0).normalize();
     const up = new stack.THREE.Vector3().setFromMatrixColumn(stack.camera.matrixWorld, 1).normalize();
+    const axis = right
+      .clone()
+      .multiplyScalar(-dy)
+      .add(up.clone().multiplyScalar(-dx))
+      .normalize();
     const q = new stack.THREE.Quaternion(orbitRef.current.x, orbitRef.current.y, orbitRef.current.z, orbitRef.current.w);
     const dist = deriveCamera3D(cameraRef.current, vw, vh).dist;
-    const tryOrbit = (axis: InstanceType<ThreeNS["Vector3"]>, angle: number) => {
-      if (angle === 0) return;
+    const attempt = (angle: number): boolean => {
       const candidate = q.clone().premultiply(new stack.THREE.Quaternion().setFromAxisAngle(axis, angle));
       const oz = new stack.THREE.Vector3(0, 0, dist).applyQuaternion(candidate).z;
-      if (oz < MIN_ELEV_RATIO * dist) return; // 护栏拦截该轴本次增量（另一轴不受牵连）
+      if (oz < MIN_ELEV_RATIO * dist) return false;
       q.copy(candidate);
+      return true;
     };
-    tryOrbit(up, -dx * ORBIT_K);
-    tryOrbit(right, -dy * ORBIT_K);
+    const angle = ORBIT_K * len;
+    if (!attempt(angle)) attempt(angle / 2);
     q.normalize();
     orbitRef.current = { x: q.x, y: q.y, z: q.z, w: q.w };
     setOrbit(orbitRef.current);
