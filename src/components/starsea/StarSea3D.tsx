@@ -1,25 +1,30 @@
 "use client";
 
-// 星海 3D 渐进增强层（Task 7，墓园规格 §5）：
+// 星海 3D 渐进增强层（Task 7，墓园规格 §5；2026-09-02 增环绕旋转与 D 档星光）：
 // - 职责边界：3D 只负责「渲染与镜头」——选馆/进馆/键盘导航/44px 热区/焦点环全部
 //   走独立 DOM overlay（StarSeaDomOverlay，本文件导出）；overlay 按钮与 canvas
-//   共享同一份 GardenSeaHall[] 与同一份镜头状态（GardenSeaState.scale/offset）。
-// - 镜头同构：3D 相机是共享镜头（scale/offset + 视口）的纯函数（deriveCamera3D），
-//   不持有自有状态 —— 2.5D/3D 双向切换保留同一镜头快照；canvas 上的拖拽/滚轮/
-//   双指捏合与 2.5D 场景（StarSeaScene）同一套像素数学，经 onCameraChange 回流。
+//   共享同一份 GardenSeaHall[]，投影直接取 three 相机的真实投影矩阵——
+//   旋转到任何角度热区都钉在星点上。
+// - 镜头：共享镜头（scale/offset）仍由 deriveCamera3D 纯函数放置（与 2.5D 逐像素
+//   对齐，双向切换保留快照）；3D 额外持有「环绕旋转」自由度（arcball 四元数，
+//   2026-09-02 用户拍板：绕相机屏幕轴累积，无天顶极点退化，视点高度护栏防翻底）
+//   ——只活在组件内存：不进 URL/sessionStorage 白名单，切回 2.5D / 卸载即归零；
+//   复位按钮经 cameraResetNonce 一并归零。手势：单指/左键拖拽 = 旋转，
+//   Shift+拖拽 = 平移，双指 = 捏合缩放 + 中点平移，滚轮 = 光标锚定缩放
+//   （平移/缩放经 onCameraChange 回流共享镜头）。
 // - 渐进加载：three 只在本组件挂载后 await import("three")——2.5D 路径（默认视图）
 //   永不支付 three 的包体；顶部 import type 仅类型引用，编译期擦除。
 // - 降级：WebGL 探测失败 / three 导入失败 / WebGLRenderer 创建失败 /
 //   webglcontextlost（preventDefault 后）→ onFatalError → 控制器 fallback2d：
 //   只替换场景渲染器，抽屉与控制条不动。
-// - 渲染节奏：按需渲染。镜头/数据/尺寸变化补一帧（reduced-motion 同步渲染，
+// - 渲染节奏：按需渲染。镜头/数据/尺寸/旋转变化补一帧（reduced-motion 同步渲染，
 //   否则单发 rAF）；页面隐藏取消待渲染帧、恢复可见补一帧；任何情况下都不跑
 //   连续 rAF 循环（规格 §6 reduced-motion 红线）。
 // - 择位模式（Task 6）不进 3D：择位拖拽是 2D DOM 交互，控制器在 placement.active
 //   时强制渲染 2.5D 并忽略 3D 视图切换（本组件不感知择位）。
-// - 资源回收：卸载时释放 geometry/material/renderer、断开 ResizeObserver、取消
-//   rAF、移除全部监听。未使用 OrbitControls——镜头由共享状态驱动，无 controls
-//   实例需要 dispose。
+// - 资源回收：卸载时释放 geometry/material/texture/renderer、断开 ResizeObserver、
+//   取消 rAF、移除全部监听。未使用 OrbitControls——旋转/平移/缩放手势与共享
+//   镜头回流一体实现，无 controls 实例需要 dispose。
 
 import {
   createContext,
@@ -30,7 +35,14 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { PerspectiveCamera, Points, PointsMaterial, Scene, WebGLRenderer } from "three";
+import type {
+  CanvasTexture,
+  PerspectiveCamera,
+  Points,
+  PointsMaterial,
+  Scene,
+  WebGLRenderer,
+} from "three";
 import type { GardenSeaHall } from "../../lib/garden-sea";
 import { starOffsets } from "../../lib/garden-sea";
 import { LOD_FAR_SCALE } from "./StarCluster";
@@ -63,6 +75,10 @@ const WORLD_HEIGHT = 100;
 const LAMP_DEPTH = 6;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 4;
+/** 环绕（arcball）灵敏度（弧度/像素）：80px 拖拽 ≈ 23°，与地图应用同族 */
+const ORBIT_K = 0.005;
+/** 相机高度护栏：视点到海面的 z 不低于 0.25×dist（≈15° 仰角）——不钻到海面下方/不翻底 */
+const MIN_ELEV_RATIO = 0.25;
 
 export interface DerivedCamera3D {
   worldW: number;
@@ -137,6 +153,50 @@ function webglSupported(): boolean {
   } catch {
     return false;
   }
+}
+
+// ---- D 档星光贴图（2026-09-02，与 2.5D 星点同观感；canvas 确定性绘制，无随机） ----
+
+/** 光晕精灵：白核 + 多层衰减光晕（白色，由顶点色/材质色着色；叠加混合） */
+function makeAuraTexture(THREE: ThreeNS) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, "rgba(255,255,255,1)");
+    grad.addColorStop(0.14, "rgba(255,255,255,0.95)");
+    grad.addColorStop(0.32, "rgba(255,255,255,0.38)");
+    grad.addColorStop(0.62, "rgba(255,255,255,0.12)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+/** 十字光芒精灵：中心横向 + 纵向柔条（仅 24h 明灭暖星渲染，暖白色） */
+function makeGlintTexture(THREE: ThreeNS) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const h = ctx.createLinearGradient(0, 0, 64, 0);
+    h.addColorStop(0, "rgba(255,255,255,0)");
+    h.addColorStop(0.5, "rgba(255,255,255,0.9)");
+    h.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = h;
+    ctx.fillRect(0, 31, 64, 2);
+    const v = ctx.createLinearGradient(0, 0, 0, 64);
+    v.addColorStop(0, "rgba(255,255,255,0)");
+    v.addColorStop(0.5, "rgba(255,255,255,0.9)");
+    v.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = v;
+    ctx.fillRect(31, 0, 2, 64);
+  }
+  return new THREE.CanvasTexture(canvas);
 }
 
 // ---- overlay 投影上下文：StarSea3D 每次渲染（镜头/数据/视口变化）重算投影，
@@ -390,6 +450,10 @@ interface ThreeStack {
   renderer: WebGLRenderer;
   lampPoints: Points;
   lampMat: PointsMaterial;
+  glintPoints: Points;
+  glintMat: PointsMaterial;
+  auraTex: CanvasTexture;
+  glintTex: CanvasTexture;
 }
 
 interface StarSea3DProps {
@@ -412,6 +476,8 @@ interface StarSea3DProps {
   onFatalError: () => void;
   /** 当前投影在屏的星群数 → 控制器调试指标（Task 8 Step 5） */
   onVisibleCountChange?: (count: number) => void;
+  /** 复位信号（随共享镜头复位递增）：3D 环绕旋转一并归零 */
+  cameraResetNonce?: number;
 }
 
 export default function StarSea3D({
@@ -430,6 +496,7 @@ export default function StarSea3D({
   overlay,
   onFatalError,
   onVisibleCountChange,
+  cameraResetNonce = 0,
 }: StarSea3DProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const holderRef = useRef<HTMLDivElement | null>(null);
@@ -438,6 +505,14 @@ export default function StarSea3D({
   const frameCountRef = useRef(0);
   const [phase, setPhase] = useState<"boot" | "ready">("boot");
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  // 环绕旋转（仅 3D 层内存，2026-09-02）：arcball 四元数（x,y,z,w，单位化）；
+  // reset 归零 / 卸载即失。不用「yaw/pitch 球坐标」——正俯视是天顶极点，
+  // 水平旋转恒等无视觉效果（实测踩坑）；arcball 绕相机屏幕轴累积，无极点退化。
+  const [orbit, setOrbit] = useState({ x: 0, y: 0, z: 0, w: 1 });
+  const orbitRef = useRef(orbit);
+  orbitRef.current = orbit;
+  // overlay 投影结果（相机直投，由下方 effect 在相机/旋转/数据变化后回填）
+  const [onscreen, setOnscreen] = useState<Array<StarSeaOverlayEntry>>([]);
 
   // 最新 props 镜像（效应/手势读 ref，避免闭包过期；与 StarSeaScene 同模式）
   const cameraRef = useRef(camera);
@@ -524,11 +599,14 @@ export default function StarSea3D({
         scene.add(new THREE.Points(domeGeo, domeMat));
 
         // 星点（灯）：位置/颜色与 2.5D 同数据同语义（candleLit 暖橙、official 只提亮、
-        // 搜索不匹配只降亮），z 向浮动提供透视深度
+        // 搜索不匹配只降亮），z 向浮动提供透视深度。D 档贴图（2026-09-02）：
+        // 光晕精灵（白核+多层光晕）由顶点色着色、叠加混合——与 2.5D 星点同观感
+        const auraTex = makeAuraTexture(THREE);
         const lampMat = new THREE.PointsMaterial({
           size: 4,
           sizeAttenuation: true,
           vertexColors: true,
+          map: auraTex,
           transparent: true,
           opacity: 0.95,
           depthWrite: false,
@@ -536,6 +614,21 @@ export default function StarSea3D({
         });
         const lampPoints = new THREE.Points(new THREE.BufferGeometry(), lampMat);
         scene.add(lampPoints);
+
+        // 十字光芒层（D 档）：仅 24h 明灭暖星，馆锚点一枚、暖白柔条叠加混合
+        const glintTex = makeGlintTexture(THREE);
+        const glintMat = new THREE.PointsMaterial({
+          size: 4,
+          sizeAttenuation: true,
+          color: 0xffe2a0,
+          map: glintTex,
+          transparent: true,
+          opacity: 0.75,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        });
+        const glintPoints = new THREE.Points(new THREE.BufferGeometry(), glintMat);
+        scene.add(glintPoints);
 
         const onContextLost = (event: Event) => {
           event.preventDefault();
@@ -562,7 +655,7 @@ export default function StarSea3D({
         };
         document.addEventListener("visibilitychange", onVisibility);
 
-        threeRef.current = { THREE, scene, camera: camera3, renderer, lampPoints, lampMat };
+        threeRef.current = { THREE, scene, camera: camera3, renderer, lampPoints, lampMat, glintPoints, glintMat, auraTex, glintTex };
         setPhase("ready");
         applyViewport();
         applyCameraRef.current();
@@ -577,6 +670,10 @@ export default function StarSea3D({
           cancelFrame();
           lampPoints.geometry.dispose();
           lampMat.dispose();
+          glintPoints.geometry.dispose();
+          glintMat.dispose();
+          auraTex.dispose();
+          glintTex.dispose();
           domeGeo.dispose();
           domeMat.dispose();
           // 显式释放 WebGL 上下文：2D↔3D 每次切换都新建上下文，浏览器对活跃
@@ -601,7 +698,7 @@ export default function StarSea3D({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- 共享镜头 → three 相机 + 单帧 ----
+  // ---- 共享镜头 + 环绕旋转 → three 相机 + 单帧 ----
   const applyCameraRef = useRef(() => {});
   applyCameraRef.current = () => {
     const stack = threeRef.current;
@@ -611,16 +708,26 @@ export default function StarSea3D({
     if (w <= 0 || h <= 0) return;
     const d = deriveCamera3D(cam, w, h);
     stack.camera.aspect = d.worldW / d.worldH;
-    stack.camera.position.set(d.tx, d.ty, d.dist);
+    // 环绕（arcball，2026-09-02）：基础偏移 (0,0,dist)（正俯视）经四元数旋转后
+    // 加到视心 (tx,ty,0)；up 随四元数同旋。单位四元数时与旧版逐像素对齐
+    // （投影 parity 保持：位置/朝向/up 与天顶参数化完全一致）。
+    const o = orbitRef.current;
+    const q = new stack.THREE.Quaternion(o.x, o.y, o.z, o.w).normalize();
+    const offset = new stack.THREE.Vector3(0, 0, d.dist).applyQuaternion(q);
+    stack.camera.position.set(d.tx + offset.x, d.ty + offset.y, offset.z);
+    stack.camera.up.set(0, 1, 0).applyQuaternion(q);
     stack.camera.lookAt(d.tx, d.ty, 0);
     stack.camera.near = Math.max(d.dist * 0.02, 0.05);
     stack.camera.far = d.dist + 2400; // 覆盖星穹半径（880–1100）
     stack.camera.updateProjectionMatrix();
+    stack.camera.updateMatrixWorld(true); // 投影前更新（overlay 用 camera.project 同帧取值）
     // 星点世界尺寸：three 的 sizeAttenuation 是 gl_PointSize = size × (vh/2) / dist
     // （注意分母没有 tan(fov/2) 因子），因此要与 2.5D 的 D 档星光观感对齐
-    // （2026-09-02：光晕盘外径约 18px、白核 3px，点精灵等效取 9px），
-    // 需 size = 9px × dist×2/vh ÷ tanHalf = 9 × worldH / (tanHalf × scale × vh)
-    stack.lampMat.size = (9 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
+    // （2026-09-02：光晕精灵盘约 20px 视觉外径），需 size = 20 × worldH / (tanHalf × scale × vh)；
+    // 十字光芒层 ≈ 光晕的 2.4 倍。
+    const lampPx = (20 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
+    stack.lampMat.size = lampPx;
+    stack.glintMat.size = lampPx * 2.4;
   };
 
   // ---- 数据 → 重建星点缓冲 + 单帧 ----
@@ -685,13 +792,55 @@ export default function StarSea3D({
     geo.setAttribute("color", new stack.THREE.BufferAttribute(colors, 3));
     stack.lampPoints.geometry.dispose();
     stack.lampPoints.geometry = geo;
+
+    // 十字光芒缓冲（D 档）：仅 candleLit 暖星的馆锚点（z=0）
+    const litHalls = list.filter((hall) => hall.candleLit);
+    stack.glintPoints.visible = litHalls.length > 0;
+    const glintPos = new Float32Array(litHalls.length * 3);
+    litHalls.forEach((hall, i) => {
+      glintPos[i * 3] = (hall.x - 0.5) * worldW;
+      glintPos[i * 3 + 1] = (0.5 - hall.y) * worldH;
+      glintPos[i * 3 + 2] = 0;
+    });
+    const glintGeo = new stack.THREE.BufferGeometry();
+    glintGeo.setAttribute("position", new stack.THREE.BufferAttribute(glintPos, 3));
+    stack.glintPoints.geometry.dispose();
+    stack.glintPoints.geometry = glintGeo;
   };
 
+  // ---- 相机放置 + overlay 投影（camera.project：旋转/平移/缩放同源同果） ----
   useEffect(() => {
     if (phase !== "ready") return;
-    applyCameraRef.current();
+    const stack = threeRef.current;
+    const { w, h } = viewport;
+    if (!stack || w <= 0 || h <= 0) return;
+    applyCameraRef.current(); // 含 updateMatrixWorld（投影同帧可用）
+    const cam = cameraRef.current;
+    const { worldW, worldH } = deriveCamera3D(cam, w, h);
+    const margin = Math.min(96, Math.max(44, 48 * cam.scale));
+    const v = new stack.THREE.Vector3();
+    const out: Array<StarSeaOverlayEntry> = [];
+    for (const hall of hallsRef.current) {
+      v.set((hall.x - 0.5) * worldW, (0.5 - hall.y) * worldH, 0);
+      v.project(stack.camera);
+      if (v.z > 1) continue; // 裁剪面外（安全兜底；pitch ≤60° 时海面不会到相机身后）
+      const x = ((v.x + 1) / 2) * w;
+      const y = ((1 - v.y) / 2) * h;
+      if (x < -margin || x > w + margin || y < -margin || y > h + margin) continue;
+      out.push({ hall, x, y });
+    }
+    setOnscreen(out);
     scheduleFrame();
-  }, [phase, camera.scale, camera.x, camera.y, viewport.w, viewport.h]);
+    // orbit 变化 = 旋转自由度；halls 身份变化 = 数据/匹配态更新
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, camera.scale, camera.x, camera.y, orbit.x, orbit.y, orbit.z, orbit.w, viewport.w, viewport.h, halls]);
+
+  // 复位信号：共享镜头复位时，3D 环绕旋转一并归零（规格 §5 复位只改镜头——镜头含旋转自由度）
+  useEffect(() => {
+    orbitRef.current = { x: 0, y: 0, z: 0, w: 1 };
+    setOrbit({ x: 0, y: 0, z: 0, w: 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraResetNonce]);
 
   useEffect(() => {
     if (phase !== "ready") return;
@@ -702,7 +851,7 @@ export default function StarSea3D({
   // ---- 手势：与 2.5D（StarSeaScene）同一套像素数学，回流共享镜头 ----
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const lastRef = useRef<{ x: number; y: number } | null>(null);
-  const pinchRef = useRef<{ distance: number; scale: number } | null>(null);
+  const pinchRef = useRef<{ distance: number; scale: number; lastMid?: { x: number; y: number } } | null>(null);
 
   function commit(next: { scale: number; x: number; y: number }) {
     const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next.scale));
@@ -718,7 +867,11 @@ export default function StarSea3D({
     lastRef.current = { x: event.clientX, y: event.clientY };
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
-      pinchRef.current = { distance: Math.hypot(a.x - b.x, a.y - b.y), scale: cameraRef.current.scale };
+      pinchRef.current = {
+        distance: Math.hypot(a.x - b.x, a.y - b.y),
+        scale: cameraRef.current.scale,
+        lastMid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
     } else {
       pinchRef.current = null;
     }
@@ -729,7 +882,7 @@ export default function StarSea3D({
     if (!pointers.has(event.pointerId)) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size >= 2 && pinchRef.current) {
-      // 双指捏合：围绕两指中点缩放（移动端，规格 §5）
+      // 双指：捏合缩放（围绕中点）+ 中点平移（移动端地图习惯；规格 §5 缩放/拖拽）
       const [a, b] = [...pointers.values()];
       const base = pinchRef.current;
       if (base.distance <= 0) return;
@@ -738,7 +891,10 @@ export default function StarSea3D({
       const current = cameraRef.current;
       const px = (mid.x - current.x) / current.scale;
       const py = (mid.y - current.y) / current.scale;
-      commit({ scale, x: mid.x - px * scale, y: mid.y - py * scale });
+      const panDx = mid.x - (base.lastMid?.x ?? mid.x);
+      const panDy = mid.y - (base.lastMid?.y ?? mid.y);
+      pinchRef.current = { ...base, lastMid: mid };
+      commit({ scale, x: mid.x - px * scale + panDx, y: mid.y - py * scale + panDy });
       return;
     }
     const last = lastRef.current;
@@ -746,7 +902,35 @@ export default function StarSea3D({
     const dx = event.clientX - last.x;
     const dy = event.clientY - last.y;
     lastRef.current = { x: event.clientX, y: event.clientY };
-    commit({ scale: cameraRef.current.scale, x: cameraRef.current.x + dx, y: cameraRef.current.y + dy });
+    if (event.shiftKey) {
+      // Shift+拖拽 = 平移（回流共享镜头，与 2.5D 同像素数学）
+      commit({ scale: cameraRef.current.scale, x: cameraRef.current.x + dx, y: cameraRef.current.y + dy });
+      return;
+    }
+    // 单指/左键拖拽 = 环绕旋转（arcball，仅 3D 层内存；不进 URL/sessionStorage/共享镜头）。
+    // 绕「当前相机屏幕轴」累积四元数：水平拖绕屏幕 up 轴、垂直拖绕屏幕 right 轴——
+    // 无天顶极点退化；护栏：视点 z 不低于 0.25×dist（不钻海面/不翻底）。
+    const stack = threeRef.current;
+    if (!stack) return;
+    const { w: vw, h: vh } = viewportRef.current;
+    if (vw <= 0 || vh <= 0) return;
+    stack.camera.updateMatrixWorld(true);
+    const right = new stack.THREE.Vector3().setFromMatrixColumn(stack.camera.matrixWorld, 0).normalize();
+    const up = new stack.THREE.Vector3().setFromMatrixColumn(stack.camera.matrixWorld, 1).normalize();
+    const q = new stack.THREE.Quaternion(orbitRef.current.x, orbitRef.current.y, orbitRef.current.z, orbitRef.current.w);
+    const dist = deriveCamera3D(cameraRef.current, vw, vh).dist;
+    const tryOrbit = (axis: InstanceType<ThreeNS["Vector3"]>, angle: number) => {
+      if (angle === 0) return;
+      const candidate = q.clone().premultiply(new stack.THREE.Quaternion().setFromAxisAngle(axis, angle));
+      const oz = new stack.THREE.Vector3(0, 0, dist).applyQuaternion(candidate).z;
+      if (oz < MIN_ELEV_RATIO * dist) return; // 护栏拦截该轴本次增量（另一轴不受牵连）
+      q.copy(candidate);
+    };
+    tryOrbit(up, -dx * ORBIT_K);
+    tryOrbit(right, -dy * ORBIT_K);
+    q.normalize();
+    orbitRef.current = { x: q.x, y: q.y, z: q.z, w: q.w };
+    setOrbit(orbitRef.current);
   }
 
   function onPointerUp(event: React.PointerEvent<HTMLDivElement>) {
@@ -776,20 +960,8 @@ export default function StarSea3D({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- overlay 投影（与 three 相机同源纯函数） ----
+  // ---- overlay 投影结果（相机直投，见上方 effect）----
   const buttonSize = Math.min(96, Math.max(44, 48 * camera.scale));
-  const onscreen = useMemo(() => {
-    if (viewport.w <= 0 || viewport.h <= 0) return [];
-    const margin = buttonSize;
-    const out: Array<StarSeaOverlayEntry> = [];
-    for (const hall of halls) {
-      const p = projectHallToScreen(hall, camera, viewport.w, viewport.h);
-      if (p.x < -margin || p.x > viewport.w + margin || p.y < -margin || p.y > viewport.h + margin) continue;
-      out.push({ hall, x: p.x, y: p.y });
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [halls, camera.scale, camera.x, camera.y, viewport.w, viewport.h, buttonSize]);
 
   useEffect(() => {
     onVisibleCountChange?.(onscreen.length);

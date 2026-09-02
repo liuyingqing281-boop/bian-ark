@@ -1004,8 +1004,75 @@ test.describe("正式 2.5D 星海", () => {
     await expect(cluster).toHaveAttribute("aria-label", /.+，3 位亲人/);
     // 不引入额外交互 chrome：控制条仍只有一套
     await expect(page.locator(".starsea-controls")).toHaveCount(1);
-    expect(pageErrors, "3D 渲染不得抛页面错误").toEqual([]);
+    expect(pageErrors, "3D 渲染不得页面错误").toEqual([]);
     expect(consoleErrors, "3D 渲染不得产生 console error").toEqual([]);
+  });
+
+  // 3D 环绕旋转（2026-09-02 用户拍板）：单指拖拽 = 旋转（仅 3D 层内存，不进共享镜头/URL）。
+  // 判别式：平移是所有星群等距位移（间距不变），旋转绕视心是非均匀位移（间距变化）。
+  test("3D 拖拽环绕旋转：投影非均匀移动、热区跟随可点、复位与重挂载归零", async ({ page }) => {
+    test.setTimeout(150_000);
+    await gotoStable(page, "/zh/garden?view=3d");
+    const root = page.locator(".starsea-scene-3d");
+    await expect(root).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+    const a = page.locator(`.starsea-3d-cluster[data-hall-id='${seededHallId}']`);
+    const b = page.locator(`.starsea-3d-cluster[data-hall-id='${nearHallAId}']`);
+    await expect(a).toBeVisible({ timeout: 30_000 });
+    await expect(b).toBeVisible({ timeout: 30_000 });
+
+    const a0 = (await a.boundingBox())!;
+    const b0 = (await b.boundingBox())!;
+    const gap0 = a0.x - b0.x;
+
+    // 空白处水平拖拽（避开星群热区/控件/抽屉）：挑一个安全带内不压任何热区的起点
+    const viewport = page.viewportSize()!;
+    const clusters: Array<{ x: number; y: number; width: number; height: number } | null> = [];
+    for (const loc of await page.locator(".starsea-3d-cluster").all()) {
+      clusters.push(await loc.boundingBox());
+    }
+    let sx = viewport.width * 0.5;
+    const sy = Math.min(viewport.height * 0.55, viewport.height - 220);
+    for (const box of clusters) {
+      if (box && Math.abs(box.x + box.width / 2 - sx) < 70 && Math.abs(box.y + box.height / 2 - sy) < 70) {
+        sx = viewport.width * 0.22;
+        break;
+      }
+    }
+    await page.mouse.move(sx, sy);
+    await page.mouse.down();
+    await page.mouse.move(sx + 80, sy, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    // 旋转判别：两星群水平间距发生变化（平移时间距恒定）
+    const a1 = (await a.boundingBox())!;
+    const b1 = (await b.boundingBox())!;
+    expect(Math.abs((a1.x - b1.x) - gap0), "环绕旋转应产生非均匀位移（平移则间距不变）").toBeGreaterThan(1.5);
+
+    // 热区跟随投影：旋转后点击星群 → 详情抽屉照常打开
+    await a.click();
+    await expect(page).toHaveURL(new RegExp(`hall=${seededHallId}`), { timeout: 10_000 });
+    await expect(page.locator(".starsea-drawer .starsea-detail")).toBeVisible({ timeout: 5_000 });
+    await page.keyboard.press("Escape"); // 回列表态，解除场景 inert
+
+    // 复位 = 镜头整体回正（含旋转自由度）：两星群回到原位
+    await page.locator(".starsea-reset").click();
+    await expect
+      .poll(async () => Math.abs(((await a.boundingBox()) ?? { x: NaN }).x - a0.x))
+      .toBeLessThanOrEqual(1.5);
+    expect(Math.abs(((await b.boundingBox()) ?? { x: NaN }).x - b0.x)).toBeLessThanOrEqual(1.5);
+
+    // 旋转不跨视图携带：再转一次 → 切 2.5D → 切回 3D → 回到正俯视原位
+    await page.mouse.move(sx, sy);
+    await page.mouse.down();
+    await page.mouse.move(sx + 80, sy, { steps: 12 });
+    await page.mouse.up();
+    await page.locator(".starsea-segment button").filter({ hasText: "2.5D" }).click();
+    await page.locator(".starsea-segment button").filter({ hasText: "3D" }).click();
+    await expect(root).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+    await expect
+      .poll(async () => Math.abs(((await a.boundingBox()) ?? { x: NaN }).x - a0.x))
+      .toBeLessThanOrEqual(1.5);
   });
 
   test("WebGL 不可用 + reduced-motion：3D 深链自动回退 2.5D 并以 role=status 播报", async ({ page }) => {

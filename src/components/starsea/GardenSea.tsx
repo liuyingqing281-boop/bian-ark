@@ -451,6 +451,8 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   // fallback2d：WebGL/three 失败只回退视图（state.view 整树 setState，不改冻结状态机）
   // 并以 role=status 播报；抽屉/控制条/其余浏览状态原样保留。用户主动切换视图即清除提示。
   const [fallback3dNotice, setFallback3dNotice] = useState(false);
+  // 复位信号（2026-09-02）：复位镜头时递增，3D 层的环绕旋转一并归零
+  const [cameraResetNonce, setCameraResetNonce] = useState(0);
 
   // ---- 动效档位 + 低性能闸门（Task 8 Step 4）----
   // SSR/首帧恒 "full"/false，挂载后在效应里探测实际环境再校正——若直接
@@ -798,7 +800,8 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
   );
 
   function handleResetCamera() {
-    // 复位只改镜头，不清浏览状态（墓园规格 §5）
+    // 复位只改镜头，不清浏览状态（墓园规格 §5）；3D 环绕旋转属镜头自由度，一并归零
+    setCameraResetNonce((n) => n + 1);
     setState((prev) =>
       gardenSeaReducer(gardenSeaReducer(prev, { type: "zoom", scale: 1 }), { type: "pan", x: 0, y: 0 })
     );
@@ -1091,6 +1094,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
           overlay={<StarSeaDomOverlay halls={halls} />}
           onFatalError={handle3dFatalError}
           onVisibleCountChange={handleVisibleClusters}
+          cameraResetNonce={cameraResetNonce}
         />
       ) : (
         <div className="starsea-scene-2d">
