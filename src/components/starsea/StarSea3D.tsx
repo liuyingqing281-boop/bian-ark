@@ -319,6 +319,30 @@ function makeGlintTexture(THREE: ThreeNS) {
   return new THREE.CanvasTexture(canvas);
 }
 
+// ---- 呼吸注入（2026-09-03 与 2.5D 观感对齐：3D 星也逐星呼吸）----
+// 逐星相位 aPhase（与 2.5D StarCluster 的 animationDelay 同公式）+ uTime 驱动，
+// 点尺寸按 2.5D 同款曲线脉动（5s 周期，scale 1↔1.10；灯层另做亮度 0.925↔1.075）。
+// 动画循环只在完整/简化档运行（简化档放慢 5/7，同 2.5D 的 7s）；静态档/reduced-motion
+// 不跑循环、维持按需单帧（规格 §6 红线——reduced-motion 下无连续动画）。
+const BREATH_ANG = (2 * Math.PI) / 5; // 5s 周期 ↔ 2.5D starsea-twinkle 5s
+function injectBreath(mat: Material, uTime: { value: number }, withColorPulse: boolean) {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = uTime;
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute float aPhase;\nuniform float uTime;")
+      .replace(
+        "#include <project_vertex>",
+        `#include <project_vertex>\n\tgl_PointSize *= 1.0 + 0.10 * sin(uTime * ${BREATH_ANG.toFixed(8)} + aPhase);`
+      );
+    if (withColorPulse) {
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <color_vertex>",
+        `#include <color_vertex>\n\tvColor *= 0.925 + 0.075 * sin(uTime * ${BREATH_ANG.toFixed(8)} + aPhase);`
+      );
+    }
+  };
+}
+
 // ---- overlay 投影上下文：StarSea3D 每次渲染（镜头/数据/视口变化）重算投影，
 // StarSeaDomOverlay 消费同一份数据渲染热区按钮 —— 按钮与 canvas 永不各算各的
 export interface StarSeaOverlayEntry {
@@ -601,6 +625,8 @@ interface StarSea3DProps {
   onVisibleCountChange?: (count: number) => void;
   /** 复位信号（随共享镜头复位递增）：3D 环绕旋转一并归零 */
   cameraResetNonce?: number;
+  /** 动效档位（Task 8）：full/simplified 跑星光呼吸循环（简化放慢），static 不跑 */
+  motionTier?: "full" | "simplified" | "static";
 }
 
 export default function StarSea3D({
@@ -620,6 +646,7 @@ export default function StarSea3D({
   onFatalError,
   onVisibleCountChange,
   cameraResetNonce = 0,
+  motionTier = "full",
 }: StarSea3DProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const holderRef = useRef<HTMLDivElement | null>(null);
@@ -628,14 +655,22 @@ export default function StarSea3D({
   const frameCountRef = useRef(0);
   const [phase, setPhase] = useState<"boot" | "ready">("boot");
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
-  // 环绕旋转（仅 3D 层内存，2026-09-02）：arcball 四元数（x,y,z,w，单位化）；
+  // 环绕旋转（仅 3D 层内存，2026-09-02）：轨迹球四元数（x,y,z,w，单位化）；
   // reset 归零 / 卸载即失。不用「yaw/pitch 球坐标」——正俯视是天顶极点，
-  // 水平旋转恒等无视觉效果（实测踩坑）；arcball 绕相机屏幕轴累积，无极点退化。
+  // 水平旋转恒等无视觉效果（实测踩坑）；轨迹球由拖拽向量直接给轴，无极点退化。
   const [orbit, setOrbit] = useState({ x: 0, y: 0, z: 0, w: 1 });
   const orbitRef = useRef(orbit);
   orbitRef.current = orbit;
   // overlay 投影结果（相机直投，由下方 effect 在相机/旋转/数据变化后回填）
   const [onscreen, setOnscreen] = useState<Array<StarSeaOverlayEntry>>([]);
+  // 星光呼吸（2026-09-03 对齐 2.5D）：共享 uTime uniform + 动画循环（档位门控）
+  const motionTierRef = useRef(motionTier);
+  motionTierRef.current = motionTier;
+  const timeUniformRef = useRef<{ value: number } | null>(null);
+  const animRafRef = useRef(0);
+  const animClockRef = useRef(0);
+  const animLastRef = useRef(0);
+  const syncAnimRef = useRef<() => void>(() => {});
 
   // 最新 props 镜像（效应/手势读 ref，避免闭包过期；与 StarSeaScene 同模式）
   const cameraRef = useRef(camera);
@@ -685,6 +720,43 @@ export default function StarSea3D({
       rafRef.current = 0;
     }
   }
+
+  // ---- 星光呼吸循环（2026-09-03）：仅 full/simplified 档、页面可见时运行；
+  // simplified 放慢 5/7（同 2.5D 的 7s）；static/隐藏/卸载即停（reduced-motion
+  // 由控制器落 static，天然满足「无连续动画」红线）。 ----
+  function animTick(now: number) {
+    animRafRef.current = 0;
+    const tier = motionTierRef.current;
+    if (document.hidden || tier === "static") {
+      animLastRef.current = 0;
+      return;
+    }
+    const last = animLastRef.current || now;
+    animLastRef.current = now;
+    const dt = Math.min(0.05, (now - last) / 1000);
+    animClockRef.current += dt * (tier === "simplified" ? 5 / 7 : 1);
+    if (timeUniformRef.current) timeUniformRef.current.value = animClockRef.current;
+    renderOnce();
+    animRafRef.current = requestAnimationFrame(animTick);
+  }
+
+  function syncAnim() {
+    const shouldRun = phase === "ready" && !document.hidden && motionTierRef.current !== "static";
+    if (shouldRun && !animRafRef.current) {
+      animRafRef.current = requestAnimationFrame(animTick);
+    } else if (!shouldRun && animRafRef.current) {
+      cancelAnimationFrame(animRafRef.current);
+      animRafRef.current = 0;
+      animLastRef.current = 0;
+    }
+  }
+
+  useEffect(() => {
+    syncAnim();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, motionTier]);
+
+  syncAnimRef.current = syncAnim;
 
   // ---- three 生命周期：动态导入 + WebGL 探测 + 全量回收 ----
   useEffect(() => {
@@ -832,6 +904,13 @@ export default function StarSea3D({
         const litHaloPoints = new THREE.Points(new THREE.BufferGeometry(), litHaloMat);
         scene.add(litHaloPoints);
 
+        // 星光呼吸（2026-09-03 对齐 2.5D）：共享 uTime，逐星相位注入三层星点材质
+        const uTime = { value: 0 };
+        timeUniformRef.current = uTime;
+        injectBreath(lampMat, uTime, true);
+        injectBreath(glintMat, uTime, false);
+        injectBreath(litHaloMat, uTime, false);
+
         const onContextLost = (event: Event) => {
           event.preventDefault();
           contextLost = true;
@@ -852,8 +931,13 @@ export default function StarSea3D({
         if (rootRef.current) observer.observe(rootRef.current);
 
         const onVisibility = () => {
-          if (document.hidden) cancelFrame();
-          else scheduleFrame();
+          if (document.hidden) {
+            cancelFrame();
+            syncAnimRef.current(); // 停呼吸循环
+          } else {
+            scheduleFrame();
+            syncAnimRef.current(); // 恢复呼吸（档位允许时）
+          }
         };
         document.addEventListener("visibilitychange", onVisibility);
 
@@ -884,6 +968,11 @@ export default function StarSea3D({
           document.removeEventListener("visibilitychange", onVisibility);
           canvas.removeEventListener("webglcontextlost", onContextLost);
           cancelFrame();
+          if (animRafRef.current) {
+            cancelAnimationFrame(animRafRef.current);
+            animRafRef.current = 0;
+          }
+          timeUniformRef.current = null;
           lampPoints.geometry.dispose();
           lampMat.dispose();
           glintPoints.geometry.dispose();
@@ -945,10 +1034,10 @@ export default function StarSea3D({
     // 星点世界尺寸：three 的 sizeAttenuation 是 gl_PointSize = size × (vh/2) / dist
     // （注意分母没有 tan(fov/2) 因子），因此要与 2.5D 的 D 档星光观感对齐
     // （2026-09-02：光晕精灵盘约 20px 视觉外径），需 size = 20 × worldH / (tanHalf × scale × vh)；
-    // 大光晕层（暖星）≈ 2.8 倍；十字光芒层 ≈ 2.4 倍。
+    // 大光晕层（暖星）≈ 3.2 倍（对应 2.5D 暖星 44–80px 的多层辉光尾）；十字光芒 ≈ 2.4 倍。
     const lampPx = (20 * d.worldH) / (TAN_HALF_FOV * cam.scale * h);
     stack.lampMat.size = lampPx;
-    stack.litHaloMat.size = lampPx * 2.8;
+    stack.litHaloMat.size = lampPx * 3.2;
     stack.glintMat.size = lampPx * 2.4;
   };
 
@@ -969,6 +1058,7 @@ export default function StarSea3D({
     stack.lampPoints.visible = count > 0;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
+    const phases = new Float32Array(count); // 呼吸相位（rad）：与 2.5D StarCluster delay 同公式
     let k = 0;
     for (const hall of list) {
       const offsets = starOffsets(hall.hallId, hall.lampCount); // 与 2.5D 同源确定性星阵
@@ -1006,12 +1096,14 @@ export default function StarSea3D({
         colors[k * 3] = Math.min(1, r);
         colors[k * 3 + 1] = Math.min(1, g);
         colors[k * 3 + 2] = Math.min(1, b);
+        phases[k] = (((i * 0.73 + hall.hallId.length * 0.11) % 5) / 5) * Math.PI * 2;
         k += 1;
       });
     }
     const geo = new stack.THREE.BufferGeometry();
     geo.setAttribute("position", new stack.THREE.BufferAttribute(positions, 3));
     geo.setAttribute("color", new stack.THREE.BufferAttribute(colors, 3));
+    geo.setAttribute("aPhase", new stack.THREE.BufferAttribute(phases, 1));
     stack.lampPoints.geometry.dispose();
     stack.lampPoints.geometry = geo;
 
@@ -1020,17 +1112,21 @@ export default function StarSea3D({
     stack.glintPoints.visible = litHalls.length > 0;
     stack.litHaloPoints.visible = litHalls.length > 0;
     const litPos = new Float32Array(litHalls.length * 3);
+    const litPhases = new Float32Array(litHalls.length);
     litHalls.forEach((hall, i) => {
       litPos[i * 3] = (hall.x - 0.5) * worldW;
       litPos[i * 3 + 1] = (0.5 - hall.y) * worldH;
       litPos[i * 3 + 2] = 0;
+      litPhases[i] = (((hall.hallId.length * 0.11) % 5) / 5) * Math.PI * 2; // 与馆内首星同相
     });
     const glintGeo = new stack.THREE.BufferGeometry();
     glintGeo.setAttribute("position", new stack.THREE.BufferAttribute(litPos, 3));
+    glintGeo.setAttribute("aPhase", new stack.THREE.BufferAttribute(litPhases.slice(), 1));
     stack.glintPoints.geometry.dispose();
     stack.glintPoints.geometry = glintGeo;
     const haloGeo = new stack.THREE.BufferGeometry();
     haloGeo.setAttribute("position", new stack.THREE.BufferAttribute(litPos.slice(), 3));
+    haloGeo.setAttribute("aPhase", new stack.THREE.BufferAttribute(litPhases, 1));
     stack.litHaloPoints.geometry.dispose();
     stack.litHaloPoints.geometry = haloGeo;
   };

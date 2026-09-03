@@ -1095,6 +1095,7 @@ export default function GardenSea({ lang, initialQuery }: GardenSeaProps) {
           onFatalError={handle3dFatalError}
           onVisibleCountChange={handleVisibleClusters}
           cameraResetNonce={cameraResetNonce}
+          motionTier={motionTier}
         />
       ) : (
         <div className="starsea-scene-2d">

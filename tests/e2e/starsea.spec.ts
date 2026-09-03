@@ -1312,6 +1312,27 @@ test.describe("正式 2.5D 星海", () => {
     await expect.poll(() => readFrames(), { timeout: 5_000 }).toBeGreaterThan(still);
   });
 
+  // 星光呼吸（2026-09-03 与 2.5D 观感对齐）：完整档持续渲染（逐星相位脉动），
+  // 静态档不跑连续循环（reduced-motion 红线只锁「档位/系统偏好下无连续动画」）。
+  test("完整档 3D 星光呼吸：静止时持续补帧；切静态档即停", async ({ page }) => {
+    test.setTimeout(150_000);
+    await gotoStable(page, "/zh/garden?view=3d");
+    const root = page.locator(".starsea-scene-3d");
+    await expect(root).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+    const readFrames = () => root.evaluate((el) => Number((el as HTMLElement).dataset.frames || "0"));
+    const base = await readFrames();
+    await page.waitForTimeout(900);
+    expect(await readFrames(), "完整档应有星光呼吸（持续渲染）").toBeGreaterThan(base);
+    // 控制条动效循环按钮：full → simplified → static（两步到静态档）
+    const motionButton = page.locator(".starsea-motion");
+    await motionButton.click();
+    await motionButton.click();
+    await page.waitForTimeout(400); // 等最后一次因点击产生的补帧落定
+    const still = await readFrames();
+    await page.waitForTimeout(800);
+    expect(await readFrames(), "静态档不得连续渲染").toBe(still);
+  });
+
   // ---------- 性能、动效档与规模（Task 8，规格 §6/§8.5） ----------
   // 滚轮缩放辅助：与既有 3D 测试同款 dispatchEvent（真实滚轮在移动端模拟下锚点不可靠）
   const wheelZoom = (page: Page, deltaY: number) =>
