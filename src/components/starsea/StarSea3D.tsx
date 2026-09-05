@@ -169,6 +169,62 @@ const SKY_FIGURES: Array<{ name: string; strokes: Array<Array<[number, number]>>
   { name: "天鹰", strokes: [[[-0.7, 0.15], [-0.1, 0.45], [0.6, 0.2]], [[0.0, 0.1], [-0.15, -0.6], [-0.3, -0.8]]] },
 ];
 
+/** 方位/仰角（度）→ 单位方向（常视带锚定布设用） */
+function dirFromYawEl(yawDeg: number, elDeg: number): [number, number, number] {
+  const y = (yawDeg * Math.PI) / 180;
+  const e = (elDeg * Math.PI) / 180;
+  return [Math.cos(e) * Math.sin(y), Math.sin(e), Math.cos(e) * Math.cos(y)];
+}
+
+/**
+ * 常视带锚点（v7 择定 G2，2026-09-05 用户定稿 S3/R1/G2/P2；天文馆范式：
+ * 分布跟着眼睛走——人 80% 时间看仰角 -20°~+45° 与天顶）：
+ * 主锚 6（每 60° 方位，仰角 14°~32°，云/系交替）+ 贴地次锚 6（仰角 -6°~-12°）
+ * + 中天锚 4（每 90° 方位，仰角 42°~51°）+ 天顶锚 1（抬头必见）
+ * + G2 加密：低仰角补充 4 + 半程方位星系 2。
+ */
+interface SkyAnchor {
+  yaw: number;
+  el: number;
+  kind: "nebula" | "galaxy";
+  main: boolean;
+}
+const SKY_ANCHORS: Array<SkyAnchor> = [
+  { yaw: 16, el: 14, kind: "nebula", main: true },
+  { yaw: 76, el: 23, kind: "galaxy", main: true },
+  { yaw: 136, el: 32, kind: "nebula", main: true },
+  { yaw: 190, el: 14, kind: "galaxy", main: true },
+  { yaw: 256, el: 23, kind: "nebula", main: true },
+  { yaw: 316, el: 32, kind: "galaxy", main: true },
+  { yaw: 34, el: -6, kind: "nebula", main: false },
+  { yaw: 94, el: -11, kind: "nebula", main: false },
+  { yaw: 154, el: -6, kind: "nebula", main: false },
+  { yaw: 214, el: -11, kind: "nebula", main: false },
+  { yaw: 274, el: -6, kind: "nebula", main: false },
+  { yaw: 334, el: -11, kind: "nebula", main: false },
+  { yaw: 48, el: 42, kind: "nebula", main: true },
+  { yaw: 138, el: 51, kind: "galaxy", main: true },
+  { yaw: 228, el: 42, kind: "nebula", main: true },
+  { yaw: 318, el: 51, kind: "galaxy", main: true },
+  { yaw: 24, el: 86, kind: "galaxy", main: true },
+  // G2 加密补充
+  { yaw: 16, el: 2, kind: "nebula", main: false },
+  { yaw: 106, el: 9, kind: "nebula", main: false },
+  { yaw: 196, el: 2, kind: "nebula", main: false },
+  { yaw: 286, el: 9, kind: "nebula", main: false },
+  { yaw: 90, el: 24, kind: "galaxy", main: true },
+  { yaw: 270, el: 24, kind: "galaxy", main: true },
+];
+
+/** 星团方向：主锚旁配对（方位 +16° / 仰角 +9°）+ 观星带 12（仰角 8°~52° 按方位展开） */
+const SKY_CLUSTER_DIRS: Array<[number, number]> = [
+  ...SKY_ANCHORS.filter((a) => a.main).map((a) => [a.yaw + 16, a.el + 9] as [number, number]),
+  ...Array.from({ length: 12 }, (_, k) => [k * 30 + 8, 8 + (k % 5) * 11] as [number, number]),
+];
+
+/** 星宿观星带仰角（真实观星习惯：星宿在仰角 15°~60°；方位按 30° 展开） */
+const FIGURE_EL = [18, 30, 24, 44, 15, 38, 52, 27, 20, 47, 33, 58];
+
 /** 天空层集合（确定性生成，无随机源） */
 export interface SkyfarLayers {
   dimPositions: Float32Array;
@@ -176,23 +232,27 @@ export interface SkyfarLayers {
   brightColors: Float32Array;
   bandPositions: Float32Array;
   bandColors: Float32Array;
+  midDustPositions: Float32Array;
+  clusterPositions: Float32Array;
+  clusterColors: Float32Array;
   figureStarPositions: Float32Array;
   figureStarColors: Float32Array;
   figureStrokes: Array<Float32Array>;
 }
-const SKY_RADIUS = 950;
+/** 深空背景半径（v7：推远制造「距离较远」的深邃感） */
+const FAR_R = 1500;
 const BAND_TILT = (60 * Math.PI) / 180; // 银河带倾角：与海面成 60°，旋转时更有空间感
 function buildSkyfield(): SkyfarLayers {
-  // 暗层 480 + 亮层 120（黄金角全球；2026-09-03 深空密度）
+  // 暗层 480 + 亮层 120（黄金角全球；推远到 FAR_R）
   const dimPositions = new Float32Array(480 * 3);
   for (let i = 0; i < 480; i += 1) {
-    const [x, y, z] = spherePoint(i, 480, 0.6, SKY_RADIUS);
+    const [x, y, z] = spherePoint(i, 480, 0.6, FAR_R);
     dimPositions.set([x, y, z], i * 3);
   }
   const brightPositions = new Float32Array(120 * 3);
   const brightColors = new Float32Array(120 * 3);
   for (let i = 0; i < 120; i += 1) {
-    const [x, y, z] = spherePoint(i, 120, 0.8, SKY_RADIUS);
+    const [x, y, z] = spherePoint(i, 120, 0.8, FAR_R);
     brightPositions.set([x, y, z], i * 3);
     const t = (fnv1aLocal(`sky-bright:${i}`) % 1000) / 1000;
     const warm = t > 0.72; // 少量暖星（暖白偏金），其余冷白偏蓝
@@ -208,7 +268,7 @@ function buildSkyfield(): SkyfarLayers {
     const h2 = fnv1aLocal(`band:${i}:b`);
     const lon = ((h1 % 4096) / 4096) * Math.PI * 2;
     const lat = (((h2 % 1000) / 1000 - 0.5) * 28 * Math.PI) / 180; // ±14°
-    const r = SKY_RADIUS * 1.06;
+    const r = FAR_R * 1.05;
     // 大圆坐标（赤道系）→ 绕 x 轴倾斜 BAND_TILT
     const bx = r * Math.cos(lat) * Math.cos(lon);
     const by0 = r * Math.sin(lat);
@@ -217,14 +277,41 @@ function buildSkyfield(): SkyfarLayers {
     const warm = Math.cos(lon) > 0.3; // 沿带渐变：半圈偏暖、半圈偏冷蓝
     bandColors.set(warm ? [0.95, 0.9, 0.82] : [0.78, 0.84, 1], i * 3);
   }
-  // 星宿轮廓：12 座均匀散布全球（斐波那契取点），每座以切平面基（东/北）摆放
-  // 归一化轮廓；星点布在顶点 + 每边两个加密点，轮廓折线极淡冷蓝（无内部连线）
+  // 中距离星尘（v7 深邃感）：380–640 半径带透视衰减——环顾/旋转时近移远退产生视差，
+  // 与 1500 远景拉开层次（灯馆 ≈100 < 星尘 ≈500 < 深空 1500）
+  const midDustPositions = new Float32Array(700 * 3);
+  for (let i = 0; i < 700; i += 1) {
+    const d = spherePoint(3000 + i * 3, 5100, 0.9, 1);
+    const r = 380 + 260 * ((fnv1aLocal(`mid-dust:${i}`) % 1000) / 1000);
+    midDustPositions.set([d[0] * r, d[1] * r, d[2] * r], i * 3);
+  }
+  // 星团（v7）：球状密核 + 外围散星（每团 96 颗，G2 密度）
+  const CLUSTER_N = 96;
+  const clusterPositions = new Float32Array(SKY_CLUSTER_DIRS.length * CLUSTER_N * 3);
+  const clusterColors = new Float32Array(SKY_CLUSTER_DIRS.length * CLUSTER_N * 3);
+  SKY_CLUSTER_DIRS.forEach(([cyaw, cel], ci) => {
+    const cdir = dirFromYawEl(cyaw, cel);
+    const cr = FAR_R * 0.97;
+    for (let i = 0; i < CLUSTER_N; i += 1) {
+      const u = ((fnv1aLocal(`cl:${ci}:u:${i}`) % 1000) / 1000) * 2 - 1;
+      const ph = ((fnv1aLocal(`cl:${ci}:p:${i}`) % 4096) / 4096) * Math.PI * 2;
+      const rr = Math.pow((fnv1aLocal(`cl:${ci}:r:${i}`) % 1000) / 1000, 0.6); // 密核分布
+      const s2 = Math.sqrt(1 - u * u);
+      const k = (ci * CLUSTER_N + i) * 3;
+      clusterPositions[k] = cdir[0] * cr + rr * s2 * Math.cos(ph) * 150;
+      clusterPositions[k + 1] = cdir[1] * cr + rr * u * 150;
+      clusterPositions[k + 2] = cdir[2] * cr + rr * s2 * Math.sin(ph) * 150;
+      clusterColors.set([0.82, 0.88, 1], k);
+    }
+  });
+  // 星宿轮廓：12 座放观星带（仰角 15°~60°，方位 30° 展开），轮廓跨度 ~104
   const figureStarPositions: number[] = [];
   const figureStarColors: number[] = [];
   const figureStrokes: Array<Float32Array> = [];
-  const FIGURE_SPAN = 64; // 轮廓跨度（世界单位）
+  const FIGURE_SPAN = 104; // 轮廓跨度（世界单位）
   for (let f = 0; f < SKY_FIGURES.length; f += 1) {
-    const c = spherePoint(600 + f, 612, 0.95, SKY_RADIUS * 0.98);
+    const dirC = dirFromYawEl(f * (360 / SKY_FIGURES.length) + 11, FIGURE_EL[f % FIGURE_EL.length]);
+    const c: [number, number, number] = [dirC[0] * FAR_R * 0.985, dirC[1] * FAR_R * 0.985, dirC[2] * FAR_R * 0.985];
     // 切平面基：east = ∂/∂φ（球面切向），north = up×east
     const len = Math.hypot(c[0], c[1], c[2]) || 1;
     const up = [c[0] / len, c[1] / len, c[2] / len];
@@ -277,10 +364,33 @@ function buildSkyfield(): SkyfarLayers {
     brightColors,
     bandPositions,
     bandColors,
+    midDustPositions,
+    clusterPositions,
+    clusterColors,
     figureStarPositions: new Float32Array(figureStarPositions),
     figureStarColors: new Float32Array(figureStarColors),
     figureStrokes,
   };
+}
+
+/** 亮星耀芒贴图（v7）：白核光晕 + 细十字耀芒（单颗明星层用） */
+function makeFlareTexture(THREE: ThreeNS) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.2, "rgba(255,255,255,0.7)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillRect(31, 4, 2, 56);
+    ctx.fillRect(4, 31, 56, 2);
+  }
+  return new THREE.CanvasTexture(canvas);
 }
 
 function webglSupported(): boolean {
@@ -986,16 +1096,13 @@ export default function StarSea3D({
           scene.add(new THREE.Line(strokeGeo, strokeMat));
           skyLayers.push({ geo: strokeGeo, mat: strokeMat });
         }
-        // 深空星云 ×5 + 旋涡星系 ×3（2026-09-03 用户拍板：360° 各方向均匀分布——
-        // 斐波那契全球取点、多半径错层，任何角度都能看到星系/星云）
-        const nebulaDefs: Array<[string, number, number, number]> = [
-          ["nebA", 185, 265, 0.5],
-          ["nebB", -50, 320, 0.5],
-          ["nebC", 30, 40, 0.45],
-          ["nebD", 205, 260, 0.45],
-          ["nebE", 340, 280, 0.4],
+        // 深空锚点布设（v7 定稿 G2，2026-09-05：常视带锚定——主锚每 60° 方位 +
+        // 贴地次锚 + 中天锚 + 天顶锚 + G2 加密补充；分布跟着眼睛的观看规律走）
+        const NEBULA_HUES: Array<[number, number]> = [
+          [185, 265], [-50, 320], [30, 40], [205, 260], [340, 280], [225, 275],
+          [155, 200], [15, 50], [300, 350], [50, 90], [210, 260], [275, 320],
         ];
-        const galaxyDefs: Array<[string, number]> = [["gx1", 38], ["gx2", 205], ["gx3", 155]];
+        const GALAXY_HUES = [38, 205, 155, 280, 20, 240, 340, 120];
         const addSprite = (tex: CanvasTexture, at: [number, number, number], sizePx: number, opacity: number) => {
           const geo = new THREE.BufferGeometry();
           geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(at), 3));
@@ -1011,22 +1118,83 @@ export default function StarSea3D({
           scene.add(new THREE.Points(geo, mat));
           skyLayers.push({ geo, mat });
         };
-        nebulaDefs.forEach(([seed, h1, h2, op], i) => {
-          addSprite(
-            makeNebulaTexture(THREE, h1, h2, seed),
-            spherePoint(700 + i * 3, 731, 0.92, SKY_RADIUS * (1.02 + 0.03 * (i % 2))),
-            1250 + 250 * (i % 3),
-            op
-          );
+        SKY_ANCHORS.forEach((anchor, i) => {
+          const dir = dirFromYawEl(anchor.yaw, anchor.el);
+          const r = FAR_R * (1.0 + 0.025 * (i % 3));
+          if (anchor.kind === "nebula") {
+            const [h1, h2] = NEBULA_HUES[i % NEBULA_HUES.length];
+            addSprite(
+              makeNebulaTexture(THREE, h1, h2, `anchor:${i}`),
+              [dir[0] * r, dir[1] * r, dir[2] * r],
+              (anchor.main ? 1650 : 1150) + 260 * (i % 3),
+              0.5
+            );
+          } else {
+            addSprite(
+              makeGalaxyTexture(THREE, `anchor-gx:${i}`, GALAXY_HUES[i % GALAXY_HUES.length]),
+              [dir[0] * r, dir[1] * r, dir[2] * r],
+              (anchor.main ? 720 : 520) + 140 * (i % 3),
+              0.8
+            );
+          }
         });
-        galaxyDefs.forEach(([seed, hue], i) => {
-          addSprite(
-            makeGalaxyTexture(THREE, seed, hue),
-            spherePoint(716 + i * 5, 741, 0.88, SKY_RADIUS * (0.99 + 0.03 * i)),
-            460 + 90 * i,
-            0.8
-          );
-        });
+        // 中距离星尘（v7 深邃感：转动时近移远退产生视差）
+        {
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute("position", new THREE.BufferAttribute(sky.midDustPositions, 3));
+          const mat = new THREE.PointsMaterial({
+            size: 3.4,
+            sizeAttenuation: true,
+            transparent: true,
+            opacity: 0.8,
+            depthWrite: false,
+            color: 0xbfd0ea,
+          });
+          scene.add(new THREE.Points(geo, mat));
+          skyLayers.push({ geo, mat });
+        }
+        // 星团层（v7：主锚配对 + 观星带补充，球状密核）
+        addSkyLayer(
+          sky.clusterPositions,
+          new THREE.PointsMaterial({
+            size: 2,
+            sizeAttenuation: false,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9,
+            depthWrite: false,
+          }),
+          sky.clusterColors
+        );
+        // 亮星耀芒层（v7：单颗明星带小十字耀芒，色温多样——蓝白/金/红巨星/青）
+        {
+          const FLARE_N = 96;
+          const pts = new Float32Array(FLARE_N * 3);
+          const cols = new Float32Array(FLARE_N * 3);
+          const STARCOLS: Array<[number, number, number]> = [
+            [0.8, 0.87, 1], [1, 0.92, 0.75], [1, 0.75, 0.6], [0.75, 0.95, 0.95], [1, 0.85, 1], [0.9, 0.95, 1],
+          ];
+          for (let i = 0; i < FLARE_N; i += 1) {
+            const d = spherePoint(2000 + i * 3, 2000 + FLARE_N * 3, 0.85, FAR_R * 0.995);
+            pts.set(d, i * 3);
+            cols.set(STARCOLS[i % STARCOLS.length], i * 3);
+          }
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute("position", new THREE.BufferAttribute(pts, 3));
+          geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+          const mat = new THREE.PointsMaterial({
+            size: 7,
+            sizeAttenuation: false,
+            map: makeFlareTexture(THREE),
+            transparent: true,
+            opacity: 0.95,
+            vertexColors: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          });
+          scene.add(new THREE.Points(geo, mat));
+          skyLayers.push({ geo, mat });
+        }
 
         // 星点（灯）：位置/颜色与 2.5D 同数据同语义（candleLit 暖橙、official 只提亮、
         // 搜索不匹配只降亮），z 向浮动提供透视深度。D 档贴图（2026-09-02）：
