@@ -11,6 +11,10 @@ interface DhReviewTask {
   id: string; memorial_id: string; status: string; photo_url: string; script: string;
   result_video_url: string; error: string; created_at: string; memorial_name: string | null;
 }
+interface VoiceCloneTask {
+  id: string; memorial_id: string; user_id: string; sample_url: string;
+  review_status: string; review_reason: string; created_at: string; memorial_name: string | null;
+}
 
 export default function AdminPage() {
   const { lang: rawLang } = useParams<{ lang: string }>();
@@ -20,6 +24,7 @@ export default function AdminPage() {
 
   const [memorials, setMemorials] = useState<Memorial[]>([]);
   const [digitalHumans, setDigitalHumans] = useState<DhReviewTask[]>([]);
+  const [voiceClones, setVoiceClones] = useState<VoiceCloneTask[]>([]);
   const [stats, setStats] = useState<{ type: string; c: number }[]>([]);
   const [denied, setDenied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -35,6 +40,7 @@ export default function AdminPage() {
     const data = await res.json();
     setMemorials(data.memorials);
     setDigitalHumans(data.digitalHumans || []);
+    setVoiceClones(data.pendingVoiceClones || []);
     setStats(data.stats || []);
     setLoading(false);
   };
@@ -93,6 +99,18 @@ export default function AdminPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "review_digital_human", id, decision }),
+    });
+    fetchData();
+  };
+
+  // FR-14 B 档：音色复刻审核（驳回必填原因，对齐 review_content 口径）
+  const reviewVoiceClone = async (id: string, decision: "approve" | "reject") => {
+    const reason = decision === "reject" ? window.prompt("驳回原因（必填）") || "" : "";
+    if (decision === "reject" && !reason.trim()) return;
+    await fetch("/api/admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "review_voice_clone", id, decision, reason }),
     });
     fetchData();
   };
@@ -225,6 +243,48 @@ export default function AdminPage() {
                       {t.approve}
                     </button>
                     <button onClick={() => reviewDigitalHuman(d.id, "reject")}
+                      className="text-xs px-2 py-1 rounded bg-red-950 hover:bg-red-900 text-red-400 transition">
+                      {t.reject}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Voice Clone Review（FR-14 B 档） */}
+      <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-6 mb-10">
+        <h2 className="text-sm tracking-widest text-amber-500 mb-4">
+          声音复刻审核（{voiceClones.filter((v) => v.review_status === "pending").length} 条待审）
+        </h2>
+        {voiceClones.length === 0 ? (
+          <p className="text-stone-600 text-sm">暂无复刻申请</p>
+        ) : (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {voiceClones.map((v) => (
+              <div key={v.id} className="flex items-center gap-3 p-3 bg-stone-800/40 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <a href={`/${lang}/memorial/${v.memorial_id}`} className="text-sm text-stone-300 hover:text-amber-400 transition">
+                    {v.memorial_name || v.memorial_id}
+                  </a>
+                  <p className="text-xs text-stone-600">
+                    {v.created_at} · {v.review_status}
+                    {v.review_reason ? ` · ${v.review_reason}` : ""}
+                  </p>
+                </div>
+                {v.sample_url && (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <audio src={v.sample_url} controls preload="none" className="h-8 w-44 shrink-0" />
+                )}
+                {v.review_status === "pending" && (
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => reviewVoiceClone(v.id, "approve")}
+                      className="text-xs px-2 py-1 rounded bg-emerald-950 hover:bg-emerald-900 text-emerald-400 transition">
+                      {t.approve}
+                    </button>
+                    <button onClick={() => reviewVoiceClone(v.id, "reject")}
                       className="text-xs px-2 py-1 rounded bg-red-950 hover:bg-red-900 text-red-400 transition">
                       {t.reject}
                     </button>

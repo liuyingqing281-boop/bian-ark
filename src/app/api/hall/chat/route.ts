@@ -69,5 +69,5 @@ export async function POST(req: NextRequest) {
     }
     trackEvent("hall_chat_reply", { memorial_id: memorialId, mode, provider: result.provider, platform: req.headers.get("x-client-platform") === "web-pc" ? "web-pc" : "web-mobile" }, user?.id || "");
     return NextResponse.json({ text: reply.text, mode, evidence, inferred: true, askMemory: reply.ask_memory, followupQuestion: reply.followup_question });
-  } catch { return NextResponse.json({ error: "llm_unavailable" }, { status: 503 }); }
+  } catch (e) { console.error("hall_chat_error", String(e)); return NextResponse.json({ error: "llm_unavailable" }, { status: 503 }); }
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import MemoryDrawer, { Section } from "./MemoryDrawer";
+import { useVoiceInput } from "../../lib/useVoiceInput";
+import { useVoicePlayer } from "../../lib/useVoicePlayer";
 
 // 「和 TA 说说话」聊天面板：支持 evidence 引用 + askMemory 补充记忆闭环
 // 诚实原则：所有回答固定带「基于 TA 的资料推测」角标；首次展开前显示身份说明
@@ -69,6 +71,36 @@ export default function HallChat({
   const [busy, setBusy] = useState(false);
   const [mockIdx, setMockIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // FR-13 语音（docs/14）：🎙 流式上屏 + 🔊 流式朗读；voiceProfile 仅用于「AI 合成声音」角标
+  const [voiceProfile, setVoiceProfile] = useState<{ mode: string; cloneStatus: string } | null>(null);
+  const voice = useVoiceInput({ onDelta: (t) => setDraft((d) => d + t) });
+  const player = useVoicePlayer();
+  const [voiceHint, setVoiceHint] = useState<string | null>(null);
+  useEffect(() => {
+    if (!accepted || process.env.NEXT_PUBLIC_MOCK_API) return;
+    fetch(`/api/memorials/${memorialId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setVoiceProfile(d.voiceProfile ?? null))
+      .catch(() => {});
+  }, [accepted, memorialId]);
+  useEffect(() => {
+    const hint =
+      voice.error === "mic_denied"
+        ? "无法使用麦克风，请检查浏览器权限"
+        : voice.error === "unavailable"
+          ? "语音功能正在准备中"
+          : voice.error === "failed"
+            ? "没听清，再说一次？"
+            : player.error
+              ? "朗读暂时不可用"
+              : null;
+    if (!hint) return;
+    setVoiceHint(hint);
+    const t = setTimeout(() => setVoiceHint(null), 3000);
+    return () => clearTimeout(t);
+  }, [voice.error, player.error]);
+  const cloneVoiceActive = voiceProfile?.mode === "clone" && voiceProfile?.cloneStatus === "approved";
 
   // 历史水合（M4）：接受身份说明后拉取最近对话；hasMore 时顶部「加载更早」
   const [histCursor, setHistCursor] = useState<string | null>(null);
@@ -368,8 +400,8 @@ export default function HallChat({
                   </button>
                 )}
 
-                {/* 推测角标 */}
-                <p className="text-[10px] mt-1" style={{ color: "rgba(255,246,236,.38)" }}>
+                {/* 推测角标 + 🔊 朗读 + AI 合成声音标识 */}
+                <p className="text-[10px] mt-1 flex items-center gap-2" style={{ color: "rgba(255,246,236,.38)" }}>
                   {m.error ? (
                     <button onClick={send} className="underline underline-offset-4" style={{ color: EMBER_SOFT }}>
                       重试
@@ -377,6 +409,17 @@ export default function HallChat({
                   ) : (
                     "基于 TA 的资料推测"
                   )}
+                  {!m.error && (
+                    <button
+                      type="button"
+                      aria-label={player.playingKey === `m${i}` ? "停止朗读" : "朗读"}
+                      onClick={() => player.play(`m${i}`, "/api/voice/tts", { memorialId, text: m.text })}
+                      className="transition opacity-60 hover:opacity-100"
+                    >
+                      {player.playingKey === `m${i}` ? "⏸" : "🔊"}
+                    </button>
+                  )}
+                  {cloneVoiceActive && <span>· AI 合成声音</span>}
                 </p>
               </div>
             )
@@ -404,6 +447,27 @@ export default function HallChat({
 
         {/* 输入栏 */}
         <div className="p-4 pt-2">
+          {/* 🎙 录音条（按住说话） */}
+          {voice.recording && (
+            <div
+              className="mb-2 flex items-center gap-2 rounded-full px-4 py-2 text-[12px]"
+              style={{ background: "rgba(255,122,47,.1)", border: "1px solid rgba(255,179,92,.35)", color: EMBER_SOFT }}
+            >
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: EMBER }} />
+              {voice.seconds >= voice.maxSeconds - 5 ? `即将结束 · ${voice.seconds}s` : `正在聆听 · ${voice.seconds}s`}
+              <span className="flex-1" />
+              松开识别
+              <button type="button" onClick={voice.cancel} className="underline underline-offset-4">
+                取消
+              </button>
+            </div>
+          )}
+          {voice.busy && !voice.recording && (
+            <p className="mb-2 text-[12px]" style={{ color: "rgba(255,246,236,.5)" }}>正在识别…</p>
+          )}
+          {voiceHint && (
+            <p className="mb-2 text-[12px]" style={{ color: EMBER_SOFT }}>{voiceHint}</p>
+          )}
           <div
             className="flex items-center gap-2 rounded-full pl-4 pr-1.5 py-1.5"
             style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.09)" }}
@@ -411,11 +475,37 @@ export default function HallChat({
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") send();
+                if (e.key === "Escape" && voice.recording) voice.cancel();
+              }}
               placeholder="想对 TA 说……"
               className="flex-1 min-w-0 bg-transparent outline-none text-[14px]"
               style={{ color: "#fff6ec" }}
             />
+            {/* 🎙 按住说话；不支持录音的浏览器回落置灰 */}
+            <button
+              type="button"
+              aria-label="语音输入"
+              disabled={!voice.supported || voice.busy || busy}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                voice.start();
+              }}
+              onPointerUp={voice.stop}
+              onPointerCancel={voice.stop}
+              onClick={() => {
+                if (!voice.supported) setVoiceHint("语音功能正在准备中");
+              }}
+              className="w-10 h-10 rounded-full transition disabled:opacity-30 enabled:active:scale-95"
+              style={{
+                background: voice.recording ? "rgba(255,122,47,.35)" : "rgba(255,255,255,.06)",
+                border: "1px solid rgba(255,255,255,.12)",
+                touchAction: "none",
+              }}
+            >
+              🎙
+            </button>
             <button
               onClick={send}
               disabled={!draft.trim() || busy}

@@ -14,13 +14,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const memorial = db
     .prepare(
       `SELECT id, user_id, visibility, name, appellation, birth_date, death_date, epitaph, biography,
-              avatar_url, cover_url, type, created_at, hall_id
+              avatar_url, cover_url, type, created_at, hall_id,
+              voice_mode, voice_handle, voice_desc, voice_updated_at
        FROM memorials WHERE id = ? AND is_published = 1`
     )
     .get(id) as
     | (MemorialAccessRow & {
         name: string; appellation: string; birth_date: string; death_date: string;
         epitaph: string; biography: string; avatar_url: string; cover_url: string; type: string; hall_id: string;
+        voice_mode: string; voice_handle: string; voice_desc: string; voice_updated_at: string;
       })
     | undefined;
 
@@ -56,6 +58,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // F9 VoiceProfileView（docs/09 F9，FR-13/14）：cloneStatus 由最新复刻申请推导
+  let cloneStatus: "" | "pending" | "approved" | "rejected" = "";
+  if (memorial.voice_mode === "clone") {
+    const clone = db
+      .prepare("SELECT review_status FROM voice_clones WHERE memorial_id = ? ORDER BY created_at DESC LIMIT 1")
+      .get(id) as { review_status: string } | undefined;
+    cloneStatus = (clone?.review_status as "pending" | "approved" | "rejected") ?? "";
+  }
+
   return NextResponse.json({
     id: memorial.id,
     name: memorial.name,
@@ -72,6 +83,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     viewerRole,
     candleLit,
     candleLitHours,
+    voiceProfile: {
+      mode: memorial.voice_mode || "none",
+      voice: memorial.voice_handle || "",
+      voiceDesc: memorial.voice_desc || "",
+      cloneStatus,
+      updatedAt: memorial.voice_updated_at || "",
+    },
   });
 }
 

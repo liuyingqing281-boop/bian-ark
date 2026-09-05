@@ -1,5 +1,6 @@
 import { getDb } from "../../../lib/db";
 import { requireAdmin } from "../../../lib/admin";
+import { insertNotification } from "../../../lib/notify";
 import { v4 as uuid } from "uuid";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -25,7 +26,16 @@ export async function GET() {
   const pendingItems = db.prepare("SELECT * FROM items WHERE review_status = 'pending' ORDER BY rowid LIMIT 100").all();
   const pendingTributes = db.prepare("SELECT * FROM tributes WHERE review_status = 'pending' ORDER BY created_at LIMIT 100").all();
   const appeals = db.prepare("SELECT * FROM moderation_appeals WHERE status = 'pending' ORDER BY created_at LIMIT 100").all();
-  return NextResponse.json({ memorials, items, digitalHumans, pendingMedia, pendingItems, pendingTributes, appeals, stats, funnel });
+  // FR-14 B 档：音色复刻审核队列（docs/14 §5，09 B18）
+  const pendingVoiceClones = db
+    .prepare(
+      `SELECT vc.id, vc.memorial_id, vc.user_id, vc.sample_url, vc.review_status, vc.review_reason, vc.created_at,
+              m.name AS memorial_name
+       FROM voice_clones vc LEFT JOIN memorials m ON m.id = vc.memorial_id
+       ORDER BY (vc.review_status = 'pending') DESC, vc.created_at DESC LIMIT 50`
+    )
+    .all();
+  return NextResponse.json({ memorials, items, digitalHumans, pendingMedia, pendingItems, pendingTributes, appeals, pendingVoiceClones, stats, funnel });
 }
 
 // PRD 3.0 §6 漏斗：建馆 → 7日内共享 → 亲友入群 → 完成祭奠（近30天窗口）
@@ -164,6 +174,37 @@ export async function POST(req: NextRequest) {
       `UPDATE ${target.table} SET ${target.status} = ?, review_reason = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?`
     ).run(status, String(payload.reason).slice(0, 500), admin.id, String(payload.id));
     if (!result.changes) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "review_voice_clone") {
+    // FR-14 B 档（docs/14 §2.3）：通过 → memorials 启用 clone 音色；驳回 → 留原因供重传
+    const approve = payload.decision === "approve";
+    const clone = db
+      .prepare("SELECT id, memorial_id, user_id, review_status FROM voice_clones WHERE id = ?")
+      .get(String(payload.id || "")) as
+      | { id: string; memorial_id: string; user_id: string; review_status: string }
+      | undefined;
+    if (!clone) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    if (!approve && !String(payload.reason || "").trim()) {
+      return NextResponse.json({ error: "invalid_review" }, { status: 400 });
+    }
+    db.prepare(
+      "UPDATE voice_clones SET review_status = ?, review_reason = ?, reviewed_by = ?, reviewed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
+    ).run(approve ? "approved" : "rejected", String(payload.reason || "").slice(0, 500), admin.id, clone.id);
+    if (approve) {
+      db.prepare(
+        "UPDATE memorials SET voice_mode = 'clone', voice_handle = ?, voice_updated_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
+      ).run(clone.id, clone.memorial_id);
+    } else {
+      db.prepare("UPDATE memorials SET voice_mode = '', voice_handle = '', voice_updated_at = datetime('now') WHERE id = ? AND voice_handle = ?").run(clone.memorial_id, clone.id);
+    }
+    insertNotification(
+      clone.user_id,
+      "review",
+      approve ? "TA 的声音已通过审核" : "TA 的声音未通过审核",
+      { body: approve ? "现在对话里可以用 TA 的声音朗读了。" : String(payload.reason || "") }
+    );
     return NextResponse.json({ success: true });
   }
 

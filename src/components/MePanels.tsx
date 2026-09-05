@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import VoiceSettingsPanel from "./VoiceSettingsPanel";
 
 type Labels = Record<string, string>;
 
@@ -52,6 +53,7 @@ export function CreateMemorialForm({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -65,8 +67,9 @@ export function CreateMemorialForm({
     });
     setBusy(false);
     if (res.ok) {
+      const body = await res.json().catch(() => null);
       form.reset();
-      setOpen(false);
+      setCreatedId(body?.id || null);
       router.refresh();
     }
   }
@@ -76,6 +79,25 @@ export function CreateMemorialForm({
       <button type="button" onClick={() => setOpen(true)} className={btnCls}>
         {labels.createMemorial}
       </button>
+    );
+  }
+  // 创建成功后追加可选「声音」子项（docs/14 §2.3：第 2 步之后内嵌 TA 的声音）
+  if (createdId) {
+    return (
+      <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-5 space-y-3">
+        <p className="text-sm text-stone-300">纪念馆已创建。可选：现在为 TA 配置一个声音（也可稍后在「我的」中设置）。</p>
+        <VoiceSettingsPanel memorialId={createdId} />
+        <button
+          type="button"
+          onClick={() => {
+            setCreatedId(null);
+            setOpen(false);
+          }}
+          className={btnCls}
+        >
+          完成
+        </button>
+      </div>
     );
   }
   return (
@@ -133,6 +155,7 @@ export function MemorialSettings({
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [inGarden, setInGarden] = useState(memorial.in_garden === 1);
+  const [showVoice, setShowVoice] = useState(false);
 
   async function toggleGarden() {
     const next = !inGarden;
@@ -184,12 +207,21 @@ export function MemorialSettings({
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap text-xs">
-      <label className="flex items-center gap-1.5 cursor-pointer text-stone-500 hover:text-stone-300 transition">
-        <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
-        📷 {labels.uploadAvatar}
-      </label>
-      <span className="text-stone-700">|</span>
+    <div className="w-full">
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        <label className="flex items-center gap-1.5 cursor-pointer text-stone-500 hover:text-stone-300 transition">
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
+          📷 {labels.uploadAvatar}
+        </label>
+        <span className="text-stone-700">|</span>
+        <button
+          type="button"
+          onClick={() => setShowVoice((v) => !v)}
+          className="text-stone-500 hover:text-stone-300 transition"
+        >
+          🎙 TA 的声音
+        </button>
+        <span className="text-stone-700">|</span>
       <span className="text-stone-500">{labels.visibility}</span>
       <select
         value={visibility}
@@ -231,6 +263,8 @@ export function MemorialSettings({
       <a href={`/${lang}/hall/${memorial.id}`} className="text-amber-500 hover:text-amber-400 transition">
         {labels.view} →
       </a>
+      </div>
+      {showVoice && <VoiceSettingsPanel memorialId={memorial.id} />}
     </div>
   );
 }
