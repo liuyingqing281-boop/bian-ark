@@ -27,3 +27,18 @@ _remote/
 .zcode/
 .maestroignore
 上线相关信息.md
+
+# 构建产物与调试快照（2026-09-05 整理在途工作时排除：可再生成/与本机绑定）
+bian-release-next.tar.gz
+bian-check.html
+ff-out.txt
+tsc-out.txt
+webbridge-req-nav01.json
+shot-home.png
+shot-empty.png
+shot-wizard1.png
+shot-wizard2.png
+shot-wizard3.png
+superpowers/
+tools/showreel-audit/*.png
+tools/showreel-audit/v10/
