@@ -23,7 +23,8 @@
     "dh:worker": "node tools/dh-worker.mjs",
     "release:smoke": "node tools/release-smoke.mjs",
     "test:e2e": "playwright test",
-    "postinstall": "node tools/patch-devtools-zh.cjs"
+    "postinstall": "node tools/patch-devtools-zh.cjs",
+    "release": "node tools/release.mjs"
   },
   "dependencies": {
     "@alicloud/dysmsapi20170525": "^4.6.0",

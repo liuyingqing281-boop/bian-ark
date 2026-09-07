@@ -12,19 +12,40 @@ function detectLocale(request: NextRequest): string {
   return acceptLanguage.includes("zh") ? "zh" : "en";
 }
 
+/** 原型屏蔽时返回与正式 404 一致的响应（不暴露屏蔽原因，与未知路由行为一致） */
+function notFound(): NextResponse {
+  return new NextResponse(null, { status: 404 });
+}
+
+// 原型/演示路由的可见性开关（docs/16 P0-2）：
+// - 生产（NODE_ENV=production）默认屏蔽，需显式 ENABLE_PROTO_ROUTES=true 才放行
+// - 开发环境默认放行（本地高保真原型/概念页/showreel 照常可用）
+// 请求期读取 env（而非模块快照），便于测试与运行时切换
+function protoRoutesEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.ENABLE_PROTO_ROUTES === "true";
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   // 概念落地页：作为站点首页，独立于 [lang] 体系
   if (pathname === "/concept" || pathname.startsWith("/concept/")) {
-    return NextResponse.next();
+    return protoRoutesEnabled() ? NextResponse.next() : notFound();
   }
   // 产品 Showreel：沉浸式独立路由，跳过多语言重定向
   if (pathname === "/showreel" || pathname.startsWith("/showreel/")) {
-    return NextResponse.next();
+    return protoRoutesEnabled() ? NextResponse.next() : notFound();
   }
   if (pathname === "/") {
-    // 根路径统一进概念页（WebGL 落地页），由页内 CTA 引导进入 /zh
-    return NextResponse.redirect(new URL("/concept", request.url));
+    // 根路径统一进概念页（WebGL 落地页），由页内 CTA 引导进入 /zh；
+    // 原型屏蔽时根路径直接进语言首页（产品主入口）
+    if (protoRoutesEnabled()) {
+      return NextResponse.redirect(new URL("/concept", request.url));
+    }
+    const rootLocale =
+      request.cookies.get("NEXT_LOCALE")?.value === "en" || detectLocale(request) === "en"
+        ? "en"
+        : "zh";
+    return NextResponse.redirect(new URL(`/${rootLocale}`, request.url));
   }
   const isProto =
     pathname === "/prototype" || pathname.startsWith("/prototype/") ||
@@ -32,7 +53,7 @@ export function proxy(request: NextRequest) {
     pathname === "/proto" || pathname.startsWith("/proto/");
   if (isProto) {
     // 高保真原型路由：独立于 [lang] 体系，跳过多语言重定向
-    return NextResponse.next();
+    return protoRoutesEnabled() ? NextResponse.next() : notFound();
   }
   if (pathname.startsWith("/api/")) {
     const method = request.method.toUpperCase();

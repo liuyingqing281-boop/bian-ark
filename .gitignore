@@ -42,3 +42,6 @@ shot-wizard3.png
 superpowers/
 tools/showreel-audit/*.png
 tools/showreel-audit/v10/
+deploy-reports/
+
+.next-release/
