@@ -17,7 +17,9 @@ const skipDirty = args.includes("--skip-dirty");
 const log = (s) => console.log(s);
 
 function run(cmd, opts = {}) {
-  return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...opts }).toString().trim();
+  // stdio:"inherit"（构建/上传流式输出）时 execSync 返回 null，不能直接 .toString()
+  const out = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...opts });
+  return out == null ? "" : out.toString().trim();
 }
 
 function assert(cond, msg) {
