@@ -22,8 +22,9 @@ const checks = [
   { name: "starsea", url: "/api/garden/starsea?bbox=0,0,1,1", expect: 200 },
 ];
 if (checkProtoBlocked) {
-  // P0-2：生产模式五个演示/原型路由必须 404（ENABLE_PROTO_ROUTES 未开启）
-  for (const p of ["/concept", "/proto/", "/prototype", "/proto-zcode", "/showreel"]) {
+  // P0-2：生产模式五个演示/原型路由必须 404（ENABLE_PROTO_ROUTES 未开启）。
+  // 注意不带尾斜杠：/proto/ 这类路径会先被 Next 路由层 308 到尾斜杠版本，探测尾斜杠变体语义不稳。
+  for (const p of ["/concept", "/proto", "/prototype", "/proto-zcode", "/showreel"]) {
     checks.push({ name: `blocked:${p}`, url: p, expect: 404 });
   }
 }

@@ -2,7 +2,7 @@
 // 一条龙发布（docs/16 P1-1）：本地构建 → 打包（隔离 distDir，免疫 dev server）→ 上传 → 远端 apply-release → 验证 → 报告
 // 用法：npm run release [-- --skip-sync] [-- --skip-dirty]
 // 依赖：~/.ssh/bian_deploy 密钥（2026-09-07 已打通）、GNU tar（Git Bash 自带）
-import { execSync, spawn } from "node:child_process";
+import { execSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -67,7 +67,9 @@ log("  上传完成");
 // ---------- 5. 远端发布（流式输出） ----------
 log("=== [5/6] 服务器发布（apply-release.sh）===");
 await new Promise((resolve) => {
-  const child = spawn(SSH_BASE[0], [...SSH_BASE.slice(1), `cd ${REMOTE_DIR} && bash deploy/apply-release.sh`], { stdio: "inherit", shell: process.platform === "win32" });
+  // Windows 下不得开 shell（cmd 会对含空格/引号的远端命令二次转义导致 cd 失败），
+  // argv 直传由 OpenSSH 自行拼接为远端命令（与手动 ssh 行为一致）
+  const child = spawn(SSH_BASE[0], [...SSH_BASE.slice(1), `cd ${REMOTE_DIR} && bash deploy/apply-release.sh`], { stdio: "inherit" });
   child.on("exit", (code) => {
     if (code !== 0) { console.error(`❌ 远端发布失败（exit ${code}）。可用 bash deploy/rollback.sh 回滚上一版`); process.exit(code ?? 1); }
     resolve();
@@ -76,10 +78,11 @@ await new Promise((resolve) => {
 
 // ---------- 6. 远端验证 + 报告 ----------
 log("=== [6/6] 线上验证 ===");
-// 远端脚本只用双引号（外层 ssh 参数用单引号包裹，无需二次转义）
+// 远端脚本只用双引号；spawnSync argv 直传，避免 Windows cmd 对单引号/反斜杠二次转义
 const remoteScript = `cd ${REMOTE_DIR} && echo "{\\"commit\\":\\"$(git rev-parse HEAD | cut -c1-7)\\",\\"buildId\\":\\"$(cat .next/BUILD_ID)\\",\\"health\\":\\"$(curl -s -o /dev/null -w %{http_code} http://localhost:3002/api/health)\\",\\"starsea\\":\\"$(curl -s -o /dev/null -w %{http_code} http://localhost:3002/api/garden/starsea?bbox=0,0,1,1)\\",\\"garden\\":\\"$(curl -s -o /dev/null -w %{http_code} http://localhost:3002/zh/garden)\\",\\"protoBlocked\\":\\"$([ \\"$(curl -s -o /dev/null -w %{http_code} http://localhost:3002/concept)\\" = 404 ] && echo yes || echo no)\\",\\"migrations\\":\\"$(node tools/db-migrate.mjs status 2>/dev/null | grep -c applied)\\"}"`;
-assert(!remoteScript.includes("'"), "内部错误：remoteScript 含单引号会破坏外层引号");
-const verify = run(`${SSH_BASE.join(" ")} '${remoteScript}'`).trim();
+const sshVerify = spawnSync(SSH_BASE[0], [...SSH_BASE.slice(1), remoteScript], { encoding: "utf8" });
+assert(sshVerify.status === 0, `线上验证命令失败（exit ${sshVerify.status}）：${(sshVerify.stderr || "").trim()}`);
+const verify = (sshVerify.stdout || "").trim();
 let v = {};
 try { v = JSON.parse(verify); } catch { log("  （验证输出解析失败，原文：\n" + verify + "）"); }
 assert(v.health === "200", `health 异常：${v.health}`);
