@@ -1,5 +1,10 @@
 # 正式发布清单
 
+> **用法**：发布前人工过一遍（docs/16 P3-4 打通）。
+> - 「仓库内验证」由 CI（.github/workflows/ci.yml）与本地验证链路覆盖并已勾选。
+> - **每轮自动发布的证据在 `deploy-reports/release-<时间>.md`**（`npm run release` 自动产出：commit / BUILD_ID / health / starsea / garden / 迁移数 / 原型屏蔽），发布后把报告路径补记到对应 commit message 或本清单旁注。
+> - 「外部上线条件」为产品/商务侧人工门槛（未配置即 fail-closed，站点可正常运行），满足一项勾一项。
+
 ## 仓库内验证
 
 - [x] migration 可从空库执行并对旧库幂等升级。

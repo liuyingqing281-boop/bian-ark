@@ -17,7 +17,7 @@ node -v
 echo "=== [3/6] 目录结构 ==="
 mkdir -p /var/www/bian
 mkdir -p /var/log/bian
-mkdir -p /data/bian-backups   # 备份独立目录（换机时可挂载独立盘）
+mkdir -p /var/www/bian/data/backups   # 备份目录（2026-09-07 统一 data/backups；旧 /data/bian-backups 已弃用）
 
 echo "=== [4/6] PM2 进程守护 ==="
 npm install -g pm2
@@ -41,6 +41,6 @@ ufw --force enable
 
 echo ""
 echo "初始化完成。接下来："
-echo "  1. 把代码部署到 /var/www/bian（deploy/deploy.sh 或手动 git clone）"
+echo "  1. 把代码部署到 /var/www/bian：git clone https://github.com/liuyingqing281-boop/bian-ark.git /var/www/bian（发布走本地 npm run release，见 docs/07 §二）"
 echo "  2. 配置生产环境变量 cp deploy/production.env.example /var/www/bian/.env.production 并填写"
 echo "  3. pm2 start deploy/ecosystem.config.cjs --env production"

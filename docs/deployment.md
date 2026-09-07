@@ -1,6 +1,9 @@
 # 部署与恢复
 
-> 工具包在 `deploy/` 目录：`setup-server.sh`（服务器初始化）｜`deploy.sh`（发布）｜`ecosystem.config.cjs`（PM2）｜`nginx.conf.template`（反向代理）｜`production.env.example`（生产变量模板）
+> ⚠️ **历史参考（2026-09-07 起，docs/16 P3-4 归一）**：本文档描述的早期发布流程已被取代，**现行唯一真相源 = [07-服务器部署运维手册](07-服务器部署运维手册.md)**，本文件不再维护、仅作演进记录。
+> 仍有效并已并入 07 手册的要点：首次装机用 `deploy/setup-server.sh`；生产变量参考 `deploy/production.env.example`；**`ADMIN_EMAILS` 生产必配**（不配则管理后台全拒绝，fail-closed）；多实例上线前必须实现并启用 OSS Adapter（禁止多实例共享本机 uploads 目录）。`deploy/deploy.sh` 已于 2026-09-07 删除；发布请走本地 `npm run release`（07 §二），回滚用 `deploy/rollback.sh`。
+
+> 工具包在 `deploy/` 目录：`setup-server.sh`（服务器初始化）｜`ecosystem.config.cjs`（PM2）｜`nginx.conf.template`（反向代理）｜`production.env.example`（生产变量模板）｜`apply-release.sh`（发布应用）｜`rollback.sh`（一键回滚）｜`logrotate-bian.conf`（日志轮转）｜`setup-ops.sh`（cron/logrotate/pm2 startup 幂等安装）
 > 已本地验证：production build + start + 健康检查/页面/admin fail-closed 冒烟通过（2026-08-18）
 
 ## 服务器首次部署（Ubuntu 22.04+）
@@ -13,8 +16,7 @@ cd /var/www/bian && bash deploy/setup-server.sh
 # 2. 配置生产变量（对照 production.env.example 填写密钥）
 cp deploy/production.env.example .env.production && vi .env.production
 
-# 3. 首次发布
-bash deploy/deploy.sh
+# 3. 首次发布（历史为 bash deploy/deploy.sh，已删；现在走 07 §二 的 npm run release）
 ```
 
 ## 生产前置
@@ -26,9 +28,10 @@ bash deploy/deploy.sh
 
 ## 发布
 
+（历史：`bash deploy/deploy.sh [git-ref]` 服务器自构建一条龙——已删除，2G 机易 OOM。现行流程见 07 §二：本地 `npm run release` 全自动 6 步 + `deploy-reports/` 报告。）
+
 ```bash
-bash deploy/deploy.sh [git-ref]   # 备份→构建→迁移→pm2 重启→冒烟，一条命令
-# 等价手动流程：
+# 历史等价手动流程（仅存档）：
 npm ci && npm run db:backup && npm run build && npm run db:migrate && npm run db:verify
 pm2 restart ecosystem.config.cjs --env production && npm run release:smoke
 ```
