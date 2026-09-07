@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
+import { SESSION_COOKIE, canAccessAdmin, resolveSessionEmail } from "./lib/admin-guard";
 
 // Keep these in sync with src/app/[lang]/dictionaries.ts.
 // Proxy runs in isolation and should not import app modules.
@@ -23,6 +24,25 @@ function notFound(): NextResponse {
 // 请求期读取 env（而非模块快照），便于测试与运行时切换
 function protoRoutesEnabled(): boolean {
   return process.env.NODE_ENV !== "production" || process.env.ENABLE_PROTO_ROUTES === "true";
+}
+
+/** Admin 门禁（docs/16 P3-2）：会话 + ADMIN_EMAILS 规则统一前置校验，规则源 admin-guard.ts */
+function isAdminRequestAllowed(request: NextRequest): boolean {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const email = resolveSessionEmail(token);
+  return email !== null && canAccessAdmin(email);
+}
+
+function isAdminApiPath(pathname: string): boolean {
+  return pathname === "/api/admin" || pathname.startsWith("/api/admin/");
+}
+
+/** /[lang]/admin 及未来子路由归属的语言；非 admin 页返回 null */
+function adminPageLocaleOf(pathname: string): string | null {
+  for (const l of locales) {
+    if (pathname === `/${l}/admin` || pathname.startsWith(`/${l}/admin/`)) return l;
+  }
+  return null;
 }
 
 export function proxy(request: NextRequest) {
@@ -56,6 +76,11 @@ export function proxy(request: NextRequest) {
     return protoRoutesEnabled() ? NextResponse.next() : notFound();
   }
   if (pathname.startsWith("/api/")) {
+    // Admin 统一前置守卫（docs/16 P3-2）：未授权一律 403 {forbidden}，与 /api/admin 原行为一致；
+    // 授权后继续走 CSRF 与 x-request-id，API 内 requireAdmin 仍保留作纵深。
+    if (isAdminApiPath(pathname) && !isAdminRequestAllowed(request)) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
     const method = request.method.toUpperCase();
     const origin = request.headers.get("origin");
     if (origin) {
@@ -73,6 +98,11 @@ export function proxy(request: NextRequest) {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     response.headers.set("x-request-id", requestId);
     return response;
+  }
+  // Admin 页面统一前置守卫（docs/16 P3-2）：未授权重定向到登录页（避免渲染空壳管理台）
+  const adminPageLocale = adminPageLocaleOf(pathname);
+  if (adminPageLocale && !isAdminRequestAllowed(request)) {
+    return NextResponse.redirect(new URL(`/${adminPageLocale}/login`, request.url));
   }
   const matched = locales.find(
     (locale) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`)

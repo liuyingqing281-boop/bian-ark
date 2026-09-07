@@ -1,0 +1,61 @@
+name: 生产拨测
+
+# 外部拨测（docs/16 P2-1）：从 GitHub Runner（服务器之外的真外网视角）定时验证 https://bianmuyuan.cn。
+# 说明：GitHub 定时任务为尽力而为（可能延迟数分钟）；主告警通道建议用 UptimeRobot（每 5 分钟、邮件告警，
+#       配置步骤见 docs/16 §P2-1）。本工作流作为第二道外网探测 + P0-2 原型屏蔽回归。
+# 行为：失败 → 开/复用一条「生产拨测」issue（不重复开）；恢复 → 自动关闭同类 open issue。
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 运行拨测（含原型屏蔽检查）
+        id: probe
+        continue-on-error: true
+        run: |
+          set +e
+          node tools/probe.mjs --check-proto-blocked > /tmp/probe-report.txt 2>&1
+          rc=$?
+          cat /tmp/probe-report.txt
+          echo "probe_rc=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+
+      - name: 失败 → 开/复用拨测 issue
+        if: steps.probe.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '生产拨测 in:title' --json number -q '.[0].number' 2>/dev/null || true)
+          if [ -z "$EXISTING" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "⚠️ 生产拨测失败 $(date -u +%Y-%m-%dT%H:%MZ)" \
+              --body "$(cat /tmp/probe-report.txt)"
+            echo "已新建拨测 issue"
+          else
+            echo "已存在拨测 issue #$EXISTING，不重复创建"
+          fi
+
+      - name: 恢复 → 关闭拨测 issue
+        if: steps.probe.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '生产拨测 in:title' --json number -q '.[].number' 2>/dev/null || true)
+          for n in $OPEN; do
+            gh issue close "$n" --repo "$GITHUB_REPOSITORY" --comment "拨测已恢复 $(date -u +%Y-%m-%dT%H:%MZ)"
+          done

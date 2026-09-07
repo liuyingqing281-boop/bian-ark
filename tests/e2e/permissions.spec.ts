@@ -96,3 +96,11 @@ test("admin：匿名 403，登录用户（dev 放行）可见漏斗看板", asyn
   expect(body.funnel).toBeTruthy();
   expect(body.funnel).toHaveProperty("northStarActiveMemorials7d");
 });
+
+test("admin 页面：匿名访问被中间件守卫重定向到登录页（docs/16 P3-2）", async ({ browser }) => {
+  const anon = await browser.newContext();
+  const page = await anon.newPage();
+  await page.goto("/zh/admin");
+  await expect(page).toHaveURL(/\/zh\/login/, { timeout: 15_000 });
+  await anon.close();
+});

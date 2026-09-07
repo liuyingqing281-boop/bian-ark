@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { randomBytes, randomInt } from "crypto";
 import { getDb } from "./db";
+import { SESSION_COOKIE } from "./admin-guard";
 
 export interface SessionUser {
   id: string;
@@ -11,7 +12,7 @@ export interface SessionUser {
   avatar_url: string;
 }
 
-const COOKIE_NAME = "bian_session";
+const COOKIE_NAME = SESSION_COOKIE; // 单一来源：src/lib/admin-guard.ts
 const SESSION_TTL_SECONDS = 7 * 24 * 3600;
 
 function parseSqliteUtc(datetime: string): number {

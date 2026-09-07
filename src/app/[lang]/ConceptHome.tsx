@@ -2,7 +2,7 @@ import Link from "next/link";
 import ConceptStage from "../../components/concept/ConceptStage";
 
 /**
- * 彼岸 · 概念首页（/[lang]）
+ * 彼岸 · 概念首页（/[lang]）—— docs/16 P3-1（2026-09 拍板：保留概念首页、强化产品入口）。
  * 视觉实现已抽取至 components/concept/ConceptStage（与登录页共用）；
  * 概念源稿：docs/web/concept/index.html。
  */
@@ -11,7 +11,7 @@ export default function ConceptHome({ lang }: { lang: string }) {
   const zh = lang !== "en";
 
   return (
-    <ConceptStage lang={lang} cornerNote={zh ? "概念稿 · 视觉探索" : "Concept · Visual exploration"}>
+    <ConceptStage lang={lang} cornerNote={zh ? "彼岸 · 线上纪念馆" : "Bian · Online Memorial"}>
       <style>{`
         .concept-title {
           font-family: "Songti SC", "Noto Serif SC", "SimSun", serif;
@@ -46,13 +46,24 @@ export default function ConceptHome({ lang }: { lang: string }) {
           background: rgba(216, 169, 92, 0.14);
           box-shadow: 0 0 32px rgba(216, 169, 92, 0.25);
         }
+        .concept-echo {
+          margin: -6px 0 0;
+          font-size: 13px;
+          letter-spacing: 0.18em;
+          color: rgba(232, 226, 214, 0.42);
+        }
       `}</style>
 
       <h1 className="concept-title">{zh ? "彼岸" : "The Other Shore"}</h1>
       <p className="concept-tagline">{zh ? "思念有处安放" : "Where memories rest"}</p>
-      <Link className="concept-cta" href={`/${lang}/garden`}>
-        {zh ? "进入彼岸" : "Enter"}
+      <Link className="concept-cta" href={`/${lang}/garden`} aria-label={zh ? "进入星海，点亮一盏长明灯" : "Enter the Star Sea"}>
+        {zh ? "进入星海" : "Enter the Star Sea"}
       </Link>
+      <p className="concept-echo">
+        {zh
+          ? "线上纪念馆 · 星海灯阵 · 家书留言 · TA 的声音"
+          : "Online memorial · Star Sea lamps · Letters · Their voice"}
+      </p>
     </ConceptStage>
   );
 }

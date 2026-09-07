@@ -2,15 +2,12 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { migrateUp } from "./migrations.mjs";
+import { resolveDatabasePath } from "./db-core";
+
+// 路径定位已抽至 db-core.ts（src/proxy.ts 中间件复用，docs/16 P3-2）；此处 re-export 保持既有调用不变。
+export { resolveDatabasePath };
 
 let db: Database.Database | null = null;
-
-export function resolveDatabasePath(): string {
-  return path.resolve(
-    /* turbopackIgnore: true */
-    process.env.SMOKE_DB_PATH || process.env.DATABASE_PATH || path.join(process.cwd(), "data", "bian.db")
-  );
-}
 
 export function getDb(): Database.Database {
   if (db) return db;
