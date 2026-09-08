@@ -549,14 +549,26 @@ async function main() {
   ).run(`private_${randomUUID()}`, owner.user_id, protectedHallId);
   writer.close();
 
-  await checkAsync("legacy placement refuses a public member inside a non-public hall", async () => {
-    const response = await client.request(`/api/memorials/${ids[0]}/garden`, { method: "POST", body: { in_garden: true } });
-    assert.equal(response.status, 400);
-    assert.deepEqual(response.json, { error: "visibility_required" });
-    const db = new Database(dbPath, { readonly: true });
-    const hall = db.prepare("SELECT visibility, in_garden FROM halls WHERE id = ?").get(protectedHallId);
-    db.close();
-    assert.deepEqual(hall, { visibility: "private", in_garden: 0 });
+  await checkAsync("private hall: owner may place, anon starsea excludes, owner starsea includes (2026-09-07)", async () => {
+    const placed = await client.request(`/api/memorials/${ids[0]}/garden`, { method: "POST", body: { in_garden: true } });
+    assert.equal(placed.status, 200);
+    assert.equal(placed.json.in_garden, true);
+    assert.equal(typeof placed.json.x, "number");
+
+    const anonBody = await (await fetch(`${baseUrl}/api/garden/starsea?bbox=0,0,1,1`)).json();
+    assert.equal(
+      anonBody.halls.some((item) => item.hallId === protectedHallId),
+      false,
+      "anonymous must not see a private hall even if it contains a public member"
+    );
+
+    const ownerRes = await client.request(`/api/garden/starsea?bbox=0,0,1,1`);
+    assert.equal(ownerRes.status, 200);
+    const ownerBody = ownerRes.json;
+    const mine = ownerBody.halls.find((item) => item.hallId === protectedHallId);
+    assert.ok(mine, "owner sees their own private star");
+    assert.equal(typeof mine.nameMasked, "string");
+    assert.equal(mine.lampCount >= 1, true);
   });
 
   const publicHallId = `hall_${ids[1]}`;

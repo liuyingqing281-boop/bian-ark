@@ -84,7 +84,8 @@ export function stableHallOrder(halls: Array<GardenSeaHall>): Array<GardenSeaHal
 // ---- 择位模式（Task 6，墓园规格 §8.3 馆主亲手择位 / 13 号方案风险 C） ----
 // active=true 仅由「我的」页择位入口（?placing=馆id）显式激活：普通浏览
 // pointer down/up 只处理点击，绝不拖动星群；访客永远看不到择位 UI。
-// 写入安全边界在服务端（PATCH /api/halls/[id]/garden-pos 鉴权馆主 + public）。
+// 写入安全边界在服务端（PATCH /api/halls/[id]/garden-pos 鉴权馆主；2026-09-07 起
+// public/private 均可择位入园，星海查询层按会话过滤：public 访客可见、private 仅馆主本人可见）。
 export type PlacementState = { hallId: string; active: true } | { active: false };
 
 /**

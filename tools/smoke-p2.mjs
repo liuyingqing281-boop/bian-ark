@@ -142,10 +142,9 @@ check("wall shows custom item image", wall.text.includes("/uploads/items/"), tru
 // 不再渲染墓碑卡片；馆级数据走 GET /api/garden/starsea（客户端星群渲染
 // 由 e2e tests/e2e/starsea.spec.ts 覆盖，smoke 只断服务端契约）。
 const notPublic = await api(`/api/memorials/${mid}/garden`, { method: "POST", body: { in_garden: true } });
-requireResponse("private memorial garden rejection", notPublic, {
-  status: 400,
-  validate: (json) => json?.error === "visibility_required",
-  expected: "HTTP 400 with visibility_required",
+requireResponse("private owner may place memorial in garden (owner-visible star)", notPublic, {
+  validate: (json) => json?.ok === true && json.in_garden === true && Number.isInteger(json.slot),
+  expected: "HTTP 200 ok=true with slot (2026-09-07: 私有馆可入园，星海仅馆主可见)",
 });
 const publish = await api(`/api/memorials/${mid}`, { method: "PATCH", body: { visibility: "public" } });
 requireResponse("publish memorial", publish, {

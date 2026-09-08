@@ -23,9 +23,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json().catch(() => null);
   const place = body?.in_garden === true;
   if (place) {
-    if (memorial.visibility !== "public" || hall.visibility !== "public") {
-      return NextResponse.json({ error: "visibility_required" }, { status: 400 });
-    }
+    // 2026-09-07 产品变更：入园不再要求 public——私有馆可入园，星海侧仅馆主可见；
+    // 旧接口保留自动疏朗位 + slot 语义，成功后前端带 placing 跳星海手动微调。
     const row = db
       .prepare("SELECT COALESCE(MAX(garden_slot), 0) AS max_slot FROM memorials WHERE in_garden = 1")
       .get() as { max_slot: number };

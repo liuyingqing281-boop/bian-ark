@@ -417,9 +417,9 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
 
 #### `PATCH /api/halls/[id]/garden-pos` ✅（星海择位）
 
-**请求**：`{ "x": 0.63, "y": 0.41 }`；隐式置 `in_garden=1`。仅馆主；前置校验馆可见性 public（否则 `403 forbidden, reason: "visibility_required"`；非馆主 `403 forbidden` 无 reason——前端按 reason 分「先去公开」与「无权」两种提示）；空位冲突检测 `409 position_conflict`（响应附建议邻近空位）。移出星海：`{ "x": null, "y": null }` → `in_garden=0`。埋点 `garden_place`。
+**请求**：`{ "x": 0.63, "y": 0.41 }`；隐式置 `in_garden=1`。仅馆主。**2026-09-07 产品变更：入园不再要求馆可见性为 public**——私有/公开馆均可择位入园（非馆主仍 `403 forbidden` 无 reason）；可见性由星海查询层按会话决定（public 对所有访客可见；private 仅馆主本人登录后可见自己的星点，见 `GET /api/garden/starsea`）。`reason: "visibility_required"` 仅作旧版契约保留（现服务端不再下发）。空位冲突检测 `409 position_conflict`（响应附建议邻近空位）。移出星海：`{ "x": null, "y": null }` → `in_garden=0`。埋点 `garden_place`。
 
-**馆可见性同步（迁移 025 配套）**：`PATCH /api/memorials/[id]` 改 `visibility` 时**同事务**同步 `halls.visibility`（馆 id 取 `memorials.hall_id`，空串回落 `hall_<memorialId>`），保证星海/馆级路由按馆可见性判断不与人物脱节；`in_garden` 不随之下线——星海查询层恒以 `halls.visibility='public'` 过滤兜底，转私馆即时从星海消失。
+**馆可见性同步（迁移 025 配套）**：`PATCH /api/memorials/[id]` 改 `visibility` 时**同事务**同步 `halls.visibility`（馆 id 取 `memorials.hall_id`，空串回落 `hall_<memorialId>`），保证星海/馆级路由按馆可见性判断不与人物脱节；`in_garden` 不随之下线——星海查询层按会话过滤（2026-09-07 起）：**访客/他人恒以 `halls.visibility='public'` 过滤兜底**，转私馆即时从访客星海消失；**馆主本人登录后仍可见自己 `in_garden=1` 的私有馆星点**（除非移出星海）。
 
 #### `GET /api/garden/starsea?zone=&bbox=` ✅（F8 GardenSeaView）
 
@@ -433,7 +433,7 @@ tributes ∪ messages(public/eulogy) 合并、倒序、上限 50、发送人打�
   ]
 }
 ```
-- 仅 `in_garden=1` 且 public 的馆。正式 `/[lang]/garden` 页的搜索为**客户端过滤**：只匹配 `nameMasked`（多人馆=打码馆名、单人馆=首位逝者名）与 `epitaph`，因此**多人馆完整馆名不可整名命中**（脱敏红线下的已知限制；首字可命中）；服务端 `GET /api/garden?q=` 仍保留为历史客户端的既有搜索接口，正式页不调用。
+- 可见性：`in_garden=1` 的馆按会话输出——**public 馆对所有访客可见；私有馆仅当请求携带馆主会话时叠加出现**（馆主登录后可见自己入园的私有星点；匿名/他人永远看不到，含私有馆内挂有 public 人物的情形）。正式 `/[lang]/garden` 页的搜索为**客户端过滤**：只匹配 `nameMasked`（多人馆=打码馆名、单人馆=首位逝者名）与 `epitaph`，因此**多人馆完整馆名不可整名命中**（脱敏红线下的已知限制；首字可命中）；服务端 `GET /api/garden?q=` 仍保留为历史客户端的既有搜索接口，正式页不调用。
 - 短缓存 `private, max-age=15`；清明脉冲期可静态化快照。
 - `constellationOf`（家族星座连线）M4 祠堂上线前恒 `null`——这是明确限制，前端不渲染连线，**不把该能力写成已实现**。
 

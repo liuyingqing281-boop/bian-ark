@@ -7,6 +7,8 @@ import { findAvailableGardenSpot, removeHallFromGarden, setHallGardenPosition } 
 // PATCH /api/halls/[id]/garden-pos —— 星海择位（docs/08 §3.13，墓园规格 §8.3）
 // { x, y }（0~1）择位并隐式入园；{ x: null, y: null } 移出星海。
 // 冲突：两馆最小间距 0.04；命中返回 409 + 建议邻近空位。
+// 2026-09-07 产品变更：不再要求馆可见性为 public——私有馆也可择位入园，
+// 星海查询侧按会话可见（馆主本人可见自己的私有星点；public 馆对所有访客可见）。
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getSessionUser();
@@ -31,9 +33,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const x = Number(body.x), y = Number(body.y);
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) {
     return NextResponse.json({ error: "invalid_position" }, { status: 400 });
-  }
-  if (hall.visibility !== "public") {
-    return NextResponse.json({ error: "forbidden", reason: "visibility_required" }, { status: 403 });
   }
 
   const spot = findAvailableGardenSpot(db, x, y, id);
