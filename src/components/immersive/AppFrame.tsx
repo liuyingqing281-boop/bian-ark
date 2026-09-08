@@ -41,6 +41,7 @@ export default function AppFrame({
   if (pathname && isImmersivePath(pathname)) {
     return (
       <div data-immersive="true">
+        <ThemeBackground labels={dict.themes} />
         <main id="main-content">{children}</main>
       </div>
     );

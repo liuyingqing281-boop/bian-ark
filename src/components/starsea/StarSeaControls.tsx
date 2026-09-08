@@ -109,7 +109,6 @@ export default function StarSeaControls({
           type="button"
           className="starsea-back"
           onClick={onBack}
-          disabled={state.panel === "list"}
           aria-label={labels.back}
         >
           ←

@@ -1074,6 +1074,17 @@ footer[role="contentinfo"] { padding-bottom: env(safe-area-inset-bottom); }
     white-space: nowrap;
   }
   .starsea-zone-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  /* 移动端列表纵向排列（纵向滑动，方便单手操作） */
+  .starsea-rail {
+    flex-direction: column;
+    overflow-x: visible;
+    overflow-y: auto;
+    scroll-snap-type: y proximity;
+  }
+  .starsea-card {
+    width: 100%;
+    scroll-snap-align: start;
+  }
 }
 
 /* prefers-reduced-motion：静态或 0–100ms（规格 §6）。
